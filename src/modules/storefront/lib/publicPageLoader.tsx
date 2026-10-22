@@ -30,8 +30,23 @@ export const loadStorefrontPage = cache(async (rawSiteSlug: string, rawPageSlug:
   const container = await createRequestContainer()
   const em = (container.resolve('em') as EntityManager).fork()
   const resolved = await resolvePublicStorefrontPage(em, rawSiteSlug, rawPageSlug ?? HOME_PAGE_SLUG)
-  if (!resolved || !resolved.page) return { kind: 'not-found' }
+  if (!resolved) return { kind: 'not-found' }
   const { site, tokens, page, revision, organizationSlug } = resolved
+  const unavailable = async (): Promise<LoadedStorefrontPage> => {
+    const { translate } = await resolveTranslations()
+    return {
+      kind: 'unavailable',
+      title: translate('storefront.public.unavailableTitle', 'This store is unavailable'),
+      message: translate('storefront.public.unavailableMessage', 'Please check back later.'),
+    }
+  }
+  // A live store without its home page (a partial seed that `ensure-sites` repairs) shows the neutral page.
+  if (!page) return rawPageSlug === null ? unavailable() : { kind: 'not-found' }
+  // Fail closed: without its live revision the page would show the working-copy title and description.
+  if (page.publishedRevisionId && !revision) {
+    logger.error('Published page has no live revision; serving the unavailable page', { siteId: site.id, pageId: page.id })
+    return unavailable()
+  }
   const isHome = page.slug === HOME_PAGE_SLUG
   const canonicalPath = pagePublicPath(site.slug, page.slug)
   const requestedPath = rawPageSlug === null ? `/${rawSiteSlug}` : `/${rawSiteSlug}/${rawPageSlug}`
@@ -58,7 +73,7 @@ export const loadStorefrontPage = cache(async (rawSiteSlug: string, rawPageSlug:
   const logoUrl = logoPath ? new URL(logoPath, storeUrl).toString() : null
   // Buyers see the live revision's title/description, never the working copy (spec P2-Q13).
   // The home page keeps the store name as its title (docs/DECISIONS.md I4).
-  const live = revision ?? page
+  const live = revision ?? { title: page.title, seoDescription: null }
   const title = isHome ? site.name : live.title
   const description = live.seoDescription ?? site.description ?? null
   return {

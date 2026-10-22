@@ -8,6 +8,7 @@ import type { ThemeTokens } from '../../lib/theme'
 import { renderSection } from '../public/registry'
 import { StorefrontFrame } from '../public/StorefrontView'
 import { builderCatalog } from './catalog'
+import { stableStringify } from './builderSpec'
 
 /**
  * Live preview of the in-memory draft (spec P2-Q8): json-render renders the
@@ -48,7 +49,8 @@ function PreviewSection({ type, props }: { type: StorefrontBlockType; props: unk
   const parsed = STOREFRONT_BLOCKS[type].props.safeParse(props)
   if (!parsed.success) return <Unavailable />
   const section = { id: 'preview', type, props: parsed.data } as ValidatedSection
-  return <SectionBoundary>{renderSection(section, { basePath, isFirst })}</SectionBoundary>
+  // Keyed by the props, so a section that failed renders again once it is edited.
+  return <SectionBoundary key={stableStringify(parsed.data)}>{renderSection(section, { basePath, isFirst })}</SectionBoundary>
 }
 
 export const { registry: previewRegistry } = defineRegistry(builderCatalog, {

@@ -3,10 +3,9 @@ import type { EntityManager } from '@mikro-orm/postgresql'
 import type { CommandRuntimeContext } from '@open-mercato/shared/lib/commands'
 import { getAuthFromRequest } from '@open-mercato/shared/lib/auth/server'
 import { createRequestContainer } from '@open-mercato/shared/lib/di/container'
-import { isCrudHttpError } from '@open-mercato/shared/lib/crud/errors'
 import { resolveTranslations } from '@open-mercato/shared/lib/i18n/server'
 import { resolveOrganizationScopeForRequest } from '@open-mercato/core/modules/directory/utils/organizationScope'
-import { resolveSingleOrganizationIdOrDeny } from '@open-mercato/core/modules/directory/utils/organizationScopeFilter'
+import { resolveStoreOrganization, storeOrganizationError } from './commandScope'
 import { StorefrontSite } from '../data/entities'
 
 export type RequestContainer = Awaited<ReturnType<typeof createRequestContainer>>
@@ -36,22 +35,14 @@ export async function resolveStaffSite(req: Request): Promise<StaffSiteContext |
   }
   const container = await createRequestContainer()
   const scope = await resolveOrganizationScopeForRequest({ container, auth, request: req })
-  let organizationId: string | null
-  try {
-    organizationId = resolveSingleOrganizationIdOrDeny(scope, auth)
-  } catch (error) {
-    if (isCrudHttpError(error)) return { response: NextResponse.json(error.body, { status: error.status }) }
-    throw error
-  }
   const tenantId = scope.tenantId ?? auth.tenantId ?? null
-  if (!organizationId || !tenantId) {
-    return {
-      response: NextResponse.json(
-        { error: translate('storefront.errors.organizationRequired', 'Select a single organization to manage its storefront.') },
-        { status: 400 },
-      ),
-    }
+  // The same rule as the CRUD routes and commands (`resolveStoreOrganization`).
+  const resolved = resolveStoreOrganization({ scope, session: auth, effectiveTenantId: tenantId })
+  if (!resolved.ok || !tenantId) {
+    const error = await storeOrganizationError(resolved.ok ? 'organization-required' : resolved.reason)
+    return { response: NextResponse.json(error.body, { status: error.status }) }
   }
+  const organizationId = resolved.organizationId
   const em = (container.resolve('em') as EntityManager).fork()
   const site = await em.findOne(StorefrontSite, { tenantId, organizationId, deletedAt: null })
   if (!site) {

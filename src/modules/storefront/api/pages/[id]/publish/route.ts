@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { NextResponse } from 'next/server'
+import { resolveTranslations } from '@open-mercato/shared/lib/i18n/server'
 import type { OpenApiRouteDoc } from '@open-mercato/shared/lib/openapi'
 import { PAGE_COMMAND_IDS } from '../../../../commands/pages'
 import { runPageAction } from '../../../../lib/pageActionRoute'
@@ -8,8 +10,22 @@ export const metadata = {
   POST: { requireAuth: true, requireFeatures: ['storefront.pages.publish'] },
 }
 
-/** Publishing always takes the saved draft, so the request body carries nothing. */
+const publishBodySchema = z.object({}).strict()
+
+/** Publishing always takes the saved draft, so the body must be empty (`{}` or none); anything else answers 422. */
 export async function POST(req: Request, context: { params: Promise<{ id: string }> }) {
+  const raw = await req.text()
+  let body: unknown = {}
+  try {
+    body = raw.trim() ? JSON.parse(raw) : {}
+  } catch {
+    body = null
+  }
+  const parsed = publishBodySchema.safeParse(body)
+  if (!parsed.success) {
+    const { translate } = await resolveTranslations()
+    return NextResponse.json({ error: translate('storefront.errors.publishBody', 'Publishing takes no request body fields.') }, { status: 422 })
+  }
   return runPageAction(req, context.params, PAGE_COMMAND_IDS.publish, {})
 }
 

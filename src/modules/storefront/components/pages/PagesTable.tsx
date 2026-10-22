@@ -11,7 +11,7 @@ import { RowActions, type RowActionItem } from '@open-mercato/ui/backend/RowActi
 import type { FilterValues } from '@open-mercato/ui/backend/FilterBar'
 import { flash } from '@open-mercato/ui/backend/FlashMessages'
 import { useConfirmDialog } from '@open-mercato/ui/backend/confirm-dialog'
-import { surfaceRecordConflict } from '@open-mercato/ui/backend/conflicts'
+import { useGuardedMutation } from '@open-mercato/ui/backend/injection/useGuardedMutation'
 import { deleteCrud, fetchCrudList } from '@open-mercato/ui/backend/utils/crud'
 import { withScopedApiRequestHeaders } from '@open-mercato/ui/backend/utils/apiCall'
 import { buildOptimisticLockHeader } from '@open-mercato/ui/backend/utils/optimisticLock'
@@ -101,6 +101,10 @@ export function PagesTable() {
   const scopeVersion = useOrganizationScopeVersion()
   const { confirm, ConfirmDialogElement } = useConfirmDialog()
   const { canManagePages } = useStorefrontPermissions()
+  const { runMutation } = useGuardedMutation<{ formId: string; resourceKind: string; resourceId: string }>({
+    contextId: PAGES_TABLE_ID,
+    blockedMessage: t('storefront.builder.errors.blocked', 'Saving was blocked.'),
+  })
   const [search, setSearch] = React.useState('')
   const [filterValues, setFilterValues] = React.useState<FilterValues>({})
   const [sorting, setSorting] = React.useState<SortingState>([{ id: 'updatedAt', desc: true }])
@@ -159,18 +163,23 @@ export function PagesTable() {
       if (!confirmed) return
       try {
         // The row's own version: a list loaded before someone else edited the page answers 409.
-        await withScopedApiRequestHeaders(buildOptimisticLockHeader(row.updatedAt), () => deleteCrud(PAGES_API_PATH, row.id))
+        await runMutation({
+          operation: () => withScopedApiRequestHeaders(buildOptimisticLockHeader(row.updatedAt), () => deleteCrud(PAGES_API_PATH, row.id)),
+          context: { formId: PAGES_TABLE_ID, resourceKind: 'storefront.page', resourceId: row.id },
+          mutationPayload: { id: row.id },
+        })
         flash(t('storefront.pages.flash.deleted', 'Page deleted.'), 'success')
         reload()
       } catch (err) {
-        if (surfaceRecordConflict(err, t)) {
+        // The guarded mutation already showed the shared conflict bar.
+        if ((err as { status?: number }).status === 409) {
           reload()
           return
         }
         flash(err instanceof Error && err.message ? err.message : t('storefront.pages.errors.delete', 'The page could not be deleted.'), 'error')
       }
     },
-    [confirm, reload, t],
+    [confirm, reload, runMutation, t],
   )
 
   const actions = canManagePages ? (

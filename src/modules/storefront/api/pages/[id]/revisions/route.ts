@@ -43,7 +43,10 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
   const params = pageIdParamsSchema.safeParse(await context.params)
   if (!params.success) return notFound()
   const query = querySchema.safeParse(Object.fromEntries(new URL(req.url).searchParams))
-  const { page: pageNo, pageSize } = query.success ? query.data : { page: 1, pageSize: 20 }
+  if (!query.success) {
+    return NextResponse.json({ error: translate('storefront.errors.invalidQuery', 'Use page ≥ 1 and pageSize between 1 and 50.') }, { status: 400 })
+  }
+  const { page: pageNo, pageSize } = query.data
 
   const page = await em.findOne(
     StorefrontPage,
@@ -55,7 +58,13 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
   const [rows, total] = await em.findAndCount(
     StorefrontPageRevision,
     { pageId: page.id, tenantId, organizationId },
-    { orderBy: { revisionNo: 'desc' }, limit: pageSize, offset: (pageNo - 1) * pageSize },
+    {
+      // Specs (up to 64 KB each) are never part of this response.
+      fields: ['id', 'revisionNo', 'source', 'sourceRevisionId', 'title', 'createdAt', 'publishedByUserId'],
+      orderBy: { revisionNo: 'desc' },
+      limit: pageSize,
+      offset: (pageNo - 1) * pageSize,
+    },
   )
   const sourceIds = rows.map((row) => row.sourceRevisionId).filter((id): id is string => Boolean(id))
   const sources = sourceIds.length

@@ -86,13 +86,21 @@ describe('editor-field map', () => {
 
   it('maps schema issues onto the inspector fields', () => {
     const hero = formValuesToBlockProps('Hero', { heading: '  ', cta: { label: 'Go', href: 'javascript:alert(1)' }, align: 'center' })
-    expect(hero).toEqual({ ok: false, fieldErrors: { heading: 'storefront.validation.textRequired', cta: 'storefront.validation.unsafeHref' } })
+    expect(hero).toEqual({
+      ok: false,
+      fieldErrors: { heading: 'storefront.validation.textRequired', cta: 'storefront.validation.unsafeHref' },
+      locations: { cta: { index: undefined, subField: 'href' } },
+    })
     const text = formValuesToBlockProps('RichText', { content: 'an **unclosed' })
     expect(text).toEqual({ ok: false, fieldErrors: { content: 'storefront.validation.markupUnclosed' } })
     const features = formValuesToBlockProps('Features', { items: [{ title: '', body: '' }] })
     expect(features).toEqual({ ok: false, fieldErrors: { items: 'storefront.validation.listTooShort' } })
     const halfItem = formValuesToBlockProps('Features', { items: [{ title: 'Only a title', body: '' }] })
-    expect(halfItem).toEqual({ ok: false, fieldErrors: { items: 'storefront.validation.textRequired' } })
+    expect(halfItem).toEqual({
+      ok: false,
+      fieldErrors: { items: 'storefront.validation.textRequired' },
+      locations: { items: { index: 0, subField: 'body' } },
+    })
   })
 
   it('starts every new section with valid props', () => {

@@ -15,6 +15,7 @@ export function textSchema(max: number = DEFAULT_TEXT_MAX) {
 }
 
 const CONTROL_OR_BACKSLASH = /[\u0000-\u001f\u007f\\]/
+const DOT_SEGMENT = /(^|\/)(\.|%2e){1,2}(\/|$)/i
 
 /**
  * A link target is either a store-relative path (`/about`, resolved against the
@@ -24,7 +25,9 @@ const CONTROL_OR_BACKSLASH = /[\u0000-\u001f\u007f\\]/
  */
 export function isSafeHref(value: string): boolean {
   if (!value || value.length > 500 || CONTROL_OR_BACKSLASH.test(value)) return false
-  if (value.startsWith('/')) return !value.startsWith('//')
+  // A store path stays under the store: no `//host`, and no `.`/`..` segments (plain or
+  // percent-encoded) that would climb out of `/{siteSlug}` once the base path is prepended.
+  if (value.startsWith('/')) return !value.startsWith('//') && !DOT_SEGMENT.test(value.split(/[?#]/)[0])
   try {
     const url = new URL(value)
     return url.protocol === 'https:' && url.hostname.length > 0 && !url.username && !url.password

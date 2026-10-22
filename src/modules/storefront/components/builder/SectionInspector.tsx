@@ -36,9 +36,11 @@ function TextInputs({
   value,
   onChange,
   disabled,
+  invalid,
   t,
 }: {
   idPrefix: string
+  invalid?: boolean
   fields: readonly EditorTextField[]
   value: ListItemValue
   onChange: (next: ListItemValue) => void
@@ -54,6 +56,7 @@ function TextInputs({
           value: value[field.id] ?? '',
           maxLength: field.maxLength,
           disabled,
+          'aria-invalid': invalid ? true : undefined,
           onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => onChange({ ...value, [field.id]: event.target.value }),
         }
         return (
@@ -69,10 +72,10 @@ function TextInputs({
   )
 }
 
-function LinkInput({ id, value, setValue, disabled, t }: CrudCustomFieldRenderProps & { t: Translate }) {
+function LinkInput({ id, value, setValue, disabled, error, t }: CrudCustomFieldRenderProps & { t: Translate }) {
   return (
     <div className="flex flex-col gap-1">
-      <TextInputs idPrefix={id} fields={LINK_FIELDS} value={asItem(value)} onChange={setValue} disabled={disabled} t={t} />
+      <TextInputs idPrefix={id} fields={LINK_FIELDS} value={asItem(value)} onChange={setValue} disabled={disabled} invalid={Boolean(error)} t={t} />
       <p className="text-xs text-muted-foreground">
         {t('storefront.builder.fields.linkHint', 'Use a store path such as /about, or a full https:// address. Leave both empty for no link.')}
       </p>
@@ -80,8 +83,18 @@ function LinkInput({ id, value, setValue, disabled, t }: CrudCustomFieldRenderPr
   )
 }
 
-function ListInput({ id, value, setValue, disabled, field, t }: CrudCustomFieldRenderProps & { field: EditorListField; t: Translate }) {
+function ListInput({ id, value, setValue, disabled, error, field, t }: CrudCustomFieldRenderProps & { field: EditorListField; t: Translate }) {
   const items = Array.isArray(value) ? (value as ListItemValue[]) : []
+  // Stable row keys, so focus and input state follow an item when it moves.
+  const keysRef = React.useRef<string[]>([])
+  const nextKey = React.useRef(0)
+  const newKey = () => `item-${(nextKey.current += 1)}`
+  while (keysRef.current.length < items.length) keysRef.current.push(newKey())
+  if (keysRef.current.length > items.length) keysRef.current = keysRef.current.slice(0, items.length)
+  const buttonRefs = React.useRef(new Map<string, HTMLButtonElement>())
+  const addRef = React.useRef<HTMLButtonElement>(null)
+  const focusLater = (target: () => HTMLElement | null | undefined) => requestAnimationFrame(() => target()?.focus())
+
   const update = (next: ListItemValue[]) => setValue(next)
   const move = (index: number, delta: -1 | 1) => {
     const target = index + delta
@@ -89,9 +102,29 @@ function ListInput({ id, value, setValue, disabled, field, t }: CrudCustomFieldR
     const next = [...items]
     const [moved] = next.splice(index, 1)
     next.splice(target, 0, moved)
+    const keys = [...keysRef.current]
+    const [movedKey] = keys.splice(index, 1)
+    keys.splice(target, 0, movedKey)
+    keysRef.current = keys
     update(next)
+    // Keep focus on the moved item's own button (or its other arrow at the edge).
+    const direction = delta < 0 ? 'up' : 'down'
+    const atEdge = target === 0 || target === next.length - 1
+    focusLater(() => buttonRefs.current.get(`${movedKey}:${atEdge ? (direction === 'up' ? 'down' : 'up') : direction}`))
+  }
+  const removeAt = (index: number) => {
+    const keys = [...keysRef.current]
+    keys.splice(index, 1)
+    keysRef.current = keys
+    update(items.filter((_, position) => position !== index))
+    const neighbour = keys[Math.min(index, keys.length - 1)]
+    focusLater(() => (neighbour ? buttonRefs.current.get(`${neighbour}:remove`) : addRef.current))
   }
   const blank = () => Object.fromEntries(field.item.map((item) => [item.id, ''])) as ListItemValue
+  const bindButton = (key: string, action: string) => (node: HTMLButtonElement | null) => {
+    if (node) buttonRefs.current.set(`${key}:${action}`, node)
+    else buttonRefs.current.delete(`${key}:${action}`)
+  }
   return (
     <div className="flex flex-col gap-3">
       {items.length === 0 ? (
@@ -100,14 +133,16 @@ function ListInput({ id, value, setValue, disabled, field, t }: CrudCustomFieldR
       <ol className="flex flex-col gap-3">
         {items.map((item, index) => {
           const itemName = label(t, field.itemLabel, { n: index + 1 })
+          const key = keysRef.current[index]
           return (
-            <li key={index} className="flex flex-col gap-2 rounded-md border p-3">
+            <li key={key} className="flex flex-col gap-2 rounded-md border p-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-medium">{itemName}</span>
                 <div className="flex items-center gap-1">
                   <IconButton
                     variant="ghost"
                     size="sm"
+                    ref={bindButton(key, 'up')}
                     aria-label={t('storefront.builder.list.moveUp', 'Move {item} up', { item: itemName })}
                     disabled={disabled || index === 0}
                     onClick={() => move(index, -1)}
@@ -117,6 +152,7 @@ function ListInput({ id, value, setValue, disabled, field, t }: CrudCustomFieldR
                   <IconButton
                     variant="ghost"
                     size="sm"
+                    ref={bindButton(key, 'down')}
                     aria-label={t('storefront.builder.list.moveDown', 'Move {item} down', { item: itemName })}
                     disabled={disabled || index === items.length - 1}
                     onClick={() => move(index, 1)}
@@ -126,9 +162,10 @@ function ListInput({ id, value, setValue, disabled, field, t }: CrudCustomFieldR
                   <IconButton
                     variant="ghost"
                     size="sm"
+                    ref={bindButton(key, 'remove')}
                     aria-label={t('storefront.builder.list.remove', 'Remove {item}', { item: itemName })}
                     disabled={disabled}
-                    onClick={() => update(items.filter((_, position) => position !== index))}
+                    onClick={() => removeAt(index)}
                   >
                     <Trash2 className="size-4" aria-hidden="true" />
                   </IconButton>
@@ -136,6 +173,7 @@ function ListInput({ id, value, setValue, disabled, field, t }: CrudCustomFieldR
               </div>
               <TextInputs
                 idPrefix={`${id}-${index}`}
+                invalid={Boolean(error)}
                 fields={field.item}
                 value={item}
                 onChange={(next) => update(items.map((current, position) => (position === index ? next : current)))}
@@ -147,7 +185,17 @@ function ListInput({ id, value, setValue, disabled, field, t }: CrudCustomFieldR
         })}
       </ol>
       <div className="flex items-center gap-2">
-        <Button type="button" variant="outline" size="sm" disabled={disabled || items.length >= field.max} onClick={() => update([...items, blank()])}>
+        <Button
+          ref={addRef}
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={disabled || items.length >= field.max}
+          onClick={() => {
+            keysRef.current = [...keysRef.current, newKey()]
+            update([...items, blank()])
+          }}
+        >
           <Plus className="size-4" aria-hidden="true" />
           {label(t, field.addLabel)}
         </Button>
@@ -159,7 +207,7 @@ function ListInput({ id, value, setValue, disabled, field, t }: CrudCustomFieldR
   )
 }
 
-function RichTextInput({ id, value, setValue, disabled, error, t }: CrudCustomFieldRenderProps & { t: Translate }) {
+function RichTextInput({ id, value, setValue, disabled, error, name, t }: CrudCustomFieldRenderProps & { name: string; t: Translate }) {
   const hintId = `${id}-hint`
   return (
     <div className="flex flex-col gap-1">
@@ -168,6 +216,7 @@ function RichTextInput({ id, value, setValue, disabled, error, t }: CrudCustomFi
         rows={10}
         value={typeof value === 'string' ? value : ''}
         disabled={disabled}
+        aria-label={name}
         aria-invalid={error ? true : undefined}
         aria-describedby={hintId}
         className="font-mono text-sm"
@@ -200,7 +249,7 @@ function toCrudField(field: EditorField, t: Translate): CrudField {
     case 'list':
       return { id: field.id, type: 'custom', label: label(t, field.label), component: (props) => <ListInput {...props} field={field} t={t} /> }
     case 'richtext':
-      return { id: field.id, type: 'custom', label: label(t, field.label), required: true, component: (props) => <RichTextInput {...props} t={t} /> }
+      return { id: field.id, type: 'custom', label: label(t, field.label), required: true, component: (props) => <RichTextInput {...props} name={label(t, field.label)} t={t} /> }
   }
 }
 
@@ -253,9 +302,20 @@ export function SectionInspector({ section, position, open, readOnly, onOpenChan
                 onSubmit={async (values) => {
                   const result = formValuesToBlockProps(section.type, values)
                   if (!result.ok) {
-                    const fieldErrors = Object.fromEntries(
-                      Object.entries(result.fieldErrors).map(([field, key]) => [field, t(key, t('storefront.validation.invalidValue', 'Enter a valid value.'))]),
-                    )
+                    // Name the item and sub-field for list and link errors ("Selling point 2 · Sentence: …").
+                    const describe = (field: string, key: string) => {
+                      const message = t(key, t('storefront.validation.invalidValue', 'Enter a valid value.'))
+                      const where = result.locations?.[field]
+                      const editorField = editor.fields.find((candidate) => candidate.id === field)
+                      if (!where || !editorField) return message
+                      const parts: string[] = []
+                      if (editorField.kind === 'list' && where.index !== undefined) parts.push(label(t, editorField.itemLabel, { n: where.index + 1 }))
+                      const subFields = editorField.kind === 'list' ? editorField.item : editorField.kind === 'link' ? LINK_FIELDS : []
+                      const sub = subFields.find((candidate) => candidate.id === where.subField)
+                      if (sub) parts.push(label(t, sub.label))
+                      return parts.length ? `${parts.join(' · ')}: ${message}` : message
+                    }
+                    const fieldErrors = Object.fromEntries(Object.entries(result.fieldErrors).map(([field, key]) => [field, describe(field, key)]))
                     throw createCrudFormError(t('storefront.builder.inspector.invalid', 'Fix the highlighted fields.'), fieldErrors)
                   }
                   onApply(section.id, result.props)

@@ -249,6 +249,7 @@ const createPageCommand: CommandHandler<Record<string, unknown>, PageSnapshot> =
       throw await storefrontNotFound('storefront.errors.pageNotFound', 'Page not found.')
     }
     const em = forkEm(ctx)
+    let changed = false
     await withAtomicFlush(
       em,
       [
@@ -257,11 +258,12 @@ const createPageCommand: CommandHandler<Record<string, unknown>, PageSnapshot> =
           if (!page) return
           page.deletedAt = new Date()
           page.updatedAt = new Date()
+          changed = true
         },
       ],
       { transaction: true, label: `${PAGE_COMMAND_IDS.create}.undo` },
     )
-    await emitPageEvent('storefront.page.deleted', { id: after.id, ...scope, siteId: after.siteId })
+    if (changed) await emitPageEvent('storefront.page.deleted', { id: after.id, ...scope, siteId: after.siteId })
   },
 }
 
@@ -389,12 +391,23 @@ const updatePageCommand: CommandHandler<Record<string, unknown>, PageSnapshot> =
           target.seoDescription = before.seoDescription
           target.slug = before.slug
           target.draftSpec = before.draftSpec
-          target.draftUpdatedAt = before.draftUpdatedAt ? new Date(before.draftUpdatedAt) : null
-          target.updatedAt = new Date()
+          const now = new Date()
+          // A publish or rollback since the update made another revision live: the
+          // restored draft no longer matches it, so the page must read "changed"
+          // (and stay publishable) rather than the snapshot's old state.
+          const liveChanged = (target.publishedRevisionId ?? null) !== (before.publishedRevisionId ?? null)
+          target.draftUpdatedAt = liveChanged && target.publishedRevisionId
+            ? now
+            : before.draftUpdatedAt ? new Date(before.draftUpdatedAt) : null
+          target.updatedAt = now
         },
       ],
       { transaction: true, label: `${PAGE_COMMAND_IDS.update}.undo` },
-    )
+    ).catch(async (err: unknown) => {
+      // Another page took the restored address between the check and the write.
+      if (isUniqueViolation(err)) throw await conflictError('storefront.errors.undoSlugTaken', 'Another page now uses this address.')
+      throw err
+    })
     await emitPageEvent('storefront.page.updated', { id: before.id, ...scope, siteId: before.siteId })
   },
 }
@@ -459,6 +472,7 @@ const deletePageCommand: CommandHandler<Record<string, unknown>, PageSnapshot> =
       throw await storefrontNotFound('storefront.errors.pageNotFound', 'Page not found.')
     }
     const em = forkEm(ctx)
+    let changed = false
     await withAtomicFlush(
       em,
       [
@@ -475,11 +489,15 @@ const deletePageCommand: CommandHandler<Record<string, unknown>, PageSnapshot> =
           if (taken) throw await conflictError('storefront.errors.undoSlugTaken', 'Another page now uses this address.')
           page.deletedAt = null
           page.updatedAt = new Date()
+          changed = true
         },
       ],
       { transaction: true, label: `${PAGE_COMMAND_IDS.delete}.undo` },
-    )
-    await emitPageEvent('storefront.page.updated', { id: before.id, ...scope, siteId: before.siteId })
+    ).catch(async (err: unknown) => {
+      if (isUniqueViolation(err)) throw await conflictError('storefront.errors.undoSlugTaken', 'Another page now uses this address.')
+      throw err
+    })
+    if (changed) await emitPageEvent('storefront.page.updated', { id: before.id, ...scope, siteId: before.siteId })
   },
 }
 

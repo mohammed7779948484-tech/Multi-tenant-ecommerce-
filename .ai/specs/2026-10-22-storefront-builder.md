@@ -622,11 +622,11 @@ The reference module is source-present and unregistered; nothing above is behavi
 - [x] **AC-001** — A merchant who completes self-service signup has exactly one site, one theme and one published home page; re-running `ensure-sites` changes nothing.
 - [x] **AC-002** — From `/backend/storefront/brand` a merchant saves name, description, logo, eight colours, font pair, radius and density; invalid values show field errors; a stale save returns a conflict without overwriting.
 - [x] **AC-003** — `GET /{siteSlug}` returns server-rendered HTML whose scoped CSS custom properties, title, description, canonical, Open Graph and JSON-LD come from that site; no client JSON renderer is shipped.
-- [~] **AC-004** — Every malicious or oversize spec in TEST-001 is rejected on save and on render; the public page never renders a partially valid spec. *(Phase 1: rejected by the validator, on seed and on render; save-time validation ships with page saves in Phase 2.)*
+- [x] **AC-004** — Every malicious or oversize spec in TEST-001 is rejected on save and on render; the public page never renders a partially valid spec. *(Phase 2: also on draft save, publish and rollback — TEST-017, TC-STOREFRONT-002; store paths may not contain `.`/`..` segments.)*
 - [x] **AC-005** — Tenant B can read none of tenant A's site, theme, pages or media through any staff or public route; foreign ids answer 404. *(A foreign `tenantId` in a request body is refused earlier by the platform with 403 "Not authorized to target this tenant" — the same answer for any id, so nothing about existence leaks.)*
-- [ ] **AC-006** — Publish creates an immutable, numbered revision from the saved draft; rollback appends a copy of an earlier revision and resets the draft to it; drafts are never public; a page is served at `/{siteSlug}/{pageSlug}` only while published.
-- [ ] **AC-007** — In the builder a merchant adds (from the json-render catalog), edits, reorders and removes sections with a live preview, by pointer and by keyboard; edits round-trip through draft save and publish; public routes ship no `@json-render/*` code.
-- [ ] **AC-010** — Page slugs follow the grammar, are unique per site, avoid reserved words and freeze after the first publish; a store holds at most 30 pages; the home page cannot be deleted.
+- [x] **AC-006** — Publish creates an immutable, numbered revision from the saved draft; rollback appends a copy of an earlier revision and resets the draft to it; drafts are never public; a page is served at `/{siteSlug}/{pageSlug}` only while published.
+- [x] **AC-007** — In the builder a merchant adds (from the json-render catalog), edits, reorders and removes sections with a live preview, by pointer and by keyboard; edits round-trip through draft save and publish; public routes ship no `@json-render/*` code.
+- [x] **AC-010** — Page slugs follow the grammar, are unique per site, avoid reserved words and freeze after the first publish; a store holds at most 30 pages; the home page cannot be deleted.
 - [ ] **AC-008** — Media and commerce blocks render only the site's tenant data.
 - [ ] **AC-009** — Each store exposes per-page SEO, a sitemap of published pages and a robots policy; publishing refreshes them.
 - [ ] Every listed backend surface matches its recorded Open Mercato reference and uses the canonical shell/components, shared API helpers, semantic tokens, and complete loading, empty, error, conflict, keyboard, accessibility, responsive, light-mode, and dark-mode states.
@@ -693,6 +693,17 @@ The Phase 2 contracts were written in a second `om-spec-writing --autonomous` pa
 - **Low items.** Stale text and the Phase 4 overlap corrected.
 - **Migration.** The owner is asked explicitly before it is applied (AGENTS.md).
 
+### Phase 2 implementation review (2026-10-22, `om-code-review`)
+
+Validation gate: all six configured commands pass. Findings and outcome:
+
+- **Major — two organization rules.** The publish, rollback and revisions routes (and the Phase 1 brand route) used `resolveSingleOrganizationIdOrDeny`, which falls back to the home organization without checking the caller's allowed set, while the CRUD routes did; a super-admin switched into another tenant could also get a cross-tenant pair (it failed closed on lookups). Fixed: one pure rule, `resolveStoreOrganization`, for every route and command (selection rejected → 422, empty scope → 403, home organization only in its own tenant and allowed set → else 400), with unit tests for each case.
+- **Major — update undo after a publish.** Undo restored "no unsaved changes" although another revision had gone live, so the page read *published* with a different draft and could not be republished. Fixed (undo marks the page *changed* when the live revision moved) with a TEST-017 regression case.
+- **Major — publish/restore reloaded the whole builder** (focus lost; edits during the request overwritten). Fixed: publish updates in place, restore refreshes in the background, edits pause while a request runs.
+- **Major — unsaved edits lost on in-app navigation.** Fixed: leave guard for links, Back and tab close.
+- **Minor, fixed:** export disabled on the page list (a full export skipped the organization pin); revisions query projects no specs and rejects bad paging with 400; public page reads skip the draft and fail closed when the live revision is missing; a store without its home page shows the unavailable page; undo slug races answer 409; undo emits events only when it changed something; publish rejects body fields (422); `..` segments rejected in store paths; key-order-independent dirty check; stable list keys and focus; item-level inspector errors and `aria-invalid`; organization errors no longer shown as "not found"; list delete through `useGuardedMutation`; the preview region stays announced (`inert` moved inside it); preview error boundary and per-section reset; focus after removing the last section; picker focus; accessible names on custom inputs; retry on load errors.
+- **Accepted:** in "all organizations" mode the CRUD factory passes a null organization to mutation guards while the command writes to the resolved store (J10); an update that changes nothing still records an update (nit).
+
 ### Checklist
 
 | Heuristic | Verdict | Justification |
@@ -741,7 +752,7 @@ Source doc: .ai/specs/2026-10-22-storefront-builder.md
 | Phase | State | Dependencies | Acceptance IDs | Focused validation | Exit gate |
 |---|---|---|---|---|---|
 | Phase 1 — Brand foundation and published home page | done | none | AC-001…AC-005 | `yarn generate && yarn typecheck && yarn test` + two-tenant checks | two fresh tenants, wizard, public page, isolation |
-| Phase 2 — Page authoring | in_progress | Phase 1 (verified) | AC-004 (save/publish), AC-005, AC-006, AC-007, AC-010 | `yarn generate && yarn typecheck && yarn test` + `TC-STOREFRONT-002` + two-tenant checks | builder round trip; drafts never public; no json-render on public routes; isolation; AC-010 rules; UI states |
+| Phase 2 — Page authoring | done | Phase 1 (verified) | AC-004 (save/publish), AC-005, AC-006, AC-007, AC-010 | `yarn generate && yarn typecheck && yarn test` + `TC-STOREFRONT-002` + two-tenant checks | builder round trip; drafts never public; no json-render on public routes; isolation; AC-010 rules; UI states |
 | Phase 3 — Media and commerce blocks | pending | Phase 2 | AC-008 | — | — |
 | Phase 4 — SEO and indexability | pending | Phase 2 | AC-009 | — | — |
 
@@ -776,7 +787,7 @@ Source doc: .ai/specs/2026-10-22-storefront-builder.md
 - [x] (f) json-render adapter: `components/builder/{catalog.ts,BuilderPreview.tsx,blockEditors.ts,richTextMarkup.ts}`; `StorefrontFrame` extracted from `StorefrontView` so the preview reuses the public chrome — TEST-015 + TEST-016 `yarn jest src/modules/storefront/components` 20 passed
 - [x] (g) builder: `backend/storefront/pages/[id]/builder/{page.tsx,page.meta.ts}`, `components/builder/{PageBuilder,SectionPicker,SectionInspector,RevisionsDrawer}.tsx`, `components/builder/builderSpec.ts`; json-render preview loaded with `React.lazy` (the app shell references every admin page, so static imports reach public routes in dev); restore confirmation opens after the modal revisions drawer closes (a11y); i18n for all Phase 2 keys in en/de/es/pl/ko — TEST-018 `TC-STOREFRONT-003` 4 passed (`--retries=0`); `yarn ds:check` and `yarn i18n:check-hardcoded` clean for the module
 - [x] (h-1) TEST-012 `TC-STOREFRONT-004` 1 passed (dev server; public home/page load no json-render code, builder does); TEST-019 two fresh signups (scratch `iso2.py`) 16/16 checks passed
-- [ ] IN FLIGHT: (h-2) full gates, production bundle check, code review, docs — files: none yet; last command: not run
+- [x] (h-2) gates and review: `yarn generate`, `yarn typecheck`, `yarn lint` (no storefront warnings), `yarn ds:check`, `yarn test` (113 passed), `yarn build` all exit 0; on the production server `TC-STOREFRONT-001…004` 12 passed (`--retries=0`), TEST-012 bundle scan passed, TEST-019 16/16; `om-code-review` (three focused reviewers) → findings fixed, see the review section below; README and `docs/DECISIONS.md` (J1–J12) updated
 
 ## Changelog
 
@@ -788,3 +799,4 @@ Source doc: .ai/specs/2026-10-22-storefront-builder.md
 | 2026-10-22 | Review: scope split (custom domains, AI, translations, webfonts → follow-up specs), pages + builder merged, edge cases added; status Ready for implementation (Phase 1) |
 | 2026-10-22 | Phase 1 implemented and verified (ledger above); keyboard-submit wording corrected; implementation decisions I1–I7 in `docs/DECISIONS.md` |
 | 2026-10-22 | Phase 2 detail pass (`om-spec-writing --autonomous`): defaults P2-Q1…P2-Q12, page/revision data model, per-route contracts, pages list/create/settings/builder UI with mockups and states, edge cases, TEST-011/012/015…019, AC-010 |
+| 2026-10-22 | Phase 2 implemented, reviewed (`om-code-review`, findings fixed) and verified on a production build; AC-004/006/007/010 met; implementation decisions J1–J12 in `docs/DECISIONS.md` |

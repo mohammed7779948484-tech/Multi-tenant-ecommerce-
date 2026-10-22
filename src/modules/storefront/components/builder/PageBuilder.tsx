@@ -23,7 +23,8 @@ import { BRAND_API_PATH, type BrandPayload } from '../brandForm'
 import { PAGE_STATUS_LABEL_KEYS, PAGE_STATUS_VARIANTS, PAGES_API_PATH, PAGES_HREF } from '../pages/pageClient'
 import { useStorefrontPermissions } from '../useStorefrontPermissions'
 import { BLOCK_EDITORS, defaultBlockProps } from './blockEditors'
-import { draftToSpec, issueSectionId, moveSection, newSectionId, specToDraft, type BuilderDraft } from './builderSpec'
+import { draftToSpec, issueSectionId, moveSection, newSectionId, specToDraft, stableStringify, type BuilderDraft } from './builderSpec'
+import { useUnsavedChangesGuard } from './useUnsavedChangesGuard'
 import { RevisionsDrawer, type RevisionItem } from './RevisionsDrawer'
 import { SectionInspector } from './SectionInspector'
 import { SectionPicker } from './SectionPicker'
@@ -55,7 +56,20 @@ function blockName(t: Translate, type: StorefrontBlockType): string {
 }
 
 function serialize(draft: BuilderDraft): string {
-  return JSON.stringify(draftToSpec(draft))
+  return stableStringify(draftToSpec(draft))
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** Keeps a preview failure (e.g. its chunk failed to load after a deploy) from taking the unsaved draft down with it. */
+class PreviewBoundary extends React.Component<{ fallback: React.ReactNode; children: React.ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children
+  }
 }
 
 /**
@@ -93,11 +107,22 @@ export function PageBuilder({ pageId }: { pageId: string }) {
   const [viewport, setViewport] = React.useState<'desktop' | 'phone'>('desktop')
   const [reloadKey, setReloadKey] = React.useState(0)
   const rowRefs = React.useRef(new Map<string, HTMLButtonElement>())
+  const addButtonRef = React.useRef<HTMLButtonElement>(null)
+  // After the first load, reloads (after a restore) refresh in place instead of
+  // replacing the builder with a loading state.
+  const hasLoadedRef = React.useRef(false)
 
   React.useEffect(() => {
     let cancelled = false
-    setLoadState('loading')
-    setLoadError(null)
+    const background = hasLoadedRef.current
+    if (!UUID_PATTERN.test(pageId)) {
+      setLoadState('not-found')
+      return
+    }
+    if (!background) {
+      setLoadState('loading')
+      setLoadError(null)
+    }
     Promise.all([
       fetchCrudList<PageListItem>(PAGES_API_PATH, { id: pageId, pageSize: '1' }),
       readApiResultOrThrow<BrandPayload>(`/api/${BRAND_API_PATH}`),
@@ -117,16 +142,22 @@ export function PageBuilder({ pageId }: { pageId: string }) {
         setStatus(page.status)
         setServerIssues([])
         setSelectedId((current) => (current && next.sections.some((section) => section.id === current) ? current : next.sections[0]?.id ?? null))
+        hasLoadedRef.current = true
         setLoadState('ready')
       })
       .catch((error: unknown) => {
         if (cancelled) return
-        const code = (error as HttpError).status
-        if (code === 404 || code === 400) {
+        const message = error instanceof Error && error.message ? error.message : t('storefront.builder.errors.load', 'The page could not be loaded.')
+        if (background) {
+          // Keep the builder on screen; the user can reload the page.
+          flash(message, 'error')
+          return
+        }
+        if ((error as HttpError).status === 404) {
           setLoadState('not-found')
           return
         }
-        setLoadError(error instanceof Error && error.message ? error.message : t('storefront.builder.errors.load', 'The page could not be loaded.'))
+        setLoadError(message)
         setLoadState('error')
       })
     return () => {
@@ -135,11 +166,18 @@ export function PageBuilder({ pageId }: { pageId: string }) {
   }, [pageId, reloadKey, t])
 
   const spec = React.useMemo(() => draftToSpec(draft), [draft])
-  const dirty = loadState === 'ready' && JSON.stringify(spec) !== savedSnapshot
+  const dirty = loadState === 'ready' && stableStringify(spec) !== savedSnapshot
+  // Validator messages are translation keys; anything else (a raw schema default) gets the generic message.
   const clientIssues = React.useMemo(() => {
     const validation = validatePageSpec(spec)
-    return validation.ok ? [] : validation.issues
-  }, [spec])
+    if (validation.ok) return []
+    return validation.issues.map((issue) => ({
+      ...issue,
+      message: issue.message.startsWith('storefront.')
+        ? t(issue.message, t('storefront.validation.invalidValue', 'Enter a valid value.'))
+        : t('storefront.validation.invalidValue', 'Enter a valid value.'),
+    }))
+  }, [spec, t])
   const issues = clientIssues.length ? clientIssues : serverIssues
   const issueBySection = React.useMemo(() => {
     const map = new Map<string, PageSpecIssue>()
@@ -150,15 +188,15 @@ export function PageBuilder({ pageId }: { pageId: string }) {
     return map
   }, [draft, issues])
 
-  // Unsaved edits: warn before the tab closes or reloads.
-  React.useEffect(() => {
-    if (!dirty) return
-    const onBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault()
-    }
-    window.addEventListener('beforeunload', onBeforeUnload)
-    return () => window.removeEventListener('beforeunload', onBeforeUnload)
-  }, [dirty])
+  // Unsaved edits: ask before closing the tab, following a link or going back.
+  useUnsavedChangesGuard(dirty, () =>
+    confirm({
+      title: t('storefront.builder.confirmLeave.title', 'Leave without saving?'),
+      text: t('storefront.builder.confirmLeave.text', 'Your draft has changes that are not saved yet. They will be lost.'),
+      confirmText: t('storefront.builder.confirmLeave.leave', 'Leave'),
+      variant: 'destructive',
+    }),
+  )
 
   const updateDraft = React.useCallback((next: BuilderDraft) => {
     setDraft(next)
@@ -168,13 +206,15 @@ export function PageBuilder({ pageId }: { pageId: string }) {
   const selectedIndex = draft.sections.findIndex((section) => section.id === selectedId)
   const selectedSection = selectedIndex >= 0 ? draft.sections[selectedIndex] : null
   const atCap = draft.sections.length >= MAX_SECTIONS_PER_PAGE
+  // Edits pause while a save, publish or restore is in flight, so nothing typed meanwhile is overwritten.
+  const editable = canEdit && !busy
 
   const focusRow = (id: string) => {
     requestAnimationFrame(() => rowRefs.current.get(id)?.focus())
   }
 
   const addSection = (type: StorefrontBlockType) => {
-    if (atCap) return
+    if (atCap || !editable) return
     const id = newSectionId(type, [draft.rootId, ...draft.sections.map((section) => section.id)])
     const insertAt = selectedIndex >= 0 ? selectedIndex + 1 : draft.sections.length
     const sections = [...draft.sections]
@@ -185,6 +225,7 @@ export function PageBuilder({ pageId }: { pageId: string }) {
   }
 
   const move = (index: number, delta: -1 | 1) => {
+    if (!editable) return
     const sections = moveSection(draft.sections, index, delta)
     if (sections === draft.sections) return
     updateDraft({ ...draft, sections })
@@ -195,7 +236,7 @@ export function PageBuilder({ pageId }: { pageId: string }) {
 
   const remove = async (index: number) => {
     const section = draft.sections[index]
-    if (!section) return
+    if (!section || !editable) return
     const ok = await confirm({
       title: t('storefront.builder.confirmRemove.title', 'Remove section {n}?', { n: index + 1 }),
       text: t('storefront.builder.confirmRemove.text', 'The {block} section is removed from the draft. Nothing changes publicly until you publish.', {
@@ -210,9 +251,11 @@ export function PageBuilder({ pageId }: { pageId: string }) {
     const next = sections[Math.min(index, sections.length - 1)]
     setSelectedId(next?.id ?? null)
     if (next) focusRow(next.id)
+    else requestAnimationFrame(() => addButtonRef.current?.focus())
   }
 
   const applySection = (sectionId: string, props: Record<string, unknown>) => {
+    if (!editable) return
     updateDraft({ ...draft, sections: draft.sections.map((section) => (section.id === sectionId ? { ...section, props } : section)) })
     setInspectorOpen(false)
     focusRow(sectionId)
@@ -224,7 +267,7 @@ export function PageBuilder({ pageId }: { pageId: string }) {
       event.preventDefault()
       const delta = event.key === 'ArrowUp' ? -1 : 1
       if (event.altKey) {
-        if (canEdit) move(index, delta)
+        if (editable) move(index, delta)
         return
       }
       const target = draft.sections[index + delta]
@@ -240,7 +283,7 @@ export function PageBuilder({ pageId }: { pageId: string }) {
       setInspectorOpen(true)
       return
     }
-    if ((event.key === 'Delete' || event.key === 'Backspace') && canEdit) {
+    if ((event.key === 'Delete' || event.key === 'Backspace') && editable) {
       event.preventDefault()
       void remove(index)
     }
@@ -264,7 +307,7 @@ export function PageBuilder({ pageId }: { pageId: string }) {
       })
       const nextVersion = res.result?.updatedAt ?? null
       setUpdatedAt(nextVersion)
-      setSavedSnapshot(JSON.stringify(spec))
+      setSavedSnapshot(stableStringify(spec))
       setStatus((current) => (current === 'draft' ? 'draft' : 'changed'))
       setServerIssues([])
       return nextVersion
@@ -316,9 +359,15 @@ export function PageBuilder({ pageId }: { pageId: string }) {
       const result = res.result
       if (result) setUpdatedAt(result.updatedAt)
       setStatus('published')
+      setServerIssues([])
+      // The first publish gives the page a public address.
+      setLoaded((current) =>
+        current && !current.page.publicPath
+          ? { ...current, page: { ...current.page, publicPath: current.page.isHome ? `/${current.brand.slug}` : `/${current.brand.slug}/${current.page.slug}` } }
+          : current,
+      )
       setRevisionsVersion((current) => current + 1)
       flash(t('storefront.builder.flash.published', 'Published as revision {n}. Your store shows it now.', { n: result?.revisionNo ?? '' }), 'success')
-      setReloadKey((current) => current + 1)
     } catch (error) {
       const httpError = error as HttpError
       if (httpError.status === 409) return
@@ -373,8 +422,7 @@ export function PageBuilder({ pageId }: { pageId: string }) {
         'success',
       )
       setRevisionsVersion((current) => current + 1)
-      // The draft, title and description were reset on the server; load them again.
-      setSavedSnapshot('')
+      // The draft, title and description were reset on the server; refresh them in place.
       setReloadKey((current) => current + 1)
     } catch (error) {
       if ((error as HttpError).status === 409) return
@@ -393,7 +441,18 @@ export function PageBuilder({ pageId }: { pageId: string }) {
       />
     )
   }
-  if (loadState === 'error') return <ErrorMessage label={loadError ?? t('storefront.builder.errors.load', 'The page could not be loaded.')} />
+  if (loadState === 'error') {
+    return (
+      <ErrorMessage
+        label={loadError ?? t('storefront.builder.errors.load', 'The page could not be loaded.')}
+        action={
+          <Button type="button" variant="outline" onClick={() => setReloadKey((current) => current + 1)}>
+            {t('storefront.builder.actions.retry', 'Try again')}
+          </Button>
+        }
+      />
+    )
+  }
   if (loadState === 'loading' || !loaded) return <LoadingMessage label={t('storefront.pages.loading', 'Loading page…')} />
 
   const { page, brand } = loaded
@@ -520,7 +579,7 @@ export function PageBuilder({ pageId }: { pageId: string }) {
                           variant="ghost"
                           size="sm"
                           aria-label={t('storefront.builder.actions.moveUp', 'Move section {n} up', { n: index + 1 })}
-                          disabled={index === 0}
+                          disabled={!editable || index === 0}
                           onClick={() => move(index, -1)}
                         >
                           <ArrowUp className="size-4" aria-hidden="true" />
@@ -529,7 +588,7 @@ export function PageBuilder({ pageId }: { pageId: string }) {
                           variant="ghost"
                           size="sm"
                           aria-label={t('storefront.builder.actions.moveDown', 'Move section {n} down', { n: index + 1 })}
-                          disabled={index === draft.sections.length - 1}
+                          disabled={!editable || index === draft.sections.length - 1}
                           onClick={() => move(index, 1)}
                         >
                           <ArrowDown className="size-4" aria-hidden="true" />
@@ -556,6 +615,7 @@ export function PageBuilder({ pageId }: { pageId: string }) {
                         variant="ghost"
                         size="sm"
                         aria-label={t('storefront.builder.actions.removeSection', 'Remove section {n}', { n: index + 1 })}
+                        disabled={!editable}
                         onClick={() => void remove(index)}
                       >
                         <Trash2 className="size-4" aria-hidden="true" />
@@ -570,7 +630,7 @@ export function PageBuilder({ pageId }: { pageId: string }) {
           )}
           {canEdit ? (
             <div className="flex flex-col items-start gap-1">
-              <Button type="button" variant="outline" disabled={atCap} aria-describedby={atCap ? 'sf-builder-cap' : undefined} onClick={() => setPickerOpen(true)}>
+              <Button ref={addButtonRef} type="button" variant="outline" disabled={atCap || !editable} aria-describedby={atCap ? 'sf-builder-cap' : undefined} onClick={() => setPickerOpen(true)}>
                 <Plus className="size-4" aria-hidden="true" />
                 {t('storefront.builder.actions.add', 'Add section')}
               </Button>
@@ -595,7 +655,7 @@ export function PageBuilder({ pageId }: { pageId: string }) {
                     position >= 0
                       ? t('storefront.builder.issues.section', 'Section {n} · {block}', { n: position + 1, block: blockName(t, draft.sections[position].type) })
                       : t('storefront.builder.issues.page', 'Page')
-                  const message = t(issue.message, issue.message)
+                  const message = issue.message
                   return (
                     <li key={`${issue.path}-${index}`} className="text-status-error-text">
                       {sectionId ? (
@@ -643,7 +703,7 @@ export function PageBuilder({ pageId }: { pageId: string }) {
               description={t('storefront.builder.empty.description', 'Add a section to start building this page.')}
               actions={
                 canEdit ? (
-                  <Button type="button" onClick={() => setPickerOpen(true)}>
+                  <Button type="button" disabled={!editable} onClick={() => setPickerOpen(true)}>
                     <Plus className="size-4" aria-hidden="true" />
                     {t('storefront.builder.actions.add', 'Add section')}
                   </Button>
@@ -651,29 +711,30 @@ export function PageBuilder({ pageId }: { pageId: string }) {
               }
             />
           ) : (
-            <div className="overflow-hidden rounded-lg border bg-muted/30 p-2">
-              {/* `inert`: the preview's links and buttons can be neither focused nor followed. */}
-              <div
-                inert
-                aria-label={t('storefront.builder.previewRegion', 'Preview of the draft')}
-                role="region"
-                className={`mx-auto overflow-hidden rounded-md ${viewport === 'phone' ? 'max-w-sm' : 'w-full'}`}
-              >
-                <React.Suspense fallback={<LoadingMessage label={t('storefront.builder.previewLoading', 'Loading preview…')} />}>
-                  <BuilderPreview
-                    spec={spec}
-                    siteId={brand.siteId}
-                    storeName={brand.name}
-                    basePath={`/${brand.slug}`}
-                    logoSrc={brand.logoUrl}
-                    tokens={brand.tokens}
-                    labels={{
-                      home: t('storefront.public.home', '{store} home', { store: brand.name }),
-                      signIn: t('storefront.public.signIn', 'Sign in'),
-                      unavailable: t('storefront.builder.previewUnavailable', 'Preview unavailable for this section. Open it to fix the highlighted fields.'),
-                    }}
-                  />
-                </React.Suspense>
+            <div
+              role="region"
+              aria-label={t('storefront.builder.previewRegion', 'Preview of the draft')}
+              className="overflow-hidden rounded-lg border bg-muted/30 p-2"
+            >
+              {/* `inert`: the preview's links and buttons can be neither focused nor followed (the labelled region stays announced). */}
+              <div inert className={`mx-auto overflow-hidden rounded-md ${viewport === 'phone' ? 'max-w-sm' : 'w-full'}`}>
+                <PreviewBoundary fallback={<ErrorMessage label={t('storefront.builder.errors.preview', 'The preview could not be loaded. Your draft is safe; reload the page to try again.')} />}>
+                  <React.Suspense fallback={<LoadingMessage label={t('storefront.builder.previewLoading', 'Loading preview…')} />}>
+                    <BuilderPreview
+                      spec={spec}
+                      siteId={brand.siteId}
+                      storeName={brand.name}
+                      basePath={`/${brand.slug}`}
+                      logoSrc={brand.logoUrl}
+                      tokens={brand.tokens}
+                      labels={{
+                        home: t('storefront.public.home', '{store} home', { store: brand.name }),
+                        signIn: t('storefront.public.signIn', 'Sign in'),
+                        unavailable: t('storefront.builder.previewUnavailable', 'Preview unavailable for this section. Open it to fix the highlighted fields.'),
+                      }}
+                    />
+                  </React.Suspense>
+                </PreviewBoundary>
               </div>
             </div>
           )}
@@ -685,7 +746,7 @@ export function PageBuilder({ pageId }: { pageId: string }) {
         section={selectedSection}
         position={selectedIndex}
         open={inspectorOpen}
-        readOnly={!canEdit}
+        readOnly={!editable}
         onOpenChange={(open) => {
           setInspectorOpen(open)
           if (!open && selectedSection) focusRow(selectedSection.id)

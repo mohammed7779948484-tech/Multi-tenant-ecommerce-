@@ -251,6 +251,25 @@ describe('storefront page commands (TEST-017)', () => {
     expect(pages(em).find((p) => p.id === third.id)!.deletedAt).toBeNull()
   })
 
+  it('undoing a draft save after a publish leaves the page "changed" and publishable', async () => {
+    const created = await createPage(em, ctx)
+    await publishPageCommand.execute({ id: created.id }, ctx)
+    const page = pages(em).find((p) => p.id === created.id)!
+    expect(pageStatus(page)).toBe('published')
+
+    const prepared = await updatePageCommand.prepare!({ id: created.id, title: 'Draft B' }, ctx)
+    const updated = (await updatePageCommand.execute({ id: created.id, title: 'Draft B' }, ctx)) as PageSnapshot
+    const log = await updatePageCommand.buildLog!({ input: {}, result: updated, snapshots: { before: prepared?.before }, ctx } as never)
+    await publishPageCommand.execute({ id: created.id }, ctx)
+    expect(pageStatus(page)).toBe('published')
+
+    // The snapshot had no unsaved changes, but the live revision is now "Draft B".
+    await updatePageCommand.undo!({ input: {}, ctx, logEntry: { commandPayload: log?.payload } as never })
+    expect(page.title).toBe('About us')
+    expect(pageStatus(page)).toBe('changed')
+    await expect(publishPageCommand.execute({ id: created.id }, ctx)).resolves.toMatchObject({ revisionNo: 3 })
+  })
+
   it("answers 404 for another tenant's pages and revisions and changes nothing", async () => {
     const { home: foreignHome } = seedSite(em, tenantB, orgB)
     const foreignRevision = revisions(em, foreignHome.id)[0]!

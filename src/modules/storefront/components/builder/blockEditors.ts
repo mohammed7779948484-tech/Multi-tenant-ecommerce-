@@ -136,9 +136,12 @@ export function blockPropsToFormValues(type: StorefrontBlockType, props: Record<
   return values
 }
 
+/** Where inside a list or link field an error sits (item index and/or sub-field id). */
+export type FieldErrorLocation = { index?: number; subField?: string }
+
 export type BlockFormResult =
   | { ok: true; props: Record<string, unknown> }
-  | { ok: false; fieldErrors: Record<string, string> }
+  | { ok: false; fieldErrors: Record<string, string>; locations?: Record<string, FieldErrorLocation> }
 
 function trimItem(fields: readonly EditorTextField[], raw: unknown): Record<string, string> | null {
   const item = itemValue(fields, raw)
@@ -193,13 +196,20 @@ export function formValuesToBlockProps(type: StorefrontBlockType, values: Record
   const schema = STOREFRONT_BLOCKS[type].props as z.ZodTypeAny
   const checked = schema.safeParse(props)
   if (!checked.success) {
+    const locations: Record<string, FieldErrorLocation> = {}
     for (const issue of checked.error.issues) {
       const id = String(issue.path[0] ?? '')
+      if (id && !fieldErrors[id]) {
+        const rest = issue.path.slice(1)
+        const index = typeof rest[0] === 'number' ? rest[0] : undefined
+        const sub = rest.find((segment) => typeof segment === 'string')
+        if (index !== undefined || sub !== undefined) locations[id] = { index, subField: typeof sub === 'string' ? sub : undefined }
+      }
       // Schema messages are translation keys; zod's own defaults are not, so they get a generic key.
       const message = issue.message.startsWith('storefront.') ? issue.message : 'storefront.validation.invalidValue'
       if (id && !fieldErrors[id]) fieldErrors[id] = message
     }
-    return { ok: false, fieldErrors }
+    return { ok: false, fieldErrors, locations }
   }
   return { ok: true, props: checked.data as Record<string, unknown> }
 }

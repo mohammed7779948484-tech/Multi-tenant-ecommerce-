@@ -56,6 +56,8 @@ function useStoreSlug(): string | null {
 }
 
 type SlugInputProps = CrudCustomFieldRenderProps & {
+  /** Accessible name: CrudForm's visible label is not tied to custom inputs. */
+  name: string
   storeSlug: string | null
   /** Create mode: follow the title until the merchant types a slug. */
   suggestFromTitle: boolean
@@ -63,7 +65,7 @@ type SlugInputProps = CrudCustomFieldRenderProps & {
   t: Translate
 }
 
-function SlugInput({ id, value, setValue, values, disabled, error, autoFocus, storeSlug, suggestFromTitle, frozen, t }: SlugInputProps) {
+function SlugInput({ id, value, setValue, values, disabled, error, autoFocus, storeSlug, suggestFromTitle, frozen, name, t }: SlugInputProps) {
   const edited = React.useRef(false)
   const title = typeof values?.title === 'string' ? values.title : ''
   const current = typeof value === 'string' ? value : ''
@@ -91,6 +93,7 @@ function SlugInput({ id, value, setValue, values, disabled, error, autoFocus, st
           maxLength={SLUG_MAX}
           autoFocus={autoFocus}
           disabled={disabled || frozen}
+          aria-label={name}
           aria-invalid={error ? true : undefined}
           aria-describedby={hintId}
           spellCheck={false}
@@ -129,7 +132,7 @@ function usePageFields(t: Translate, options: { storeSlug: string | null; sugges
         type: 'custom',
         required: true,
         component: (props) => (
-          <SlugInput {...props} storeSlug={storeSlug} suggestFromTitle={suggestFromTitle} frozen={slugFrozen} t={t} />
+          <SlugInput {...props} name={t('storefront.pages.fields.slug', 'Address')} storeSlug={storeSlug} suggestFromTitle={suggestFromTitle} frozen={slugFrozen} t={t} />
         ),
       },
       {
@@ -205,6 +208,10 @@ export function PageSettingsForm({ id }: { id: string }) {
 
   React.useEffect(() => {
     let cancelled = false
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      setState({ kind: 'not-found' })
+      return
+    }
     setState({ kind: 'loading' })
     fetchCrudList<PageListItem>(PAGES_API_PATH, { id, pageSize: '1' })
       .then((data) => {
@@ -215,8 +222,8 @@ export function PageSettingsForm({ id }: { id: string }) {
       .catch((error: unknown) => {
         if (cancelled) return
         const status = (error as { status?: number }).status
-        // A malformed or foreign id is "not found", never an error that hints at existence.
-        if (status === 404 || status === 400) {
+        // A foreign id simply lists nothing; a 400 is a real error (e.g. "select an organization").
+        if (status === 404) {
           setState({ kind: 'not-found' })
           return
         }

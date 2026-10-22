@@ -6,9 +6,7 @@ import type { Where, WhereValue } from '@open-mercato/shared/lib/query/types'
 import { StorefrontPage, StorefrontPageRevision, StorefrontSite } from '../../data/entities'
 import { pageCreateSchema, pageUpdateSchema } from '../../data/validators'
 import { PAGE_COMMAND_IDS } from '../../commands/pages'
-import { resolveStoreOrganizationId } from '../../lib/commandScope'
-import { CrudHttpError } from '@open-mercato/shared/lib/crud/errors'
-import { resolveTranslations } from '@open-mercato/shared/lib/i18n/server'
+import { resolveStoreOrganizationForContext, storeOrganizationError } from '../../lib/commandScope'
 import { pagePublicPath, pageStatus, type PageListItem } from '../../lib/pages'
 import { HOME_PAGE_SLUG_VALUE } from '../../lib/slug'
 import {
@@ -119,7 +117,8 @@ function transformItem(row: Row): ListRow {
 async function decorateItems(res: { items?: ListRow[] }, ctx: CrudCtx): Promise<void> {
   const items = Array.isArray(res.items) ? res.items : []
   const tenantId = ctx.auth?.tenantId ?? null
-  const organizationId = await resolveStoreOrganizationId(ctx)
+  const resolved = await resolveStoreOrganizationForContext(ctx)
+  const organizationId = resolved.ok ? resolved.organizationId : null
   if (!items.length || !tenantId || !organizationId) {
     items.forEach((item) => delete item.publishedRevisionId)
     return
@@ -155,6 +154,8 @@ export const { metadata, GET, POST, PUT, DELETE } = makeCrudRoute({
   list: {
     schema: querySchema,
     entityId: ENTITY_ID,
+    // Pages are not an export surface; a full export would also skip the store-organization pin in `buildFilters`.
+    export: { enabled: false },
     fields: (query: Query) => [...baseListFields, ...(isSingleRecordRequest(query) ? ['draft_spec', 'published_spec'] : [])],
     sortFieldMap,
     buildFilters: async (q: Query, ctx): Promise<Where<Row>> => {
@@ -162,13 +163,9 @@ export const { metadata, GET, POST, PUT, DELETE } = makeCrudRoute({
       const F = filters as Record<string, WhereValue>
       // A store is one organization: pin the list to it even when the caller's
       // selector says "all organizations" (the factory already pins the tenant).
-      const organizationId = await resolveStoreOrganizationId(ctx)
-      if (!organizationId) {
-        const { translate } = await resolveTranslations()
-        throw new CrudHttpError(400, {
-          error: translate('storefront.errors.organizationRequired', 'Select a single organization to manage its storefront.'),
-        })
-      }
+      const resolved = await resolveStoreOrganizationForContext(ctx)
+      if (!resolved.ok) throw await storeOrganizationError(resolved.reason)
+      const organizationId = resolved.organizationId
       F.organization_id = organizationId
       if (q.id) F.id = q.id
       if (q.ids) {

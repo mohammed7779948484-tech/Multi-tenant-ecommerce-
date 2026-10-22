@@ -65,14 +65,14 @@ describe('TEST-001 page spec validation', () => {
     expect(validatePageSpec(withOn).ok).toBe(false)
   })
 
-  it.each(['javascript:alert(1)', 'JaVaScRiPt:alert(1)', 'data:text/html,<script>', 'http://example.com', '//evil.example', '/\\evil', 'https://user:pw@evil.example', ' javascript:x', 'vbscript:x', '/a\u0000b'])(
+  it.each(['javascript:alert(1)', 'JaVaScRiPt:alert(1)', 'data:text/html,<script>', 'http://example.com', '//evil.example', '/\\evil', 'https://user:pw@evil.example', ' javascript:x', 'vbscript:x', '/a\u0000b', '/../backend', '/a/../../api/x', '/%2e%2e/other-store', '/./x', '/..'])(
     'rejects the href %p',
     (href) => {
       expect(validatePageSpec(hero({ cta: { label: 'Go', href } })).ok).toBe(false)
     },
   )
 
-  it.each(['/', '/about', '/products?sort=new#top', 'https://example.com/path'])('accepts the href %p', (href) => {
+  it.each(['/', '/about', '/products?sort=new#top', 'https://example.com/path', '/.well-known/x', '/a..b', '/x?next=../y'])('accepts the href %p', (href) => {
     expect(isSafeHref(href)).toBe(true)
     expect(validatePageSpec(hero({ cta: { label: 'Go', href } })).ok).toBe(true)
   })

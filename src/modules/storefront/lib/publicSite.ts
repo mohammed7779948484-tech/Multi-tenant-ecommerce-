@@ -46,9 +46,9 @@ export type PublicStorefrontPage = {
   tokens: ThemeTokens
   organizationSlug: string | null
   /** The published page; `null` when the slug is unknown, unpublished or deleted. */
-  page: StorefrontPage | null
+  page: Pick<StorefrontPage, 'id' | 'siteId' | 'slug' | 'title' | 'publishedSpec' | 'publishedRevisionId'> | null
   /** The live revision (title and SEO description buyers see). */
-  revision: StorefrontPageRevision | null
+  revision: Pick<StorefrontPageRevision, 'id' | 'title' | 'seoDescription'> | null
 }
 
 /**
@@ -71,10 +71,15 @@ export async function resolvePublicStorefrontPage(
   const slug = pageSlug.trim().toLowerCase()
   const isHome = slug === HOME_PAGE_SLUG
   if (!isHome && (!SITE_SLUG_PATTERN.test(slug) || RESERVED_PAGE_SLUGS.has(slug))) return { ...base, page: null, revision: null }
-  const page = await em.findOne(StorefrontPage, { siteId: site.id, ...scope, slug, deletedAt: null })
+  // Buyers never need the working copy: the draft spec (up to 64 KB) is not read.
+  const page = await em.findOne(
+    StorefrontPage,
+    { siteId: site.id, ...scope, slug, deletedAt: null },
+    { fields: ['id', 'siteId', 'slug', 'title', 'publishedSpec', 'publishedRevisionId'] },
+  )
   if (!page || !page.publishedSpec) return { ...base, page: null, revision: null }
   const revision = page.publishedRevisionId
-    ? await em.findOne(StorefrontPageRevision, { id: page.publishedRevisionId, pageId: page.id, ...scope })
+    ? await em.findOne(StorefrontPageRevision, { id: page.publishedRevisionId, pageId: page.id, ...scope }, { fields: ['id', 'title', 'seoDescription'] })
     : null
   return { ...base, page, revision }
 }

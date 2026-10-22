@@ -55,7 +55,15 @@ export function SectionPicker({ open, onOpenChange, onPick }: SectionPickerProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent onKeyDown={onKeyDown} closeAriaLabel={t('storefront.builder.picker.close', 'Close')}>
+      <DialogContent
+        onKeyDown={onKeyDown}
+        closeAriaLabel={t('storefront.builder.picker.close', 'Close')}
+        onOpenAutoFocus={(event) => {
+          // Start on the chosen option rather than the close button.
+          event.preventDefault()
+          optionRefs.current[PICKABLE.indexOf(choice)]?.focus()
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{t('storefront.builder.picker.title', 'Add a section')}</DialogTitle>
           <DialogDescription>{t('storefront.builder.picker.description', 'Choose what the new section shows. You can edit it right after.')}</DialogDescription>
