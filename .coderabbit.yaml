@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+reviews:
+  profile: assertive
+  request_changes_workflow: false
+  auto_review:
+    enabled: true
+    drafts: true
+  path_filters:
+    - "!.agents/**"
+    - "!.claude/**"
+    - "!.ai/**"
+    - "!docs/**"
+    - "!yarn.lock"
+  path_instructions:
+    - path: "src/modules/storefront/**"
+      instructions: |
+        Enforce tenant isolation: derive trusted tenant_id and organization_id from
+        authenticated scope, or from the resolved site row on public routes.
+        Every dependent query must stay pinned to that scope; foreign IDs must
+        behave identically to random IDs. Never render merchant HTML, CSS,
+        className, style, scripts or arbitrary attributes. Validate saved,
+        published and rendered specs using the canonical strict block schemas.
+        Public routes must never import @json-render/*, directly or transitively.
+        Check publish/rollback/undo ordering, row-lock rechecks, slug freeze,
+        immutable revisions and the 30-page cap.
+    - path: "src/app/**"
+      instructions: |
+        Public routes must never import @json-render/*, directly or transitively,
+        or preload a heavy admin editor chunk. Check metadata uniqueness,
+        published-revision-only reads, no-store behavior and fail-closed rendering.
