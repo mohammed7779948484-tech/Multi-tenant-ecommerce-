@@ -9,7 +9,7 @@ import { PAGE_COMMAND_IDS } from '../../commands/pages'
 import { resolveStoreOrganizationId } from '../../lib/commandScope'
 import { CrudHttpError } from '@open-mercato/shared/lib/crud/errors'
 import { resolveTranslations } from '@open-mercato/shared/lib/i18n/server'
-import { pagePublicPath, pageStatus } from '../../lib/pages'
+import { pagePublicPath, pageStatus, type PageListItem } from '../../lib/pages'
 import { HOME_PAGE_SLUG_VALUE } from '../../lib/slug'
 import {
   buildStorefrontCrudOpenApi,
@@ -84,27 +84,12 @@ function toIso(value: unknown): string | null {
   return Number.isNaN(date.getTime()) ? null : date.toISOString()
 }
 
-export type PageListItem = {
-  id: string
-  slug: string
-  title: string
-  seoDescription: string | null
-  status: 'draft' | 'published' | 'changed'
-  isHome: boolean
-  publicPath: string | null
-  publishedAt: string | null
-  publishedRevisionNo: number | null
-  draftUpdatedAt: string | null
-  updatedAt: string | null
-  draftSpec?: Record<string, unknown> | null
-  publishedSpec?: Record<string, unknown> | null
-  /** Internal: resolved to `publishedRevisionNo` in `afterList`, then dropped. */
-  publishedRevisionId?: string | null
-}
+/** Internal row shape: `publishedRevisionId` is resolved to `publishedRevisionNo` in `afterList`, then dropped. */
+type ListRow = PageListItem & { publishedRevisionId?: string | null }
 
-function transformItem(row: Row): PageListItem {
+function transformItem(row: Row): ListRow {
   const draftUpdatedAt = toIso(row.draft_updated_at)
-  const item: PageListItem = {
+  const item: ListRow = {
     id: String(row.id),
     slug: String(row.slug),
     title: String(row.title),
@@ -131,7 +116,7 @@ function transformItem(row: Row): PageListItem {
  * response belong to the caller's single site (the list is scoped to the
  * selected organization), so one site read and one batched revision read suffice.
  */
-async function decorateItems(res: { items?: PageListItem[] }, ctx: CrudCtx): Promise<void> {
+async function decorateItems(res: { items?: ListRow[] }, ctx: CrudCtx): Promise<void> {
   const items = Array.isArray(res.items) ? res.items : []
   const tenantId = ctx.auth?.tenantId ?? null
   const organizationId = await resolveStoreOrganizationId(ctx)
@@ -209,7 +194,7 @@ export const { metadata, GET, POST, PUT, DELETE } = makeCrudRoute({
     transformItem,
   },
   hooks: {
-    afterList: async (res, ctx) => decorateItems(res as { items?: PageListItem[] }, ctx),
+    afterList: async (res, ctx) => decorateItems(res as { items?: ListRow[] }, ctx),
   },
   actions: {
     create: {

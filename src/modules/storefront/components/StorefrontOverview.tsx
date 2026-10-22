@@ -6,40 +6,16 @@ import { PageHeader } from '@open-mercato/ui/backend/Page'
 import { SectionHeader } from '@open-mercato/ui/backend/SectionHeader'
 import { ErrorMessage, LoadingMessage } from '@open-mercato/ui/backend/detail'
 import { EmptyState } from '@open-mercato/ui/backend/EmptyState'
-import { apiCall, readApiResultOrThrow } from '@open-mercato/ui/backend/utils/apiCall'
+import { readApiResultOrThrow } from '@open-mercato/ui/backend/utils/apiCall'
 import { Button } from '@open-mercato/ui/primitives/button'
 import { useT } from '@open-mercato/shared/lib/i18n/context'
 import { COLOR_TOKEN_KEYS } from '../lib/theme'
 import { BRAND_API_PATH, BRAND_HREF, type BrandPayload } from './brandForm'
-
-type FeatureCheckResponse = { ok: boolean }
-
-/** Server authorization stays authoritative; this only hides an action the caller cannot use. */
-function useCanManageBrand(): boolean {
-  const [allowed, setAllowed] = React.useState(false)
-  React.useEffect(() => {
-    let cancelled = false
-    void apiCall<FeatureCheckResponse>('/api/auth/feature-check', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ features: ['storefront.brand.manage'] }),
-    })
-      .then((res) => {
-        if (!cancelled) setAllowed(Boolean(res.ok && res.result?.ok))
-      })
-      .catch(() => {
-        if (!cancelled) setAllowed(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-  return allowed
-}
+import { useStorefrontPermissions } from './useStorefrontPermissions'
 
 export function StorefrontOverview() {
   const t = useT()
-  const canManage = useCanManageBrand()
+  const { canManageBrand: canManage } = useStorefrontPermissions()
   const [brand, setBrand] = React.useState<BrandPayload | null>(null)
   const [state, setState] = React.useState<'loading' | 'ready' | 'missing' | 'error'>('loading')
   const [error, setError] = React.useState<string | null>(null)

@@ -44,11 +44,19 @@ export function StorefrontJsonLd({ data }: { data: Record<string, unknown>[] }) 
   )
 }
 
-export function StorefrontView(props: StorefrontViewProps) {
+export type StorefrontFrameProps = Pick<StorefrontViewProps, 'siteId' | 'storeName' | 'basePath' | 'logoSrc' | 'tokens' | 'signInHref' | 'labels'> & {
+  children: React.ReactNode
+}
+
+/**
+ * Theme wrapper, header and main region of a store page. Shared by the public
+ * page and the admin builder preview, so the preview shows exactly the store's
+ * chrome around the sections.
+ */
+export function StorefrontFrame(props: StorefrontFrameProps) {
   const css = STOREFRONT_STRUCTURAL_CSS + buildThemeCssVariables(props.siteId, props.tokens)
   return (
     <div className="sf-root" data-sf-site={props.siteId.toLowerCase()}>
-      <StorefrontJsonLd data={props.head.jsonLd} />
       <style>{css}</style>
       <header className="sf-header">
         <div className="sf-container sf-header-inner">
@@ -68,12 +76,21 @@ export function StorefrontView(props: StorefrontViewProps) {
           ) : null}
         </div>
       </header>
-      <main className="sf-main">
+      <main className="sf-main">{props.children}</main>
+    </div>
+  )
+}
+
+export function StorefrontView(props: StorefrontViewProps) {
+  return (
+    <>
+      <StorefrontJsonLd data={props.head.jsonLd} />
+      <StorefrontFrame {...props}>
         {props.sections.map((section, index) =>
           renderSection(section, { basePath: props.basePath, isFirst: index === 0 }),
         )}
-      </main>
-    </div>
+      </StorefrontFrame>
+    </>
   )
 }
 

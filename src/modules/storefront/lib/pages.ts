@@ -6,6 +6,23 @@ export const MAX_PAGES_PER_SITE = 30
 
 export type PageStatus = 'draft' | 'published' | 'changed'
 
+/** One row of `GET /api/storefront/pages`; specs only on a single-record (`?id=`) read. */
+export type PageListItem = {
+  id: string
+  slug: string
+  title: string
+  seoDescription: string | null
+  status: PageStatus
+  isHome: boolean
+  publicPath: string | null
+  publishedAt: string | null
+  publishedRevisionNo: number | null
+  draftUpdatedAt: string | null
+  updatedAt: string | null
+  draftSpec?: Record<string, unknown> | null
+  publishedSpec?: Record<string, unknown> | null
+}
+
 /**
  * `draft` — never published; `published` — nothing saved since the last
  * publish; `changed` — a draft spec, title or SEO description was saved after
