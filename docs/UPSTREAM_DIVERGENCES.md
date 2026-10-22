@@ -66,7 +66,38 @@ Mercato (`yarn up '@open-mercato/*'`, `yarn mercato agentic:init --update-harnes
   adds on every start.
 - **On upgrade, review:** keep whatever `next dev` writes.
 
-## 6. Harness title
+## 6. `src/app/(frontend)/[...slug]/page.tsx` — page-provided metadata
+
+- **What:** in the catch-all's `generateMetadata`, a matched route that requires neither staff
+  nor customer auth may supply its own metadata: when the loaded page component has a static
+  `generateMetadata({ params })`, its result is returned instead of the route's static title.
+  Every other route behaves exactly as before. About 15 lines, marked with a comment.
+- **Why:** the template only emits `page.meta.ts` titles, so a public page cannot set a
+  per-record `<title>`, description, canonical URL or Open Graph tags. Rendering those tags from
+  the page body would duplicate the root layout's default title and description. The storefront
+  page (`src/modules/storefront/frontend/[siteSlug]/page.tsx`) is the only user today.
+- **Safety:** the hook is skipped for any route with `requireAuth` or `requireCustomerAuth`,
+  because `generateMetadata` runs before the auth gates in the page function.
+- **On upgrade, review:** if the template's catch-all gains its own metadata hook, switch the
+  storefront page to it and drop this change; otherwise re-apply the block to the new file and
+  check that `/{siteSlug}` still renders exactly one `<title>` and one canonical link
+  (`TC-STOREFRONT-001` asserts both).
+
+## 7. `jest.config.cjs` — integration specs excluded
+
+- **What:** `/__integration__/` added to `testPathIgnorePatterns`.
+- **Why:** the file's own header says Playwright integration specs are excluded from Jest, but
+  the pattern was missing, so the first `src/modules/*/__integration__/*.spec.ts` broke `yarn test`.
+- **On upgrade, review:** drop the change if the template adds the pattern itself.
+
+## 8. `.ds-check-ignore` — one storefront entry
+
+- **What:** an `inline-style` exemption for the theme swatches in
+  `src/modules/storefront/components/StorefrontOverview.tsx`.
+- **Why:** each swatch shows the merchant's own validated `#rrggbb` token as data; no design
+  token can express it.
+
+## 9. Harness title
 
 - `AGENTS.md` and `.ai/specs/README.md` titles show `Multi-tenant-ecommerce-` because
   `agentic:init` derives the project name from the directory. Left as generated on purpose: a

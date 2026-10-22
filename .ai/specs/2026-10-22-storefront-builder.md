@@ -1,7 +1,7 @@
 # Storefront Builder
 
 **Date**: 2026-10-22
-**Status**: Ready for implementation
+**Status**: Phase 1 implemented and verified (2026-10-22); Phases 2–4 pending
 
 > Authored with `om-spec-writing --autonomous` (skeleton → resolved assumptions → research → design → breakdown → review). Every autonomous default is recorded in **Resolved assumptions** and in the **Open Questions** table so the product owner can override it before a dependent phase starts.
 
@@ -208,7 +208,7 @@ Closest installed references: `/backend/directory/branding` (directory organizat
 | Surface / widget | Empty state guidance and action | Responsive behavior | Keyboard / focus behavior |
 |---|---|---|---|
 | Overview | "This organization has no storefront yet" + the ensure command for operators | single column below `md` | actions reachable in tab order; links have accessible names |
-| Brand wizard | n/a (always seeded) | groups stack; colour grid 2 columns on narrow screens | CrudForm submit with Cmd/Ctrl+Enter; colour inputs labelled; contrast warnings announced via `role="status"` |
+| Brand wizard | n/a (always seeded) | groups stack; colour grid 2 columns on narrow screens | Enter in a text field submits the full-page CrudForm (Cmd/Ctrl+Enter is the CrudForm *dialog* shortcut, corrected during implementation); colour inputs labelled; contrast warnings announced via `role="status"` |
 
 ### `/backend/storefront/brand` — Brand wizard
 
@@ -337,7 +337,7 @@ Tests are self-contained (each creates and removes its own fixtures) and map to 
 | TEST-007 | security | tenants A and B | B reads `/api/storefront/brand` (gets B's site only); B requests A's logo through `/api/storefront/media/{B-slug}/{A-logo-id}`; anonymous requests an unreferenced attachment of A | B never sees A's data; all foreign/unreferenced media → 404 | REQ-005 |
 | TEST-008 | integration (public) | tenant A with brand set | `GET /{siteSlug}` | 200; HTML contains `--sf-color-primary` with A's value, `<title>`, meta description, canonical, `og:title`, JSON-LD; no `json-render` module in the HTML or its scripts | REQ-003 |
 | TEST-009 | integration (provisioning) | fresh signup | onboarding flow end to end | site, theme, home page exist; public page 200 | REQ-001 |
-| TEST-010 | UI | tenant A admin | brand wizard: load, invalid colour, save, conflict (two tabs), keyboard submit | errors per field, success flash, conflict surface | REQ-002 |
+| TEST-010 | UI | tenant A admin | brand wizard: load, invalid colour, save, conflict (two tabs), keyboard submit (Enter in a text field) | errors per field, success flash, conflict surface | REQ-002 |
 | TEST-011 | integration (Phase 2) | tenant A | create page, edit draft with the builder (add, reorder, remove sections), publish, edit again, rollback | revisions immutable; public serves the published revision only; spec validated on every save and publish | REQ-006, REQ-007, REQ-004 |
 | TEST-012 | integration (Phase 2) | tenant A | load public pages after builder use | public HTML and route chunks contain no `@json-render/*` code | REQ-007 |
 | TEST-013 | integration (Phase 3) | tenants A and B with products and images | ProductGrid/Gallery/Image/CollectionList render | only the site's own products and images; foreign ids rejected on save | REQ-008, REQ-005 |
@@ -462,11 +462,11 @@ The reference module is source-present and unregistered; nothing above is behavi
 
 ## Acceptance Criteria
 
-- [ ] **AC-001** — A merchant who completes self-service signup has exactly one site, one theme and one published home page; re-running `ensure-sites` changes nothing.
-- [ ] **AC-002** — From `/backend/storefront/brand` a merchant saves name, description, logo, eight colours, font pair, radius and density; invalid values show field errors; a stale save returns a conflict without overwriting.
-- [ ] **AC-003** — `GET /{siteSlug}` returns server-rendered HTML whose scoped CSS custom properties, title, description, canonical, Open Graph and JSON-LD come from that site; no client JSON renderer is shipped.
-- [ ] **AC-004** — Every malicious or oversize spec in TEST-001 is rejected on save and on render; the public page never renders a partially valid spec.
-- [ ] **AC-005** — Tenant B can read none of tenant A's site, theme, pages or media through any staff or public route; foreign ids answer 404.
+- [x] **AC-001** — A merchant who completes self-service signup has exactly one site, one theme and one published home page; re-running `ensure-sites` changes nothing.
+- [x] **AC-002** — From `/backend/storefront/brand` a merchant saves name, description, logo, eight colours, font pair, radius and density; invalid values show field errors; a stale save returns a conflict without overwriting.
+- [x] **AC-003** — `GET /{siteSlug}` returns server-rendered HTML whose scoped CSS custom properties, title, description, canonical, Open Graph and JSON-LD come from that site; no client JSON renderer is shipped.
+- [~] **AC-004** — Every malicious or oversize spec in TEST-001 is rejected on save and on render; the public page never renders a partially valid spec. *(Phase 1: rejected by the validator, on seed and on render; save-time validation ships with page saves in Phase 2.)*
+- [x] **AC-005** — Tenant B can read none of tenant A's site, theme, pages or media through any staff or public route; foreign ids answer 404. *(A foreign `tenantId` in a request body is refused earlier by the platform with 403 "Not authorized to target this tenant" — the same answer for any id, so nothing about existence leaks.)*
 - [ ] **AC-006** — Publish creates an immutable revision; rollback restores an earlier one; drafts are never public.
 - [ ] **AC-007** — Builder edits round-trip through draft save and publish; public routes ship no `@json-render/*` code.
 - [ ] **AC-008** — Media and commerce blocks render only the site's tenant data.
@@ -552,6 +552,38 @@ All questions are resolved; see **Resolved assumptions** for rationale. Rows mar
 | D1 | Launch host | product owner | no | Platform path at launch, custom-domain binding available — owner, 2026-10-22 |
 | D2 | Publication of new stores | product owner | no | Publish immediately — owner, 2026-10-22 |
 
+## Implementation Status
+
+Source doc: .ai/specs/2026-10-22-storefront-builder.md
+
+**Phase 1 execution plan** (om-implement-spec; confirmation: the owner's brief of 2026-10-22 selects and approves "Phase 1 only", including applying its migration).
+
+- **Goal:** every new tenant gets a live, branded home page at `/{siteSlug}` that the merchant re-brands in `/backend/storefront/brand`.
+- **Scope:** Phase 1; AC-001…AC-005; module `storefront` (new); call sites `src/modules.ts`, `setupInitialTenant` → `onTenantCreated`, `/api/storefront/brand`, `/api/storefront/media/*`, `/backend/storefront`, `/backend/storefront/brand`, `/{siteSlug}`.
+- **Non-goals:** Phase 2 pages/revisions/builder, Phases 3–4, follow-up specs; no new npm dependencies.
+- **Phase execution:** slices (a) module shell + data + validators [om-module-scaffold, om-data-model-design; refs `module.*`, `data.*`]; (b) catalog + validator + renderer [contracts guide; json-render-* skills for schema shape]; (c) seeding + CLI [`module.setup-role-features`, `module.cli-command`]; (d) brand command + routes + media route [`commands.write`, `api.custom-route`, installed `directory/api/organization-branding/route.ts`]; (e) admin UI [om-backend-ui-design; reference `/backend/directory/branding`]; (f) public page [`ui.frontend-page`]. Oracles: TEST-001…TEST-010. Validation: `yarn generate`, `yarn db:generate` probe, `yarn typecheck`, `yarn lint`, `yarn test`, two-tenant API/browser checks.
+- **Risks:** React 19 metadata hoisting under the catch-all; `onTenantCreated` errors inside `setupInitialTenant`; route specificity for `/{siteSlug}`.
+
+| Phase | State | Dependencies | Acceptance IDs | Focused validation | Exit gate |
+|---|---|---|---|---|---|
+| Phase 1 — Brand foundation and published home page | done | none | AC-001…AC-005 | `yarn generate && yarn typecheck && yarn test` + two-tenant checks | two fresh tenants, wizard, public page, isolation |
+| Phase 2 — Page authoring | pending | Phase 1 | AC-006, AC-007 | — | — |
+| Phase 3 — Media and commerce blocks | pending | Phase 2 | AC-008 | — | — |
+| Phase 4 — SEO and indexability | pending | Phase 2 | AC-009 | — | — |
+
+### Phase 1 progress
+
+- [x] (a) module shell + data + validators: `src/modules/storefront/{index,acl,setup}.ts`, `data/{entities,validators}.ts`, `lib/{theme,slug}.ts`, `i18n/en.json`, `src/modules.ts` (`enabledModules.push`), migration `Migration20261022035801_storefront.ts` (+ 4 partial unique indexes, re-probe "no changes", applied); TEST-002/003/004 — `yarn generate` exit 0; `yarn db:generate` (storefront only); `yarn jest src/modules/storefront` 19 passed
+- [x] (b) catalog + validator + renderer: `lib/blocks/{schemas,catalog,pageSpec,defaultHome}.ts`, `lib/{structuredData,storefrontCss,publicSite}.ts`, `components/public/{blocks,registry,StorefrontView}.tsx`; TEST-001 (malicious specs incl. `$state`/`$cond`/`$t`, `className`/`style`/`dangerouslySetInnerHTML`/`ref`, unsafe hrefs, caps, prototype keys) and TEST-004 (scoped CSS vars, text-only rendering, JSON-LD escaping, head tags) — `yarn jest src/modules/storefront` 53 passed
+- [x] (c) seeding + CLI: `lib/seeding.ts` (`ensureStorefrontSite`, idempotent, repairs a missing theme/home, slug race → re-check), `setup.ts` `onTenantCreated` (logs, never fails signup), `events.ts`, `cli.ts` `ensure-sites [--tenant]` — `yarn generate` exit 0, `yarn typecheck` exit 0; `yarn mercato storefront ensure-sites` → `created /suqna-platform`, re-run → `existing`, bad `--tenant` rejected; rows verified (site + theme v1 + published `index` with 4 sections). TEST-009 runs in the two-tenant E2E
+- [x] (d) brand command + routes + media route: `commands/brand.ts` (`storefront.brand.update`, aggregate lock on the site row, logo must be a raster attachment of the same org, undo via `extractUndoPayload`, cross-scope undo → 404), `api/brand/route.ts` (GET/PUT, mutation guards, `{ error, fieldErrors }` keyed by path), `api/media/[siteSlug]/[attachmentId]/route.ts` (public; serves only the live site's referenced logo; everything else 404), `api/openapi.ts`, `lib/{fieldErrors,media}.ts`; TEST-005 (6 cases) + field-error tests — live: GET 200, invalid 422 with `name`/`tokens.colors.*`/`tenantId`/`css` field errors, stale version 409, foreign logo 422, anonymous 401, unreferenced media 404
+- [x] (e) admin UI: `backend/storefront/page.tsx` (+meta, `store` icon, `storefront.view`), `backend/storefront/brand/page.tsx` (+meta, `storefront.brand.manage`, nav-hidden), `components/{StorefrontOverview,BrandWizard,brandForm}.tsx`; CrudForm with four step groups + `StepIndicator`, `ColorPicker`, presets, live contrast hints (`role=status`), `SegmentedControl`, `ImageUpload` → `POST /api/attachments`; i18n en/de/es/pl/ko (104 keys each) — browser check: overview, Edit brand gated by feature-check, server field errors on save
+- [x] (f) public page: `frontend/[siteSlug]/page.tsx` (+meta `requireAuth: false`), `lib/publicMetadata.ts`; per-request `cache()` load; spec re-validated on render (invalid → unavailable page, `noindex`, error log); title/description/canonical/OG through Next metadata via a static `generateMetadata` read by the frontend catch-all (divergence recorded in docs/UPSTREAM_DIVERGENCES.md) — live: `/suqna-platform` 200 with one `<title>`, one canonical, OG set, `--sf-color-primary` = saved value, JSON-LD, no `json-render`; `/Suqna-Platform` 308 → canonical; unknown slug 404
+- [x] (g) payment policy (deliverable 5): `src/modules/payment_policy/{index,setup,cli}.ts`, `lib/policy.ts` (+3 unit tests); `seedDefaults` after `sales` deactivates non-manual providers and strips provider settings; `yarn mercato payment_policy enforce` — platform tenant: `card (stripe)` cleaned, re-run "nothing to change"; fresh tenants: `card|stripe|inactive|no settings`, COD and bank transfer active
+- [x] (h) verification: two fresh self-service signups (Atlas Coffee, Bloom Florist) through `/onboarding` with captured email; TEST-009 seeded site/theme/published home for both; TEST-010 wizard in Chromium (logo upload 200, Midnight preset, radius/spacing, save 200 with lock header, success flash; two tabs → 200 then 409 with the shared conflict bar); TEST-008 `/atlas-coffee` 200 with A's `--sf-color-*`, one `<title>`, canonical, description, OG incl. `og:image`, JSON-LD, logo 200 `image/png`, no `json-render`, phone width checked; TEST-006 employee GET 200 / PUT 403; TEST-007 17/17 isolation checks (B sees only B, A's logo via B's slug 404, B's unreferenced upload 404, attachments API lists none of A's files, A palette absent from B's page, scope smuggling refused); `TC-STOREFRONT-001.spec.ts` 4/4 against the dev server
+- [x] (i) review (`om-code-review` + `.ai/review-checklist.md`): fixed — brand route moved to the registry mutation-guard contract (`runRouteMutationGuards`, `modifiedPayload` merged and revalidated), version re-checked under a row lock inside the write transaction (+regression test), contrast refinement skips pairs with an invalid colour (+test), duplicate HEX input removed; existing tenants needed `auth sync-role-acls` (documented)
+- Gates (final): `yarn generate` ✅, `yarn typecheck` ✅, `yarn lint` ✅ (0 errors; remaining warnings are scaffold files), `yarn ds:check` ✅, `yarn test` ✅ 7 suites / 69 tests, `yarn build` ✅ (needs the dev server stopped on a 15 GB sandbox: with both running, Next's type-check worker exits silently), `yarn db:generate` probe no changes
+
 ## Changelog
 
 | Date | Change |
@@ -560,3 +592,4 @@ All questions are resolved; see **Resolved assumptions** for rationale. Rows mar
 | 2026-10-22 | Questions resolved under autonomous defaults; problem, goals, scope filled |
 | 2026-10-22 | Research, design and implementation breakdown |
 | 2026-10-22 | Review: scope split (custom domains, AI, translations, webfonts → follow-up specs), pages + builder merged, edge cases added; status Ready for implementation (Phase 1) |
+| 2026-10-22 | Phase 1 implemented and verified (ledger above); keyboard-submit wording corrected; implementation decisions I1–I7 in `docs/DECISIONS.md` |

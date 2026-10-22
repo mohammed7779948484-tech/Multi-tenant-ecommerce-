@@ -119,6 +119,36 @@ worked: install Node 24 from nodejs.org and put it first on `PATH`, start
 `registry.yarnpkg.com` returns 503, run
 `YARN_NPM_REGISTRY_SERVER=https://registry.npmjs.org yarn install`.
 
+## Storefront (Phase 1)
+
+Every organization gets a public store at `/<siteSlug>` (the slug comes from the
+organization slug), seeded at signup with a default theme and a published home page.
+Spec: `.ai/specs/2026-10-22-storefront-builder.md`; decisions: `docs/DECISIONS.md`.
+
+- **Admin:** *Storefront* in the sidebar (`/backend/storefront`) shows the public
+  address and theme; **Edit brand** (`/backend/storefront/brand`, feature
+  `storefront.brand.manage`) sets the store name, description, logo, eight colours,
+  a font pair, corner radius and spacing. Saves go live at once.
+- **Public page:** server-rendered by the app's own block registry (no client JSON
+  renderer). Title, description, canonical URL, Open Graph and JSON-LD come from the
+  brand; the logo is served by `/api/storefront/media/<siteSlug>/<attachmentId>`.
+- **Payments:** the `payment_policy` module deactivates gateway payment methods (the
+  `stripe` "Credit Card" method that `sales` seeds) for every new tenant. Cash on
+  delivery and bank transfer stay active.
+- **After deploying to an existing database**, run once:
+
+  ```bash
+  yarn mercato storefront ensure-sites      # a store for every organization
+  yarn mercato auth sync-role-acls          # storefront.* grants for existing roles
+  yarn mercato payment_policy enforce       # deactivate gateway payment methods
+  ```
+
+- **Tests:** `yarn test` (unit) and
+  `src/modules/storefront/__integration__/TC-STOREFRONT-001.spec.ts`
+  (`yarn test:integration:ephemeral`, or
+  `npx playwright test --config .ai/qa/tests/playwright.config.ts src/modules/storefront/__integration__`
+  against a running app).
+
 ## Not working yet
 
 - **Email.** Disabled in local development on purpose: signup works and the
@@ -129,7 +159,10 @@ worked: install Node 24 from nodejs.org and put it first on `PATH`, start
   Subdomains and custom domains need real DNS (`CUSTOM_DOMAIN_CNAME_TARGET`,
   for example a wildcard `*.<platform-domain>` record) and TLS at the edge
   (see Open Mercato's Traefik notes).
-- **Card payment method.** `sales` seeds a `stripe` "Credit Card" payment method
-  into every new tenant. It is only a record (no gateway is installed); it was
-  deactivated in the local tenant. New tenants still get it until an app-level
-  setup hook removes it.
+- **Store pages beyond the home page.** Page authoring (draft/publish/rollback and
+  the section builder) is spec Phase 2; the seeded home page's sections are not
+  editable yet, only the brand.
+- **Content-Security-Policy.** The app-wide header comes from the upstream proxy
+  and still allowlists `js.stripe.com`; nothing loads from it, but it can be
+  tightened once the policy is reviewed (`src/proxy.ts`, see
+  `docs/UPSTREAM_DIVERGENCES.md` §1).

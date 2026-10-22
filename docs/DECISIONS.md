@@ -51,6 +51,18 @@ decision recorded here with a date. Detailed design lives in
 | O4 | Fonts self-hosted. | Phase 1 uses system font stacks (nothing fetched from third parties); webfont files arrive in a follow-up. |
 | O5 | New stores publish immediately. | The seeded home page is published at signup. |
 
+## Decisions made while implementing Phase 1 (2026-10-22)
+
+| ID | Decision | Why |
+|---|---|---|
+| I1 | The `payment_policy` app module deactivates gateway methods instead of deleting them, and strips their provider settings. It runs in `seedDefaults` after `sales` (it `requires` sales and is registered after it); `yarn mercato payment_policy enforce [--tenant]` applies it to existing tenants. | `sales` re-seeds a method only when its code is missing, so a deleted card method would come back on the next seed run; an inactive row stays inactive. The seed's example `pk_test`/`sk_test` values are removed. |
+| I2 | Allowed payment provider keys: `cash-on-delivery`, `wire-transfer`, or none (manual). Everything else is deactivated. | An allowlist also covers gateways a future package might seed. |
+| I3 | Store pages get title, description, canonical and Open Graph tags through Next metadata, supplied by a static `generateMetadata` on the page component and read by the frontend catch-all. | One tag of each kind per document; see `docs/UPSTREAM_DIVERGENCES.md` §6. |
+| I4 | In Phase 1 the home page title is the brand's store name, not the seeded page row's title. | A rename in the wizard shows at once; per-page titles arrive with page authoring (Phase 2). The seeded hero text is page content and is edited in Phase 2. |
+| I5 | Brand saves lock on the site row: `prepare` checks the version, and `execute` re-checks it under `SELECT … FOR UPDATE` inside the write transaction. | Two saves that both passed `prepare` cannot both commit; the second gets 409. |
+| I6 | The logo route serves only the live store's current logo (raster types; no SVG); any other attachment id, store or state answers the same 404. | No existence leak; merchant uploads stay private unless referenced. |
+| I7 | Existing tenants need `yarn mercato auth sync-role-acls` after deploying the storefront module (new tenants get the grants at signup). | Role ACLs are seeded at tenant creation only; the platform tenant predates the module. |
+
 ## Open items needing the owner
 
 - Spec Q2 (public path `/{siteSlug}`) and Q4 (theme saves go live immediately) are marked ⚠ in the spec.
