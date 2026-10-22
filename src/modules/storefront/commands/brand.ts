@@ -4,7 +4,7 @@ import type { CommandHandler, CommandRuntimeContext } from '@open-mercato/shared
 import { registerCommand } from '@open-mercato/shared/lib/commands'
 import { withAtomicFlush } from '@open-mercato/shared/lib/commands/flush'
 import { buildChanges } from '@open-mercato/shared/lib/commands/helpers'
-import { badRequest, CrudHttpError, notFound } from '@open-mercato/shared/lib/crud/errors'
+import { CrudHttpError } from '@open-mercato/shared/lib/crud/errors'
 import { extractUndoPayload, type UndoPayload } from '@open-mercato/shared/lib/commands/undo'
 import { enforceCommandOptimisticLock } from '@open-mercato/shared/lib/crud/optimistic-lock-command'
 import { resolveTranslations } from '@open-mercato/shared/lib/i18n/server'
@@ -15,6 +15,7 @@ import { brandUpdateCommandSchema } from '../data/validators'
 import { emitStorefrontEvent } from '../events'
 import { readThemeTokens, type ThemeTokens } from '../lib/theme'
 import { isStorefrontLogoMimeType } from '../lib/media'
+import { ensureCommandScope, storefrontNotFound, type StorefrontCommandScope } from '../lib/commandScope'
 
 export const BRAND_UPDATE_COMMAND_ID = 'storefront.brand.update'
 export const SITE_RESOURCE_KIND = 'storefront.site'
@@ -36,20 +37,7 @@ export type BrandSnapshot = {
   updatedAt: string | null
 }
 
-type Scope = { tenantId: string; organizationId: string }
-
-async function ensureScope(ctx: CommandRuntimeContext): Promise<Scope> {
-  const tenantId = ctx.auth?.tenantId ?? null
-  const organizationId = ctx.selectedOrganizationId ?? ctx.auth?.orgId ?? null
-  if (tenantId && organizationId) return { tenantId, organizationId }
-  const { translate } = await resolveTranslations()
-  throw badRequest(translate('storefront.errors.organizationRequired', 'Select a single organization to manage its storefront.'))
-}
-
-async function storefrontNotFound(): Promise<CrudHttpError> {
-  const { translate } = await resolveTranslations()
-  return notFound(translate('storefront.errors.notFound', 'Storefront not found.'))
-}
+type Scope = StorefrontCommandScope
 
 async function loadAggregate(em: EntityManager, siteId: string, scope: Scope) {
   const site = await em.findOne(StorefrontSite, { id: siteId, ...scope, deletedAt: null })
@@ -142,7 +130,7 @@ const updateBrandCommand: CommandHandler<Record<string, unknown>, BrandSnapshot>
   isUndoable: true,
   async prepare(rawInput, ctx) {
     const input = brandUpdateCommandSchema.parse(rawInput)
-    const scope = await ensureScope(ctx)
+    const scope = await ensureCommandScope(ctx)
     const em = (ctx.container.resolve('em') as EntityManager).fork()
     const aggregate = await loadAggregate(em, input.siteId, scope)
     if (!aggregate) throw await storefrontNotFound()
@@ -157,7 +145,7 @@ const updateBrandCommand: CommandHandler<Record<string, unknown>, BrandSnapshot>
   },
   async execute(rawInput, ctx) {
     const input = brandUpdateCommandSchema.parse(rawInput)
-    const scope = await ensureScope(ctx)
+    const scope = await ensureCommandScope(ctx)
     const em = (ctx.container.resolve('em') as EntityManager).fork()
     if (input.logoAttachmentId) await assertLogoAttachment(em, input.logoAttachmentId, scope)
     let site: StorefrontSite | null = null
@@ -225,7 +213,7 @@ const updateBrandCommand: CommandHandler<Record<string, unknown>, BrandSnapshot>
   async undo({ logEntry, ctx }) {
     const before = extractUndoPayload<UndoPayload<BrandSnapshot>>(logEntry)?.before
     if (!before?.siteId) throw new Error('[internal] Missing previous snapshot for storefront brand undo')
-    const scope = await ensureScope(ctx)
+    const scope = await ensureCommandScope(ctx)
     // Undo never crosses scope: the snapshot must belong to the caller's tenant and organization.
     if (before.tenantId !== scope.tenantId || before.organizationId !== scope.organizationId) {
       throw await storefrontNotFound()

@@ -41,3 +41,42 @@ export const mediaParamsSchema = z.object({
   siteSlug: z.string().min(1).max(48),
   attachmentId: z.string().uuid(),
 })
+
+// ── Phase 2: pages ────────────────────────────────────────────────────────────
+
+export const pageTitleSchema = z.string().trim().min(1, 'storefront.validation.titleRequired').max(70, 'storefront.validation.titleTooLong')
+export const pageSeoDescriptionSchema = z
+  .string()
+  .trim()
+  .max(160, 'storefront.validation.descriptionTooLong')
+  .transform((value) => (value.length ? value : null))
+  .nullable()
+/** Grammar and reserved words are checked by the command (`pageSlugIssue`) so they map to readable field errors. */
+export const pageSlugInputSchema = z.string().trim().min(1, 'storefront.validation.slugInvalid').max(48, 'storefront.validation.slugInvalid')
+
+/** `POST /api/storefront/pages`. Strict: scope and publish state never come from the body. */
+export const pageCreateSchema = z
+  .object({
+    title: pageTitleSchema,
+    slug: pageSlugInputSchema,
+    seoDescription: pageSeoDescriptionSchema.optional().default(null),
+  })
+  .strict()
+export type PageCreateInput = z.infer<typeof pageCreateSchema>
+
+/** `PUT /api/storefront/pages`. `draftSpec` is validated by `validatePageSpec` (issues with paths), not here. */
+export const pageUpdateSchema = z
+  .object({
+    id: z.string().uuid(),
+    title: pageTitleSchema.optional(),
+    slug: pageSlugInputSchema.optional(),
+    seoDescription: pageSeoDescriptionSchema.optional(),
+    draftSpec: z.unknown().optional(),
+  })
+  .strict()
+export type PageUpdateInput = z.infer<typeof pageUpdateSchema>
+
+export const pageDeleteSchema = z.object({ id: z.string().uuid() }).strict()
+export const pagePublishSchema = z.object({ id: z.string().uuid() }).strict()
+export const pageRollbackBodySchema = z.object({ revisionId: z.string().uuid() }).strict()
+export const pageRollbackSchema = z.object({ id: z.string().uuid(), revisionId: z.string().uuid() }).strict()

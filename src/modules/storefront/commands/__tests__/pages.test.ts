@@ -1,0 +1,264 @@
+import { randomUUID } from 'node:crypto'
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
+
+const emitMock = jest.fn<(...args: unknown[]) => Promise<void>>(async () => undefined)
+
+jest.mock('../../events', () => ({
+  emitStorefrontEvent: (...args: unknown[]) => emitMock(...args),
+}))
+jest.mock('@open-mercato/shared/lib/i18n/server', () => ({
+  resolveTranslations: async () => ({ translate: (key: string, fallback?: string) => fallback ?? key }),
+}))
+
+import type { CommandRuntimeContext } from '@open-mercato/shared/lib/commands'
+import { StorefrontPage, StorefrontPageRevision, StorefrontSite } from '../../data/entities'
+import { buildDefaultHomeSpec } from '../../lib/blocks/defaultHome'
+import { pageStatus } from '../../lib/pages'
+import {
+  createPageCommand,
+  deletePageCommand,
+  publishPageCommand,
+  rollbackPageCommand,
+  updatePageCommand,
+  type PageSnapshot,
+  type PublishResult,
+} from '../pages'
+
+const LOCK_HEADER = 'x-om-ext-optimistic-lock-expected-updated-at'
+type Row = Record<string, unknown>
+
+/** In-memory EntityManager: scoped equality lookups, ordering, counting and transactions. */
+function createFakeEm() {
+  const tables = new Map<unknown, Row[]>([
+    [StorefrontSite, []],
+    [StorefrontPage, []],
+    [StorefrontPageRevision, []],
+  ])
+  const counters = { begin: 0, commit: 0, rollback: 0 }
+  const matches = (row: Row, where: Row) =>
+    Object.entries(where).every(([key, value]) => (value === null ? row[key] == null : row[key] === value))
+  const em = {
+    tables,
+    counters,
+    fork: () => em,
+    async findOne(entity: unknown, where: Row, options?: { orderBy?: Record<string, 'asc' | 'desc'> }) {
+      let rows = (tables.get(entity) ?? []).filter((row) => matches(row, where))
+      const order = options?.orderBy ? Object.entries(options.orderBy)[0] : null
+      if (order) {
+        const [key, dir] = order
+        rows = [...rows].sort((a, b) => ((a[key] as number) - (b[key] as number)) * (dir === 'desc' ? -1 : 1))
+      }
+      return rows[0] ?? null
+    },
+    async count(entity: unknown, where: Row) {
+      return (tables.get(entity) ?? []).filter((row) => matches(row, where)).length
+    },
+    create(entity: { prototype: object }, data: Row) {
+      return Object.assign(Object.create(entity.prototype), { id: randomUUID() }, data)
+    },
+    persist(row: Row) {
+      const list = tables.get(row.constructor)!
+      if (!list.includes(row)) list.push(row)
+    },
+    async flush() {},
+    isInTransaction: () => false,
+    async begin() {
+      counters.begin += 1
+    },
+    async commit() {
+      counters.commit += 1
+    },
+    async rollback() {
+      counters.rollback += 1
+    },
+  }
+  return em
+}
+type FakeEm = ReturnType<typeof createFakeEm>
+
+const tenantA = randomUUID()
+const orgA = randomUUID()
+const tenantB = randomUUID()
+const orgB = randomUUID()
+
+function seedSite(em: FakeEm, tenantId: string, organizationId: string) {
+  const site = em.create(StorefrontSite, { tenantId, organizationId, slug: `s-${organizationId.slice(0, 6)}`, name: 'Store', deletedAt: null, firstPublishedAt: new Date() })
+  em.persist(site)
+  const homeSpec = buildDefaultHomeSpec({ storeName: 'Store' })
+  const revisionId = randomUUID()
+  const home = em.create(StorefrontPage, {
+    tenantId,
+    organizationId,
+    siteId: site.id,
+    slug: 'index',
+    title: 'Store',
+    seoDescription: null,
+    publishedSpec: homeSpec,
+    publishedAt: new Date('2026-10-01T00:00:00Z'),
+    publishedRevisionId: revisionId,
+    draftSpec: null,
+    draftUpdatedAt: null,
+    updatedAt: new Date('2026-10-01T00:00:00Z'),
+    deletedAt: null,
+  }) as StorefrontPage
+  em.persist(home as unknown as Row)
+  em.persist(em.create(StorefrontPageRevision, { id: revisionId, tenantId, organizationId, siteId: site.id, pageId: home.id, revisionNo: 1, spec: homeSpec, title: 'Store', source: 'publish' }))
+  return { site: site as StorefrontSite, home }
+}
+
+function ctxFor(em: FakeEm, tenantId: string, organizationId: string, headers: Record<string, string> = {}) {
+  return {
+    container: { resolve: (name: string) => (name === 'em' ? em : undefined) },
+    auth: { sub: randomUUID(), tenantId, orgId: organizationId },
+    selectedOrganizationId: organizationId,
+    organizationIds: [organizationId],
+    request: new Request('http://localhost/api/storefront/pages', { method: 'PUT', headers }),
+  } as unknown as CommandRuntimeContext
+}
+
+const pages = (em: FakeEm) => em.tables.get(StorefrontPage) as unknown as StorefrontPage[]
+const revisions = (em: FakeEm, pageId: string) =>
+  (em.tables.get(StorefrontPageRevision) as unknown as StorefrontPageRevision[]).filter((r) => r.pageId === pageId)
+
+async function createPage(em: FakeEm, ctx: CommandRuntimeContext, slug = 'about', title = 'About us') {
+  return (await createPageCommand.execute({ title, slug }, ctx)) as PageSnapshot
+}
+
+describe('storefront page commands (TEST-017)', () => {
+  let em: FakeEm
+  let ctx: CommandRuntimeContext
+  beforeEach(() => {
+    em = createFakeEm()
+    seedSite(em, tenantA, orgA)
+    ctx = ctxFor(em, tenantA, orgA)
+    emitMock.mockClear()
+  })
+
+  it('creates a draft page with a starter spec under the site lock and emits after commit', async () => {
+    const created = await createPage(em, ctx)
+    const page = pages(em).find((p) => p.id === created.id)!
+    expect(page.slug).toBe('about')
+    expect(pageStatus(page)).toBe('draft')
+    expect((page.draftSpec as { elements: Record<string, { type: string }> }).elements.hero.type).toBe('Hero')
+    expect(em.counters).toMatchObject({ begin: 1, commit: 1 })
+    expect(emitMock).toHaveBeenCalledWith('storefront.page.created', expect.objectContaining({ id: created.id, tenantId: tenantA }), expect.anything())
+  })
+
+  it('rejects invalid, reserved and taken slugs with a slug field error', async () => {
+    await createPage(em, ctx)
+    for (const slug of ['About', 'portal', 'index', 'about']) {
+      await expect(createPageCommand.execute({ title: 'X', slug }, ctx)).rejects.toMatchObject({
+        status: 422,
+        body: { fieldErrors: { slug: expect.any(String) } },
+      })
+    }
+  })
+
+  it('caps a store at 30 pages including the home page', async () => {
+    for (let i = 1; i < 30; i += 1) await createPage(em, ctx, `page-${i}`, `Page ${i}`)
+    await expect(createPage(em, ctx, 'one-too-many')).rejects.toMatchObject({ status: 422, body: { error: 'A store can have at most 30 pages.' } })
+  })
+
+  it('validates the draft spec on save and returns path-level issues', async () => {
+    const created = await createPage(em, ctx)
+    const evil = {
+      root: 'page',
+      elements: {
+        page: { type: 'Page', props: {}, children: ['x'] },
+        x: { type: 'Script', props: { src: 'javascript:alert(1)' }, children: [] },
+      },
+    }
+    await expect(updatePageCommand.execute({ id: created.id, draftSpec: evil }, ctx)).rejects.toMatchObject({
+      status: 422,
+      body: { issues: [expect.objectContaining({ path: 'elements.x.type', code: 'unknown_block' })] },
+    })
+  })
+
+  it('refuses a stale version with 409', async () => {
+    const created = await createPage(em, ctx)
+    const stale = ctxFor(em, tenantA, orgA, { [LOCK_HEADER]: '2020-01-01T00:00:00.000Z' })
+    await expect(updatePageCommand.prepare!({ id: created.id, title: 'New' }, stale)).rejects.toMatchObject({ status: 409 })
+    await expect(updatePageCommand.execute({ id: created.id, title: 'New' }, stale)).rejects.toMatchObject({ status: 409 })
+  })
+
+  it('publishes numbered revisions, refuses a no-op publish and freezes the slug', async () => {
+    const created = await createPage(em, ctx)
+    const first = (await publishPageCommand.execute({ id: created.id }, ctx)) as PublishResult
+    expect(first.revisionNo).toBe(1)
+    const page = pages(em).find((p) => p.id === created.id)!
+    expect(pageStatus(page)).toBe('published')
+    expect(page.publishedSpec).toEqual(page.draftSpec)
+    await expect(publishPageCommand.execute({ id: created.id }, ctx)).rejects.toMatchObject({ status: 422 })
+    await expect(updatePageCommand.execute({ id: created.id, slug: 'renamed' }, ctx)).rejects.toMatchObject({
+      status: 422,
+      body: { fieldErrors: { slug: 'The address cannot change after the page was published.' } },
+    })
+
+    await updatePageCommand.execute({ id: created.id, title: 'About Atlas' }, ctx)
+    expect(pageStatus(page)).toBe('changed')
+    const second = (await publishPageCommand.execute({ id: created.id }, ctx)) as PublishResult
+    expect(second.revisionNo).toBe(2)
+    expect(revisions(em, created.id).find((r) => r.revisionNo === 2)!.title).toBe('About Atlas')
+    expect(emitMock).toHaveBeenCalledWith('storefront.page.published', expect.objectContaining({ revisionNo: 2 }), expect.anything())
+  })
+
+  it('rolls back by appending a copy and resetting the draft, title and status', async () => {
+    const created = await createPage(em, ctx)
+    const first = (await publishPageCommand.execute({ id: created.id }, ctx)) as PublishResult
+    await updatePageCommand.execute({ id: created.id, title: 'Changed title' }, ctx)
+    await publishPageCommand.execute({ id: created.id }, ctx)
+    await updatePageCommand.execute({ id: created.id, seoDescription: 'unpublished edit' }, ctx)
+
+    const rolled = (await rollbackPageCommand.execute({ id: created.id, revisionId: first.revisionId }, ctx)) as PublishResult
+    expect(rolled.revisionNo).toBe(3)
+    const third = revisions(em, created.id).find((r) => r.revisionNo === 3)!
+    expect(third).toMatchObject({ source: 'rollback', sourceRevisionId: first.revisionId, title: 'About us' })
+    const page = pages(em).find((p) => p.id === created.id)!
+    expect(page).toMatchObject({ title: 'About us', seoDescription: null, draftUpdatedAt: null })
+    expect(pageStatus(page)).toBe('published')
+
+    await expect(rollbackPageCommand.execute({ id: created.id, revisionId: third.id }, ctx)).rejects.toMatchObject({ status: 422 })
+    await expect(rollbackPageCommand.execute({ id: created.id, revisionId: randomUUID() }, ctx)).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('keeps the home page: no delete, no slug change', async () => {
+    const home = pages(em).find((p) => p.slug === 'index')!
+    await expect(deletePageCommand.execute({ id: home.id }, ctx)).rejects.toMatchObject({ status: 422 })
+    await expect(updatePageCommand.execute({ id: home.id, slug: 'home' }, ctx)).rejects.toMatchObject({ status: 422 })
+    await expect(updatePageCommand.execute({ id: home.id, slug: 'index', title: 'Home' }, ctx)).resolves.toMatchObject({ slug: 'index' })
+  })
+
+  it('undoes an update and a delete, but never moves a published address or reuses a taken slug', async () => {
+    const created = await createPage(em, ctx)
+    const prepared = await updatePageCommand.prepare!({ id: created.id, slug: 'about-us' }, ctx)
+    const updated = (await updatePageCommand.execute({ id: created.id, slug: 'about-us' }, ctx)) as PageSnapshot
+    const log = await updatePageCommand.buildLog!({ input: {}, result: updated, snapshots: { before: prepared?.before }, ctx } as never)
+    await publishPageCommand.execute({ id: created.id }, ctx)
+    await expect(updatePageCommand.undo!({ input: {}, ctx, logEntry: { commandPayload: log?.payload } as never })).rejects.toMatchObject({ status: 409 })
+
+    const other = await createPage(em, ctx, 'contact', 'Contact')
+    const before = await deletePageCommand.prepare!({ id: other.id }, ctx)
+    const deleted = (await deletePageCommand.execute({ id: other.id }, ctx)) as PageSnapshot
+    const deleteLog = await deletePageCommand.buildLog!({ input: {}, result: deleted, snapshots: { before: before?.before }, ctx } as never)
+    await createPage(em, ctx, 'contact', 'Contact again')
+    await expect(deletePageCommand.undo!({ input: {}, ctx, logEntry: { commandPayload: deleteLog?.payload } as never })).rejects.toMatchObject({ status: 409 })
+
+    const third = await createPage(em, ctx, 'faq', 'FAQ')
+    const thirdBefore = await deletePageCommand.prepare!({ id: third.id }, ctx)
+    const thirdDeleted = (await deletePageCommand.execute({ id: third.id }, ctx)) as PageSnapshot
+    const thirdLog = await deletePageCommand.buildLog!({ input: {}, result: thirdDeleted, snapshots: { before: thirdBefore?.before }, ctx } as never)
+    await deletePageCommand.undo!({ input: {}, ctx, logEntry: { commandPayload: thirdLog?.payload } as never })
+    expect(pages(em).find((p) => p.id === third.id)!.deletedAt).toBeNull()
+  })
+
+  it("answers 404 for another tenant's pages and revisions and changes nothing", async () => {
+    const { home: foreignHome } = seedSite(em, tenantB, orgB)
+    const foreignRevision = revisions(em, foreignHome.id)[0]!
+    const created = await createPage(em, ctx)
+    await expect(updatePageCommand.execute({ id: foreignHome.id, title: 'Hijack' }, ctx)).rejects.toMatchObject({ status: 404 })
+    await expect(publishPageCommand.execute({ id: foreignHome.id }, ctx)).rejects.toMatchObject({ status: 404 })
+    await expect(deletePageCommand.execute({ id: foreignHome.id }, ctx)).rejects.toMatchObject({ status: 404 })
+    await expect(rollbackPageCommand.execute({ id: created.id, revisionId: foreignRevision.id }, ctx)).rejects.toMatchObject({ status: 404 })
+    expect(foreignHome.title).toBe('Store')
+  })
+})

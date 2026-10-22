@@ -1,19 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql'
 import { Organization, Tenant } from '@open-mercato/core/modules/directory/data/entities'
 import { findOneWithDecryption } from '@open-mercato/shared/lib/encryption/find'
-import { StorefrontPage, StorefrontSite, StorefrontTheme } from '../data/entities'
+import { StorefrontPage, StorefrontPageRevision, StorefrontSite, StorefrontTheme } from '../data/entities'
 import { readThemeTokens, type ThemeTokens } from './theme'
-import { isValidSiteSlug } from './slug'
+import { isValidSiteSlug, RESERVED_PAGE_SLUGS, SITE_SLUG_PATTERN } from './slug'
 
 export const HOME_PAGE_SLUG = 'index'
-
-export type PublicStorefront = {
-  site: StorefrontSite
-  tokens: ThemeTokens
-  home: StorefrontPage | null
-  /** The organization slug, for links into that tenant's customer portal. */
-  organizationSlug: string | null
-}
 
 export type PublicSite = {
   site: StorefrontSite
@@ -49,20 +41,42 @@ export async function resolvePublicSite(em: EntityManager, slug: string): Promis
   return { site, organizationSlug: organization.slug ?? null }
 }
 
-/** A live site plus its theme tokens and home page, all read in the site's scope. */
-export async function resolvePublicStorefront(em: EntityManager, slug: string): Promise<PublicStorefront | null> {
-  const resolved = await resolvePublicSite(em, slug)
+export type PublicStorefrontPage = {
+  site: StorefrontSite
+  tokens: ThemeTokens
+  organizationSlug: string | null
+  /** The published page; `null` when the slug is unknown, unpublished or deleted. */
+  page: StorefrontPage | null
+  /** The live revision (title and SEO description buyers see). */
+  revision: StorefrontPageRevision | null
+}
+
+/**
+ * A live store plus one of its **published** pages (`pageSlug = 'index'` for the
+ * home page). Every read is pinned to the site's tenant and organization; drafts
+ * are never returned: the page must carry a published spec, and its title/SEO
+ * description come from the live revision, not the working copy.
+ */
+export async function resolvePublicStorefrontPage(
+  em: EntityManager,
+  siteSlug: string,
+  pageSlug: string,
+): Promise<PublicStorefrontPage | null> {
+  const resolved = await resolvePublicSite(em, siteSlug)
   if (!resolved) return null
   const { site } = resolved
   const scope = { tenantId: site.tenantId, organizationId: site.organizationId }
   const theme = await em.findOne(StorefrontTheme, { siteId: site.id, ...scope, deletedAt: null })
-  const home = await em.findOne(StorefrontPage, { siteId: site.id, ...scope, slug: HOME_PAGE_SLUG, deletedAt: null })
-  return {
-    site,
-    tokens: readThemeTokens(theme?.tokens),
-    home,
-    organizationSlug: resolved.organizationSlug,
-  }
+  const base = { site, tokens: readThemeTokens(theme?.tokens), organizationSlug: resolved.organizationSlug }
+  const slug = pageSlug.trim().toLowerCase()
+  const isHome = slug === HOME_PAGE_SLUG
+  if (!isHome && (!SITE_SLUG_PATTERN.test(slug) || RESERVED_PAGE_SLUGS.has(slug))) return { ...base, page: null, revision: null }
+  const page = await em.findOne(StorefrontPage, { siteId: site.id, ...scope, slug, deletedAt: null })
+  if (!page || !page.publishedSpec) return { ...base, page: null, revision: null }
+  const revision = page.publishedRevisionId
+    ? await em.findOne(StorefrontPageRevision, { id: page.publishedRevisionId, pageId: page.id, ...scope })
+    : null
+  return { ...base, page, revision }
 }
 
 /** Absolute public URL of a store on the platform host. */

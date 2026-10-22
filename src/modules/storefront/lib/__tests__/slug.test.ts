@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals'
-import { RESERVED_SITE_SLUGS, SITE_SLUG_PATTERN, isValidSiteSlug, siteSlugCandidates, slugifySiteName } from '../slug'
+import { RESERVED_SITE_SLUGS, SITE_SLUG_PATTERN, isValidSiteSlug, pageSlugIssue, siteSlugCandidates, slugifySiteName, suggestPageSlug } from '../slug'
 
 const ORG_ID = '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d'
 
@@ -34,5 +34,25 @@ describe('TEST-003 site slugs', () => {
       expect(candidate.length).toBeLessThanOrEqual(48)
       expect(isValidSiteSlug(candidate)).toBe(true)
     }
+  })
+})
+
+describe('page slugs (TEST-001 extension)', () => {
+  it('accepts the site-slug grammar and rejects reserved words and bad shapes', () => {
+    expect(pageSlugIssue('about-us')).toBeNull()
+    expect(pageSlugIssue('a')).toBeNull()
+    for (const reserved of ['index', 'portal', 'cart', 'checkout', 'products', 'api']) {
+      expect(pageSlugIssue(reserved)).toBe('slugReserved')
+    }
+    for (const bad of ['', 'About', '-about', 'about-', 'a b', 'über', 'a/b', '../x', 'x'.repeat(49)]) {
+      expect(pageSlugIssue(bad)).toBe('slugInvalid')
+    }
+  })
+
+  it('suggests a usable slug from a title', () => {
+    expect(suggestPageSlug('About us!')).toBe('about-us')
+    expect(suggestPageSlug('Portal')).toBe('portal-page')
+    expect(pageSlugIssue(suggestPageSlug('Cart'))).toBeNull()
+    expect(suggestPageSlug('***')).toBe('')
   })
 })

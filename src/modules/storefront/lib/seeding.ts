@@ -1,8 +1,9 @@
+import { randomUUID } from 'node:crypto'
 import type { EntityManager } from '@mikro-orm/postgresql'
 import { Organization } from '@open-mercato/core/modules/directory/data/entities'
 import { findOneWithDecryption } from '@open-mercato/shared/lib/encryption/find'
 import { createLogger } from '@open-mercato/shared/lib/logger'
-import { StorefrontPage, StorefrontSite, StorefrontTheme } from '../data/entities'
+import { StorefrontPage, StorefrontPageRevision, StorefrontSite, StorefrontTheme } from '../data/entities'
 import { emitStorefrontEvent } from '../events'
 import { buildDefaultHomeSpec } from './blocks/defaultHome'
 import { validatePageSpec } from './blocks/pageSpec'
@@ -26,22 +27,54 @@ function isUniqueViolation(error: unknown): boolean {
   return typeof candidate.message === 'string' && candidate.message.includes('duplicate key value')
 }
 
-function homePageData(scope: StorefrontScope, siteId: string, storeName: string, now: Date) {
+/**
+ * The seeded home page and its revision 1, written together: the page's
+ * `published_revision_id` points at the revision so "published ⇔ revision"
+ * holds from the first row (Phase 2 data model).
+ */
+function persistHomePage(em: EntityManager, scope: StorefrontScope, siteId: string, storeName: string, now: Date): void {
   const spec = buildDefaultHomeSpec({ storeName })
   const validation = validatePageSpec(spec)
   if (!validation.ok) throw new Error('[internal] storefront default home template failed validation')
-  return {
-    tenantId: scope.tenantId,
-    organizationId: scope.organizationId,
-    siteId,
-    slug: HOME_PAGE_SLUG,
-    title: storeName.slice(0, 70),
-    seoDescription: null,
-    publishedSpec: validation.spec as unknown as Record<string, unknown>,
-    publishedAt: now,
-    createdAt: now,
-    updatedAt: now,
-  }
+  const publishedSpec = validation.spec as unknown as Record<string, unknown>
+  const title = storeName.slice(0, 70)
+  const pageId = randomUUID()
+  const revisionId = randomUUID()
+  em.persist(
+    em.create(StorefrontPage, {
+      id: pageId,
+      tenantId: scope.tenantId,
+      organizationId: scope.organizationId,
+      siteId,
+      slug: HOME_PAGE_SLUG,
+      title,
+      seoDescription: null,
+      publishedSpec,
+      publishedAt: now,
+      publishedRevisionId: revisionId,
+      draftSpec: null,
+      draftUpdatedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    }),
+  )
+  em.persist(
+    em.create(StorefrontPageRevision, {
+      id: revisionId,
+      tenantId: scope.tenantId,
+      organizationId: scope.organizationId,
+      siteId,
+      pageId,
+      revisionNo: 1,
+      spec: publishedSpec,
+      title,
+      seoDescription: null,
+      source: 'publish',
+      sourceRevisionId: null,
+      publishedByUserId: null,
+      createdAt: now,
+    }),
+  )
 }
 
 /**
@@ -73,7 +106,7 @@ export async function ensureStorefrontSite(baseEm: EntityManager, scope: Storefr
       }
       const home = await tem.findOne(StorefrontPage, { ...scope, siteId: existing.id, slug: HOME_PAGE_SLUG, deletedAt: null })
       if (!home) {
-        tem.persist(tem.create(StorefrontPage, homePageData(scope, existing.id, existing.name, now)))
+        persistHomePage(tem, scope, existing.id, existing.name, now)
         repaired.push('home')
       }
     })
@@ -121,7 +154,7 @@ export async function ensureStorefrontSite(baseEm: EntityManager, scope: Storefr
             updatedAt: now,
           }),
         )
-        tem.persist(tem.create(StorefrontPage, homePageData(scope, site.id, storeName, now)))
+        persistHomePage(tem, scope, site.id, storeName, now)
         return site.id
       })
       await emitStorefrontEvent(

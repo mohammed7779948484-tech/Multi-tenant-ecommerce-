@@ -72,3 +72,44 @@ export function siteSlugCandidates(base: string, organizationId: string, maxAtte
   candidates.push(fallbackSiteSlug(organizationId))
   return candidates
 }
+
+/** The home page's fixed slug; served at `/{siteSlug}` rather than `/{siteSlug}/index`. */
+export const HOME_PAGE_SLUG_VALUE = 'index'
+
+/**
+ * Page slugs live under the store (`/{siteSlug}/{pageSlug}`). `portal` is
+ * reserved because `/{orgSlug}/portal` wins by route specificity whenever a
+ * site slug equals its organization slug (the seeded default); commerce words
+ * are kept free for later phases (spec P2-Q1).
+ */
+export const RESERVED_PAGE_SLUGS: ReadonlySet<string> = new Set([
+  HOME_PAGE_SLUG_VALUE,
+  'portal',
+  'api',
+  'cart',
+  'checkout',
+  'account',
+  'search',
+  'products',
+  'collections',
+  'media',
+  'assets',
+  'sitemap.xml',
+  'robots.txt',
+])
+
+export type PageSlugIssue = 'slugInvalid' | 'slugReserved'
+
+/** Why a merchant-chosen page slug is unusable, or `null` when it is fine. Uniqueness is checked by the command. */
+export function pageSlugIssue(value: string): PageSlugIssue | null {
+  if (!SITE_SLUG_PATTERN.test(value)) return 'slugInvalid'
+  if (RESERVED_PAGE_SLUGS.has(value)) return 'slugReserved'
+  return null
+}
+
+/** Suggests a page slug from a title (the create form pre-fills it until edited). */
+export function suggestPageSlug(title: string): string {
+  const base = slugifySiteName(title)
+  if (!base) return ''
+  return RESERVED_PAGE_SLUGS.has(base) ? `${base}-page` : base
+}

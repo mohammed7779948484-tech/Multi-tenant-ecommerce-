@@ -1,18 +1,13 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import type { EntityManager } from '@mikro-orm/postgresql'
-import type { CommandBus, CommandRuntimeContext } from '@open-mercato/shared/lib/commands'
+import type { CommandBus } from '@open-mercato/shared/lib/commands'
 import { getCommandInterceptorHttpRejection } from '@open-mercato/shared/lib/commands/errors'
 import type { OpenApiRouteDoc } from '@open-mercato/shared/lib/openapi'
-import { getAuthFromRequest } from '@open-mercato/shared/lib/auth/server'
-import { createRequestContainer } from '@open-mercato/shared/lib/di/container'
 import { isCrudHttpError } from '@open-mercato/shared/lib/crud/errors'
 import { runRouteMutationGuards } from '@open-mercato/shared/lib/crud/route-mutation-guard'
-import { resolveTranslations } from '@open-mercato/shared/lib/i18n/server'
 import { createLogger } from '@open-mercato/shared/lib/logger'
-import { resolveOrganizationScopeForRequest } from '@open-mercato/core/modules/directory/utils/organizationScope'
-import { resolveSingleOrganizationIdOrDeny } from '@open-mercato/core/modules/directory/utils/organizationScopeFilter'
-import { StorefrontSite, StorefrontTheme } from '../../data/entities'
+import { StorefrontTheme } from '../../data/entities'
+import { buildStaffCommandContext, resolveStaffSite } from '../../lib/routeContext'
 import { brandUpdateSchema } from '../../data/validators'
 import { BRAND_UPDATE_COMMAND_ID, SITE_RESOURCE_KIND, type BrandSnapshot } from '../../commands/brand'
 import { zodIssuesToFieldErrors } from '../../lib/fieldErrors'
@@ -39,47 +34,13 @@ const brandResponseSchema = z.object({
   updatedAt: z.string().nullable(),
 })
 
-type RequestContainer = Awaited<ReturnType<typeof createRequestContainer>>
-type Auth = NonNullable<Awaited<ReturnType<typeof getAuthFromRequest>>>
-
-/**
- * Resolves the caller's single selected organization from the session (never
- * from the request body) and that organization's site. A missing site answers
- * 404: the CLI `storefront ensure-sites` repairs it.
- */
+/** The caller's site (scope from the session) plus its theme. */
 async function resolveCurrentSite(req: Request) {
-  const { translate } = await resolveTranslations()
-  const auth = await getAuthFromRequest(req)
-  if (!auth?.sub) {
-    return { response: NextResponse.json({ error: translate('api.errors.unauthorized', 'Unauthorized') }, { status: 401 }) }
-  }
-  const container = await createRequestContainer()
-  const scope = await resolveOrganizationScopeForRequest({ container, auth, request: req })
-  let organizationId: string | null
-  try {
-    organizationId = resolveSingleOrganizationIdOrDeny(scope, auth)
-  } catch (error) {
-    if (isCrudHttpError(error)) return { response: NextResponse.json(error.body, { status: error.status }) }
-    throw error
-  }
-  const tenantId = scope.tenantId ?? auth.tenantId ?? null
-  if (!organizationId || !tenantId) {
-    return {
-      response: NextResponse.json(
-        { error: translate('storefront.errors.organizationRequired', 'Select a single organization to manage its storefront.') },
-        { status: 400 },
-      ),
-    }
-  }
-  const em = (container.resolve('em') as EntityManager).fork()
-  const site = await em.findOne(StorefrontSite, { tenantId, organizationId, deletedAt: null })
-  if (!site) {
-    return {
-      response: NextResponse.json({ error: translate('storefront.errors.notFound', 'Storefront not found.') }, { status: 404 }),
-    }
-  }
+  const resolved = await resolveStaffSite(req)
+  if ('response' in resolved) return resolved
+  const { em, site, tenantId, organizationId } = resolved
   const theme = await em.findOne(StorefrontTheme, { siteId: site.id, tenantId, organizationId, deletedAt: null })
-  return { auth, container, site, theme, organizationId, tenantId, translate }
+  return { ...resolved, theme }
 }
 
 function toResponse(input: {
@@ -101,23 +62,6 @@ function toResponse(input: {
     logoUrl: input.logoAttachmentId ? storefrontMediaPath(input.slug, input.logoAttachmentId) : null,
     tokens: readThemeTokens(input.tokens),
     updatedAt: input.updatedAt,
-  }
-}
-
-function buildCommandContext(
-  container: RequestContainer,
-  auth: Auth,
-  req: Request,
-  organizationId: string,
-  tenantId: string,
-): CommandRuntimeContext {
-  return {
-    container,
-    auth,
-    organizationScope: { selectedId: organizationId, filterIds: [organizationId], allowedIds: null, tenantId },
-    selectedOrganizationId: organizationId,
-    organizationIds: [organizationId],
-    request: req,
   }
 }
 
@@ -194,7 +138,7 @@ export async function PUT(req: Request) {
     const commandBus = resolved.container.resolve('commandBus') as CommandBus
     const { result } = await commandBus.execute<Record<string, unknown>, BrandSnapshot>(BRAND_UPDATE_COMMAND_ID, {
       input: { siteId: resolved.site.id, ...input },
-      ctx: buildCommandContext(resolved.container, resolved.auth, req, resolved.organizationId, resolved.tenantId),
+      ctx: buildStaffCommandContext(resolved, req),
     })
 
     // Runs each guard's after-success hook; failures are logged by the helper, never surfaced.
