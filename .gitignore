@@ -85,7 +85,12 @@ package-lock.json
 .idea/
 .vscode/settings.json
 .vscode/launch.json
-.claude/
+# Suqna: the Claude Code harness (settings, hooks, skill entries) is committed so
+# every fresh clone/cloud session starts with it; only machine-local files stay out.
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+!.claude/skills/
 .codex/
 
 # agentic / MCP local secrets
@@ -96,7 +101,9 @@ package-lock.json
 .playwright-mcp
 
 # external skills installed by `yarn install-skills` (npx skills add)
-.agents/skills/
+# Suqna: .agents/skills/ is committed (pinned open-mercato/skills + vendored json-render
+# skills) so agents have them without a network install; the quarantine stays local.
+.agents/skills-quarantine/
 skills-lock.json
 
 # on-demand installed framework context and local LLM evaluation evidence
