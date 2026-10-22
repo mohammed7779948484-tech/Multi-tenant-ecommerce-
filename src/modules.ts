@@ -69,128 +69,72 @@ export const moduleOverrideExamples: ModuleOverrides = {
 }
 
 export const enabledModules: ModuleEntry[] = [
-  { id: 'dashboards', from: '@open-mercato/core' },
+  // ---------------------------------------------------------------------------
+  // Suqna module set. Multi-tenant commerce: every tenant (merchant) gets its own
+  // organization tree, staff, catalogue, orders, buyers and storefront domain.
+  // Decision record and dependency notes: README.md ("Modules").
+  // ---------------------------------------------------------------------------
+
+  // Platform foundation: tenants/organizations, staff auth + RBAC, config, data model
   { id: 'auth', from: '@open-mercato/core' },
   { id: 'directory', from: '@open-mercato/core' },
-  { id: 'customers', from: '@open-mercato/core' },
-  // customer_groups (Release 2 part 1 — .ai/specs/2026-08-14-customer-groups-and-b2b-terms.md
-  // §14 Phase 1-2). The package ships with the scaffold but stays disabled by default:
-  // enabling it here makes the scaffold ship the module's fact-sheet, which the
-  // `every module fact-sheet a scaffold ships is required by at least one catalog case`
-  // guard (packages/create-app/src/lib/module-facts-build.test.ts) then requires a
-  // dedicated AI-harness case for — authoring one means running the full
-  // om-refresh-standalone-harness / om-evolve-harness workflow (live agentic release-suite
-  // evaluation, a knowledge-change manifest, etc.), which is its own explicitly-authorized
-  // task, not a one-line edit. Enabling is therefore a maintainer call about that harness
-  // work, same as channel_discord's byte-budget call below.
-  // { id: 'customer_groups', from: '@open-mercato/core' },
-  { id: 'perspectives', from: '@open-mercato/core' },
-  { id: 'entities', from: '@open-mercato/core' },
   { id: 'configs', from: '@open-mercato/core' },
+  { id: 'entities', from: '@open-mercato/core' }, // requires query_index
   { id: 'query_index', from: '@open-mercato/core' },
-  { id: 'audit_logs', from: '@open-mercato/core' },
-  { id: 'attachments', from: '@open-mercato/core' },
-  { id: 'catalog', from: '@open-mercato/core' },
-  { id: 'sales', from: '@open-mercato/core' },
-  { id: 'warranty_claims', from: '@open-mercato/core' },
-  { id: 'wms', from: '@open-mercato/core' },
-  // Availability contract, policy module, and provider registry (Phase 1+2).
-  // Ships with the scaffold but stays commented out in the template until
-  // standalone-harness coverage lands: no case in
-  // packages/create-app/agentic/shared/ai/harness/cases.json lists
-  // .ai/guides/modules/availability/index.md in context.required, so enabling it
-  // here trips packages/create-app/src/lib/module-facts-build.test.ts ('every
-  // module fact-sheet a scaffold ships is required by at least one catalog
-  // case'). Run the om-refresh-standalone-harness skill to add that coverage,
-  // then enable it in the template.
-  // { id: 'availability', from: '@open-mercato/core' },
-  { id: 'api_keys', from: '@open-mercato/core' },
-  { id: 'devices', from: '@open-mercato/core' },
-  { id: 'dictionaries', from: '@open-mercato/core' },
-  { id: 'content', from: '@open-mercato/content' },
-  { id: 'onboarding', from: '@open-mercato/onboarding' },
+  { id: 'api_keys', from: '@open-mercato/core' }, // requires auth
   { id: 'api_docs', from: '@open-mercato/core' },
-  { id: 'business_rules', from: '@open-mercato/core' },
-  { id: 'feature_toggles', from: '@open-mercato/core' },
-  { id: 'workflows', from: '@open-mercato/core' },
-  { id: 'search', from: '@open-mercato/search' },
-  { id: 'currencies', from: '@open-mercato/core' },
-  { id: 'planner', from: '@open-mercato/core' },
-  { id: 'resources', from: '@open-mercato/core' },
-  { id: 'staff', from: '@open-mercato/core' },
+  { id: 'audit_logs', from: '@open-mercato/core' },
+  { id: 'attachments', from: '@open-mercato/core' }, // product images, bank-transfer receipt uploads
+  { id: 'dashboards', from: '@open-mercato/core' },
+  { id: 'perspectives', from: '@open-mercato/core' }, // saved data-table views
   { id: 'events', from: '@open-mercato/events' },
-  { id: 'notifications', from: '@open-mercato/core' },
-  { id: 'progress', from: '@open-mercato/core' },
-  { id: 'integrations', from: '@open-mercato/core' },
-  { id: 'data_sync', from: '@open-mercato/core' },
-  { id: 'sync_excel', from: '@open-mercato/core' },
-  { id: 'messages', from: '@open-mercato/core' },
-  // Communication channels hub (SPEC-045d) — bridges external chat/email channels
-  // (Slack, WhatsApp, Email) to the unified Messages inbox. Provider packages
-  // (channel-slack, channel-whatsapp, future email providers) register adapters here.
-  { id: 'communication_channels', from: '@open-mercato/core' },
-  // Push notification rails — `push` delivery strategy + delivery log + send-push worker.
-  // Fans out to `devices` tokens and sends through the `communication_channels` hub.
-  { id: 'push_notifications', from: '@open-mercato/core' },
-  { id: 'phone_calls', from: '@open-mercato/core' },
-  { id: 'ai_assistant', from: '@open-mercato/ai-assistant' },
-  // agent_orchestrator moved to the enterprise catalog — enabled below behind
-  // OM_ENABLE_ENTERPRISE_MODULES + OM_ENABLE_ENTERPRISE_MODULES_AGENTS.
-  { id: 'translations', from: '@open-mercato/core' },
-  { id: 'scheduler', from: '@open-mercato/scheduler' },
-  { id: 'inbox_ops', from: '@open-mercato/core' },
-  { id: 'payment_gateways', from: '@open-mercato/core' },
-  { id: 'checkout', from: '@open-mercato/checkout' },
-  { id: 'documents', from: '@open-mercato/documents' },
-  { id: 'gateway_stripe', from: '@open-mercato/gateway-stripe' },
-  // Per-user email channels for the Communications Hub (SPEC-045d / email
-  // integration spec). Each provider package registers its `ChannelAdapter`
-  // at import time via `setup.ts`; the hub picks them up by `providerKey`.
-  { id: 'channel_resend', from: '@open-mercato/channel-resend' },
-  { id: 'channel_ses', from: '@open-mercato/channel-ses' },
-  { id: 'channel_imap', from: '@open-mercato/channel-imap' },
-  { id: 'channel_gmail', from: '@open-mercato/channel-gmail' },
-  // Mobile push providers for the push_notifications channel. Each registers a
-  // `push` ChannelAdapter at import time; the push delivery strategy routes each
-  // device to the channel whose providerKey matches its push_provider.
-  { id: 'channel_apns', from: '@open-mercato/channel-apns' },
-  { id: 'channel_expo', from: '@open-mercato/channel-expo' },
-  { id: 'channel_fcm', from: '@open-mercato/channel-fcm' },
-  // Discord bot channel (SPEC 2026-06-19). The package ships with the scaffold
-  // but stays disabled by default. #4989 removed the hard overflow this used to
-  // cause (the generated root now sheds its module-fact index instead), but the
-  // headroom is still gone: enabling it puts the generated root at 12,275 of the
-  // 12,288-byte target, so the next module enabled after it drops the inline
-  // index to pointer form. Enabling is therefore a maintainer call about that
-  // budget, not a one-line edit — see
-  // packages/create-app/src/lib/agent-instruction-budget.test.ts
-  // ('one more template module still fits the root budget with its inline index
-  // intact'), and #4983 for the discussion.
-  // { id: 'channel_discord', from: '@open-mercato/channel-discord' },
-  { id: 'sync_akeneo', from: '@open-mercato/sync-akeneo' },
-  { id: 'tillio', from: '@open-mercato/tillio' },
-  { id: 'shipping_carriers', from: '@open-mercato/core' },
-  { id: 'eudr', from: '@open-mercato/core' },
-  { id: 'webhooks', from: '@open-mercato/webhooks' },
-  // Same-origin OTLP proxy for browser RUM spans; inert unless
-  // TELEMETRY_BROWSER_ENABLED is set alongside an active telemetry backend.
-  { id: 'telemetry', from: '@open-mercato/telemetry' },
+  { id: 'progress', from: '@open-mercato/core' }, // required by customers + communication_channels
+  { id: 'dictionaries', from: '@open-mercato/core' }, // required by sales
+  { id: 'currencies', from: '@open-mercato/core' },
+  { id: 'feature_toggles', from: '@open-mercato/core' }, // required by wms
+
+  // Commerce core: catalogue, customers (CRM), orders/quotes/invoices/shipments/payments, inventory.
+  // Payments use the sales module's built-in offline providers (cash-on-delivery, wire-transfer);
+  // no payment gateway modules are enabled.
+  { id: 'catalog', from: '@open-mercato/core' },
+  { id: 'customers', from: '@open-mercato/core' }, // requires progress
+  { id: 'sales', from: '@open-mercato/core' }, // requires catalog, customers, dictionaries
+  { id: 'wms', from: '@open-mercato/core' }, // requires catalog, sales, feature_toggles
+
+  // Buyer accounts, customer portal and per-tenant custom domains (domain mappings live here)
   { id: 'customer_accounts', from: '@open-mercato/core' },
-  { id: 'portal', from: '@open-mercato/core' },
-  // Audit-grade questionnaire/form primitive. The module ships with the scaffold
-  // but stays disabled by default, because enabling it here is a governed change
-  // rather than a one-line edit: a module enabled in the template gets a
-  // generated fact sheet, which `selectModuleFactSheets` then requires an
-  // evaluation case for in the standalone AI harness
-  // (src/lib/module-facts-build.test.ts, 'every default-controller module fact is
-  // exercised by the evaluation catalog'). Adding that case means re-pinning the
-  // catalog count in cases.schema.json, validators.json, two test literals and
-  // three docs, and re-running the live `harness:release` certification whose
-  // results those docs record — see
-  // .ai/skills/om-refresh-standalone-harness/SKILL.md step 9. Enabling is
-  // therefore a maintainer call that follows that skill.
-  // { id: 'forms', from: '@open-mercato/core' },
+  { id: 'portal', from: '@open-mercato/core' }, // requires customer_accounts
+
+  // Self-service tenant signup (/onboarding) and the legal pages it links to (/terms, /privacy)
+  { id: 'onboarding', from: '@open-mercato/onboarding' },
+  { id: 'content', from: '@open-mercato/content' },
+
+  // Translations, search, notifications
+  { id: 'translations', from: '@open-mercato/core' },
+  { id: 'search', from: '@open-mercato/search' },
+  { id: 'notifications', from: '@open-mercato/core' },
+
+  // Automation
+  { id: 'workflows', from: '@open-mercato/core' },
+  { id: 'business_rules', from: '@open-mercato/core' },
+  { id: 'scheduler', from: '@open-mercato/scheduler' }, // jobs registered by workflows + customer_accounts (domain checks)
+
+  // Transactional email (signup verification, notifications, buyer emails) goes through the
+  // Communications Hub system email transport. communication_channels requires progress and
+  // imports the messages entities; channel_resend requires communication_channels + integrations.
+  { id: 'messages', from: '@open-mercato/core' },
+  { id: 'integrations', from: '@open-mercato/core' },
+  { id: 'communication_channels', from: '@open-mercato/core' },
+  { id: 'channel_resend', from: '@open-mercato/channel-resend' },
+
+  // Test-only rate-limit probe shipped with the scaffold (framework integration suites call it)
   { id: 'ratelimit_probe', from: '@app' },
+
+  // Deliberately NOT enabled (package installed, module off): payment_gateways, checkout,
+  // gateway_stripe (no online gateways); warranty_claims, eudr, planner, resources, staff,
+  // phone_calls, tillio, devices, push_notifications, channel_apns/expo/fcm/ses/imap/gmail,
+  // inbox_ops, ai_assistant (needs an LLM key), documents, data_sync, sync_excel, sync_akeneo,
+  // shipping_carriers, webhooks, telemetry. Enterprise modules are never enabled in this app.
 ]
 
 // Official modules activated via official-modules.json / official-modules.local.json
@@ -205,32 +149,4 @@ if (enabledModules.some((entry) => entry.id === 'example')) {
 
 if (parseBooleanWithDefault(process.env.OM_ENABLE_STORAGE_S3, false)) {
   enabledModules.push({ id: 'storage_s3', from: '@open-mercato/storage-s3' })
-}
-
-const enterpriseModulesEnabled = parseBooleanWithDefault(process.env.OM_ENABLE_ENTERPRISE_MODULES, false)
-const enterpriseSsoEnabled = parseBooleanWithDefault(process.env.OM_ENABLE_ENTERPRISE_MODULES_SSO, false)
-const enterpriseSecurityEnabled = parseBooleanWithDefault(process.env.OM_ENABLE_ENTERPRISE_MODULES_SECURITY, false)
-const enterpriseAgentsEnabled = parseBooleanWithDefault(process.env.OM_ENABLE_ENTERPRISE_MODULES_AGENTS, false)
-
-if (enterpriseModulesEnabled) {
-  enabledModules.push(
-    { id: 'record_locks', from: '@open-mercato/enterprise' },
-    { id: 'system_status_overlays', from: '@open-mercato/enterprise' },
-  )
-}
-
-if (enterpriseModulesEnabled && enterpriseSsoEnabled) {
-  enabledModules.push({ id: 'sso', from: '@open-mercato/enterprise' })
-}
-
-if (enterpriseModulesEnabled && enterpriseSecurityEnabled) {
-  enabledModules.push({ id: 'security', from: '@open-mercato/enterprise' })
-}
-
-if (enterpriseModulesEnabled && enterpriseAgentsEnabled) {
-  enabledModules.push({ id: 'agent_orchestrator', from: '@open-mercato/enterprise' })
-  // Example app module: shows how to declare an Agent Orchestrator agent from a
-  // brand-new module (see apps/mercato/src/modules/agent_examples/README.md).
-  // It imports the orchestrator SDK, so it is only enabled alongside it.
-  enabledModules.push({ id: 'agent_examples', from: '@app' })
 }

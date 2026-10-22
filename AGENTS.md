@@ -1,4 +1,4 @@
-# suqna — Standalone App Agent Rules
+# Multi-tenant-ecommerce- — Standalone App Agent Rules
 
 Route first; never probe unmatched context.
 
@@ -114,7 +114,7 @@ Read `.agents/skills/<id>/SKILL.md` AND any `.ai/skills/<id>/SKILL.md` override.
 Mechanisms: events/subscribers→events; long operation/progress→progress; provider settings/health/OAuth→integrations; sync/import→data_sync. Hosts: session/auth→auth; customer/contact/deal/pipeline→customers; product/price/stock/inventory→catalog; currency/money→currencies; cart/checkout/shopper→checkout; portal→portal+customer_accounts; quote/order/invoice/sales assistant→sales; notification→notifications; webhook/callback→webhooks; schedule/reminder→scheduler; workflow/activity/user task→workflows; assistant→ai_assistant; maintained query index/reindex→query_index; search convergence→search. staff/employee≠optional staff; audit/record-who≠audit_logs unless extended. App primitives skip api_docs/search/query_index unless changed. Big fact-sheets: read in sections.
 
 <!-- om:module-guides:start -->
-Enabled module facts: `ai_assistant`,`api_docs`,`api_keys`,`attachments`,`audit_logs`,`auth`,`business_rules`,`catalog`,`channel_apns`,`channel_expo`,`channel_fcm`,`channel_gmail`,`channel_imap`,`channel_resend`,`channel_ses`,`checkout`,`communication_channels`,`configs`,`content`,`currencies`,`customer_accounts`,`customers`,`dashboards`,`data_sync`,`devices`,`dictionaries`,`directory`,`documents`,`entities`,`eudr`,`events`,`feature_toggles`,`gateway_stripe`,`inbox_ops`,`integrations`,`messages`,`notifications`,`onboarding`,`payment_gateways`,`perspectives`,`phone_calls`,`planner`,`portal`,`progress`,`push_notifications`,`query_index`,`resources`,`sales`,`scheduler`,`search`,`shipping_carriers`,`staff`,`sync_akeneo`,`sync_excel`,`telemetry`,`tillio`,`translations`,`warranty_claims`,`webhooks`,`wms`,`workflows`.
+Enabled module facts: `api_docs`,`api_keys`,`attachments`,`audit_logs`,`auth`,`business_rules`,`catalog`,`channel_resend`,`communication_channels`,`configs`,`content`,`currencies`,`customer_accounts`,`customers`,`dashboards`,`dictionaries`,`directory`,`entities`,`events`,`feature_toggles`,`integrations`,`messages`,`notifications`,`onboarding`,`perspectives`,`portal`,`progress`,`query_index`,`sales`,`scheduler`,`search`,`translations`,`wms`,`workflows`.
 
 Load `.ai/guides/modules/<id>/index.md` only for a targeted installed module/host; never preload all module facts.
 <!-- om:module-guides:end -->

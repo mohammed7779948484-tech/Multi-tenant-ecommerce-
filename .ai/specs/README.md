@@ -1,4 +1,4 @@
-# Feature Specs — suqna
+# Feature Specs — Multi-tenant-ecommerce-
 
 Specs document business feature design decisions. Source of truth for what was built and why.
 
