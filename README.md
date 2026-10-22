@@ -84,6 +84,7 @@ Requirements: Node 24, Yarn 4 (`corepack enable`), Docker.
 ```bash
 cp .env.example .env      # then set secrets: JWT_SECRET, AUTH_SECRET, TENANT_DATA_ENCRYPTION_FALLBACK_KEY,
                           # LOOKUP_HASH_PEPPER, DOMAIN_CHECK_SECRET, DOMAIN_RESOLVE_SECRET (openssl rand -hex 32)
+                          # and uncomment the three development email lines (docs/LOCAL_EMAIL.md)
 docker compose up -d      # PostgreSQL 17 + pgvector, Redis 7, Meilisearch
 yarn install
 yarn generate             # build .mercato/generated registries
@@ -101,7 +102,8 @@ Settings that matter in `.env` (beyond `.env.example` defaults):
 | Variable | Value / purpose |
 |---|---|
 | `SELF_SERVICE_ONBOARDING_ENABLED` | `true` — enables `/onboarding` |
-| `SYSTEM_EMAIL_PROVIDER`, `RESEND_API_KEY`, `EMAIL_FROM`, `ADMIN_EMAIL` | outbound email (Resend) |
+| `OM_DISABLE_EMAIL_DELIVERY`, `OM_TEST_MODE`, `OM_TEST_EMAIL_CAPTURE_PATH` | **development only**: email is disabled on purpose and captured to `.mercato/email-capture/outbox.jsonl` (`docs/LOCAL_EMAIL.md`) |
+| `SYSTEM_EMAIL_PROVIDER`, `RESEND_API_KEY` (or SES settings), `EMAIL_FROM`, `ADMIN_EMAIL` | real outbound email — required in every deployment |
 | `PLATFORM_DOMAINS`, `PLATFORM_PRIMARY_HOST` | hosts treated as the platform, not a tenant |
 | `DOMAIN_CHECK_SECRET`, `DOMAIN_RESOLVE_SECRET`, `INTERNAL_APP_ORIGIN` | custom-domain routing |
 | `CUSTOM_DOMAIN_CNAME_TARGET`, `CUSTOM_DOMAIN_A_RECORD_TARGET` | DNS targets shown to tenants |
@@ -119,9 +121,10 @@ worked: install Node 24 from nodejs.org and put it first on `PATH`, start
 
 ## Not working yet
 
-- **Email.** `RESEND_API_KEY` is empty, so signup verification emails fail
-  (the signup API returns 502) and no notification or portal email is sent.
-  Needs a Resend key and a verified sender domain, or `SYSTEM_EMAIL_PROVIDER=ses`.
+- **Email.** Disabled in local development on purpose: signup works and the
+  verification link is read from `.mercato/email-capture/outbox.jsonl`. A
+  deployment without a real provider (Resend or SES) **cannot onboard tenants**;
+  see `docs/LOCAL_EMAIL.md` for switching to a provider.
 - **Tenant domains.** Each organization's portal works at `/<orgSlug>/portal`.
   Subdomains and custom domains need real DNS (`CUSTOM_DOMAIN_CNAME_TARGET`,
   for example a wildcard `*.<platform-domain>` record) and TLS at the edge
