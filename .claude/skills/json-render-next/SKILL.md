@@ -1,0 +1,1 @@
+../../../.agents/skills/json-render-next/SKILL.md
