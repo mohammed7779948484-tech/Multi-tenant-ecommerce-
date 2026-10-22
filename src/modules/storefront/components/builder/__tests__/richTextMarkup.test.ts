@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals'
 import { parseRichTextMarkup, serializeRichTextMarkup } from '../richTextMarkup'
 import type { RichTextDocument } from '../../../lib/blocks/schemas'
 

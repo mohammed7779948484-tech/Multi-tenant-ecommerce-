@@ -119,7 +119,7 @@ worked: install Node 24 from nodejs.org and put it first on `PATH`, start
 `registry.yarnpkg.com` returns 503, run
 `YARN_NPM_REGISTRY_SERVER=https://registry.npmjs.org yarn install`.
 
-## Storefront (Phase 1)
+## Storefront
 
 Every organization gets a public store at `/<siteSlug>` (the slug comes from the
 organization slug), seeded at signup with a default theme and a published home page.
@@ -132,6 +132,18 @@ Spec: `.ai/specs/2026-10-22-storefront-builder.md`; decisions: `docs/DECISIONS.m
 - **Public page:** server-rendered by the app's own block registry (no client JSON
   renderer). Title, description, canonical URL, Open Graph and JSON-LD come from the
   brand; the logo is served by `/api/storefront/media/<siteSlug>/<attachmentId>`.
+- **Pages (Phase 2):** *Storefront → Pages* (`/backend/storefront/pages`) lists the
+  store's pages (up to 30, including the home page). **New page** asks for a title,
+  an address (suggested from the title; it can change until the first publish) and
+  an optional search description. **Edit content** opens the section builder:
+  add sections from the picker (Hero, Rich text, Features, Footer), edit them in
+  the side panel, reorder with the arrows or Alt+Up/Down, preview at desktop or
+  phone width, **Save draft**, **Publish**. Every publish is kept as a revision;
+  **Revisions → Restore** publishes a copy of an older one and replaces the
+  current draft. Buyers only ever see the published revision at
+  `/<siteSlug>/<pageSlug>`. Features: `storefront.pages.manage` (create, edit,
+  delete, save drafts) and `storefront.pages.publish` (publish, restore); admins
+  have both through `storefront.*`, employees can only view.
 - **Payments:** the `payment_policy` module deactivates gateway payment methods (the
   `stripe` "Credit Card" method that `sales` seeds) for every new tenant. Cash on
   delivery and bank transfer stay active.
@@ -143,8 +155,10 @@ Spec: `.ai/specs/2026-10-22-storefront-builder.md`; decisions: `docs/DECISIONS.m
   yarn mercato payment_policy enforce       # deactivate gateway payment methods
   ```
 
-- **Tests:** `yarn test` (unit) and
-  `src/modules/storefront/__integration__/TC-STOREFRONT-001.spec.ts`
+- **Tests:** `yarn test` (unit) and the integration specs in
+  `src/modules/storefront/__integration__/` — `TC-STOREFRONT-001` (brand),
+  `-002` (page API and public pages), `-003` (pages list and builder in a
+  browser), `-004` (public pages load no json-render code)
   (`yarn test:integration:ephemeral`, or
   `npx playwright test --config .ai/qa/tests/playwright.config.ts src/modules/storefront/__integration__`
   against a running app).
@@ -159,9 +173,13 @@ Spec: `.ai/specs/2026-10-22-storefront-builder.md`; decisions: `docs/DECISIONS.m
   Subdomains and custom domains need real DNS (`CUSTOM_DOMAIN_CNAME_TARGET`,
   for example a wildcard `*.<platform-domain>` record) and TLS at the edge
   (see Open Mercato's Traefik notes).
-- **Store pages beyond the home page.** Page authoring (draft/publish/rollback and
-  the section builder) is spec Phase 2; the seeded home page's sections are not
-  editable yet, only the brand.
+- **Media and commerce blocks, SEO extras.** Images, product grids, collections
+  (spec Phase 3) and sitemap/robots (Phase 4) are not built yet; pages link to
+  each other through Hero and Footer links (`/about` resolves under the store).
+- **Public page weight.** The app shell (upstream) references every module's admin
+  screens, so any public page, the stores included, downloads their client chunks
+  (~120 scripts in dev and production). The storefront keeps its own editor code
+  off public pages (`docs/DECISIONS.md` J4); trimming the shell is upstream work.
 - **Content-Security-Policy.** The app-wide header comes from the upstream proxy
   and still allowlists `js.stripe.com`; nothing loads from it, but it can be
   tightened once the policy is reviewed (`src/proxy.ts`, see

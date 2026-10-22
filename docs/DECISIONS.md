@@ -63,7 +63,21 @@ decision recorded here with a date. Detailed design lives in
 | I6 | The logo route serves only the live store's current logo (raster types; no SVG); any other attachment id, store or state answers the same 404. | No existence leak; merchant uploads stay private unless referenced. |
 | I7 | Existing tenants need `yarn mercato auth sync-role-acls` after deploying the storefront module (new tenants get the grants at signup). | Role ACLs are seeded at tenant creation only; the platform tenant predates the module. |
 
+## Decisions made while implementing Phase 2 (2026-10-22)
+
+| ID | Decision | Why |
+|---|---|---|
+| J1 | Page routes and commands act on one store: the selected organization, or — for an "all organizations" selection — the caller's home organization, but only while the effective tenant is still the caller's and that organization is in the caller's allowed set (`lib/commandScope.ts`). The session is re-read from the request because the CRUD factory replaces `auth.orgId` with the (empty) selection. | Same rule the brand route already applies through `resolveSingleOrganizationIdOrDeny`; a super-admin switched into another tenant must select an organization (400) instead of pairing a foreign organization with that tenant. |
+| J2 | CRUD route bodies pass through to the commands, which parse with strict schemas and answer 422 with field errors (unknown keys included). A body that names a `tenantId` is refused earlier by the framework with 403, with the same answer for any tenant id. | The factory's own schema failures are a generic 400 with no field mapping. |
+| J3 | `GET /api/storefront/pages?id=<foreign or unknown id>` answers 200 with no rows (CRUD list semantics); every single-record route (update, delete, publish, rollback, revisions) answers 404. The settings form and builder treat an empty result as "not found". | Neither answer reveals whether the id exists in another tenant. |
+| J4 | The builder loads json-render on demand (`React.lazy` around the preview); no other builder file imports it, and the section picker reads the block catalog (TEST-015 pins it to the json-render catalog). | The upstream app shell references every module's admin pages, so statically imported client code is preloaded on public routes too (observed in dev and production). TEST-012 (`TC-STOREFRONT-004`) checks public pages with a positive control on the builder. |
+| J5 | Restoring a revision closes the revisions drawer before the confirmation opens; Cancel reopens it. | The drawer is modal: a confirmation on top of it sat outside its focus trap and was hidden from screen readers. |
+| J6 | Rich-text markup (spec P2-Q9) details: `\*`, `\[`, `\]`, `\\`, `\-` escape; a `*` followed by a space is a plain star; an unclosed `**`/`*` is a field error; whitespace between two links joins the first link's text (blank text nodes are invalid in the stored document). | Lossless round trip for everything the editor produces; no surprising formatting for "5 * 3". |
+| J7 | The phone preview uses the design-system width `max-w-sm` (24rem, 384 px) instead of the spec's 390 px. | `yarn ds:check` rejects arbitrary Tailwind values. |
+| J8 | Two-tenant isolation for pages (TEST-019) is proven with fresh signups driven through the real onboarding form (scratch scripts, not committed); committed integration tests run in the superadmin's organization. | Tenant signup depends on the local email capture flow, which the shared test runner does not provide. |
+
 ## Open items needing the owner
 
 - Spec Q2 (public path `/{siteSlug}`) and Q4 (theme saves go live immediately) are marked ⚠ in the spec.
 - Real email provider before any deployment; DNS for custom domains; release channel (stable 0.9.0 today).
+- Public page weight (J4): every public page downloads all modules' admin chunks through the upstream app shell; worth raising upstream or trimming the shell before launch.
