@@ -48,6 +48,19 @@ export async function generateMetadata({ params }: FrontendParams): Promise<Meta
     return {}
   }
 
+  // Suqna divergence (docs/UPSTREAM_DIVERGENCES.md): a public page component may
+  // expose a static `generateMetadata({ params })` for per-record title/SEO tags.
+  // Only routes without staff or customer auth are asked, because this runs
+  // before the auth gates in the page below.
+  if (!match.route.requireAuth && !match.route.requireCustomerAuth) {
+    const Component = (await match.route.load()) as {
+      generateMetadata?: (input: { params: Record<string, string | string[]> }) => Promise<Metadata>
+    }
+    if (typeof Component.generateMetadata === 'function') {
+      return Component.generateMetadata({ params: match.params })
+    }
+  }
+
   return resolveLocalizedTitleMetadata({
     title: match.route.title,
     titleKey: match.route.titleKey,
