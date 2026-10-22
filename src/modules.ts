@@ -154,3 +154,6 @@ if (parseBooleanWithDefault(process.env.OM_ENABLE_STORAGE_S3, false)) {
 // Suqna app modules (src/modules/<id>). Appended after the baseline so their
 // setup hooks run after the installed modules they build on.
 enabledModules.push({ id: 'storefront', from: '@app' })
+// Platform payment policy: deactivates gateway payment methods seeded by sales
+// (requires sales, so its seedDefaults runs after the sales defaults).
+enabledModules.push({ id: 'payment_policy', from: '@app' })
