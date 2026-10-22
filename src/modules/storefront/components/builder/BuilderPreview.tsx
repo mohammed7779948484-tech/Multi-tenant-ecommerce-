@@ -89,6 +89,7 @@ export function BuilderPreview({ spec, siteId, storeName, basePath, logoSrc, tok
         logoSrc={logoSrc}
         tokens={tokens}
         signInHref={null}
+        preview
         labels={{ home: labels.home, signIn: labels.signIn }}
       >
         <JSONUIProvider registry={previewRegistry}>

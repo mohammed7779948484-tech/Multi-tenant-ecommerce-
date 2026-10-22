@@ -46,6 +46,8 @@ export function StorefrontJsonLd({ data }: { data: Record<string, unknown>[] }) 
 
 export type StorefrontFrameProps = Pick<StorefrontViewProps, 'siteId' | 'storeName' | 'basePath' | 'logoSrc' | 'tokens' | 'signInHref' | 'labels'> & {
   children: React.ReactNode
+  /** Builder preview: the frame sizes to its content instead of filling the viewport. */
+  preview?: boolean
 }
 
 /**
@@ -56,7 +58,7 @@ export type StorefrontFrameProps = Pick<StorefrontViewProps, 'siteId' | 'storeNa
 export function StorefrontFrame(props: StorefrontFrameProps) {
   const css = STOREFRONT_STRUCTURAL_CSS + buildThemeCssVariables(props.siteId, props.tokens)
   return (
-    <div className="sf-root" data-sf-site={props.siteId.toLowerCase()}>
+    <div className="sf-root" data-sf-site={props.siteId.toLowerCase()} data-sf-preview={props.preview ? '' : undefined}>
       <style>{css}</style>
       <header className="sf-header">
         <div className="sf-container sf-header-inner">

@@ -6,6 +6,7 @@
  */
 export const STOREFRONT_STRUCTURAL_CSS = [
   '.sf-root{background:var(--sf-color-background);color:var(--sf-color-text);font-family:var(--sf-font-body);line-height:1.6;min-height:100vh;display:flex;flex-direction:column}',
+  '.sf-root[data-sf-preview]{min-height:0}',
   '.sf-root a{color:var(--sf-color-primary);text-underline-offset:0.2em}',
   '.sf-root h1,.sf-root h2,.sf-root h3{font-family:var(--sf-font-heading);line-height:1.2;margin:0}',
   '.sf-container{width:100%;max-width:72rem;margin:0 auto;padding:0 calc(var(--sf-space) * 1.25)}',

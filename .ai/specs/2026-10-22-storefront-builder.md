@@ -774,7 +774,9 @@ Source doc: .ai/specs/2026-10-22-storefront-builder.md
 - [x] (d) public routing: `lib/publicSite.ts` (`resolvePublicStorefrontPage`), `lib/publicPageLoader.tsx` (per-request memoised load, 308 to canonical paths, live revision title/SEO), `frontend/[siteSlug]/page.tsx`, `frontend/[siteSlug]/[pageSlug]/{page.tsx,page.meta.ts}` — TEST-011 `TC-STOREFRONT-002` 3 passed (`--retries=0`), `TC-STOREFRONT-001` still 4 passed
 - [x] (e) staff pages list/create/settings: `backend/storefront/pages/{page,create/page,[id]/page}.tsx` (+ `page.meta.ts`, nav "Pages"), `components/pages/{PagesTable,PageForm,pageClient}.tsx`, `components/useStorefrontPermissions.ts` (wildcard-aware feature check shared with the overview); `PageListItem` moved to `lib/pages.ts` — `yarn generate` exit 0; `yarn typecheck` clean; `eslint src/modules/storefront` clean
 - [x] (f) json-render adapter: `components/builder/{catalog.ts,BuilderPreview.tsx,blockEditors.ts,richTextMarkup.ts}`; `StorefrontFrame` extracted from `StorefrontView` so the preview reuses the public chrome — TEST-015 + TEST-016 `yarn jest src/modules/storefront/components` 20 passed
-- [ ] IN FLIGHT: (g) builder page — files: none yet; last command: not run; remaining: slices g–h, i18n, docs
+- [x] (g) builder: `backend/storefront/pages/[id]/builder/{page.tsx,page.meta.ts}`, `components/builder/{PageBuilder,SectionPicker,SectionInspector,RevisionsDrawer}.tsx`, `components/builder/builderSpec.ts`; json-render preview loaded with `React.lazy` (the app shell references every admin page, so static imports reach public routes in dev); restore confirmation opens after the modal revisions drawer closes (a11y); i18n for all Phase 2 keys in en/de/es/pl/ko — TEST-018 `TC-STOREFRONT-003` 4 passed (`--retries=0`); `yarn ds:check` and `yarn i18n:check-hardcoded` clean for the module
+- [x] (h-1) TEST-012 `TC-STOREFRONT-004` 1 passed (dev server; public home/page load no json-render code, builder does); TEST-019 two fresh signups (scratch `iso2.py`) 16/16 checks passed
+- [ ] IN FLIGHT: (h-2) full gates, production bundle check, code review, docs — files: none yet; last command: not run
 
 ## Changelog
 
