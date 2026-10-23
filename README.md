@@ -61,9 +61,11 @@ Why:
   `channel_resend` needs `communication_channels` and `integrations`.
   `communication_channels` also imports the `messages` entities, so `messages`
   is enabled too.
-- **Email.** Signup verification, notifications and portal emails use the
-  Communications Hub system transport, so `communication_channels` and a
-  provider (`channel_resend`) are required.
+- **Email.** The framework's signup verification, notifications and portal emails
+  use the Communications Hub system transport (`communication_channels`;
+  `channel_resend` stays installed but unconfigured). The owner's rule is that
+  email stays disabled everywhere (`docs/DECISIONS.md` P6), so nothing here may
+  depend on a provider.
 - **Scheduler.** `customer_accounts` (domain checks) and `workflows` register
   scheduled jobs.
 - **Off on purpose** (packages installed, modules disabled): AI assistant and
@@ -103,7 +105,7 @@ Settings that matter in `.env` (beyond `.env.example` defaults):
 |---|---|
 | `SELF_SERVICE_ONBOARDING_ENABLED` | `true` — enables `/onboarding` |
 | `OM_DISABLE_EMAIL_DELIVERY`, `OM_TEST_MODE`, `OM_TEST_EMAIL_CAPTURE_PATH` | **development only**: email is disabled on purpose and captured to `.mercato/email-capture/outbox.jsonl` (`docs/LOCAL_EMAIL.md`) |
-| `SYSTEM_EMAIL_PROVIDER`, `RESEND_API_KEY` (or SES settings), `EMAIL_FROM`, `ADMIN_EMAIL` | real outbound email — required in every deployment |
+| `SYSTEM_EMAIL_PROVIDER`, `RESEND_API_KEY` (or SES settings), `EMAIL_FROM`, `ADMIN_EMAIL` | **not set, by owner decision** (`docs/DECISIONS.md` P6): email stays disabled in every environment |
 | `PLATFORM_DOMAINS`, `PLATFORM_PRIMARY_HOST` | hosts treated as the platform, not a tenant |
 | `DOMAIN_CHECK_SECRET`, `DOMAIN_RESOLVE_SECRET`, `INTERNAL_APP_ORIGIN` | custom-domain routing |
 | `CUSTOM_DOMAIN_CNAME_TARGET`, `CUSTOM_DOMAIN_A_RECORD_TARGET` | DNS targets shown to tenants |
@@ -165,10 +167,11 @@ Spec: `.ai/specs/2026-10-22-storefront-builder.md`; decisions: `docs/DECISIONS.m
 
 ## Not working yet
 
-- **Email.** Disabled in local development on purpose: signup works and the
-  verification link is read from `.mercato/email-capture/outbox.jsonl`. A
-  deployment without a real provider (Resend or SES) **cannot onboard tenants**;
-  see `docs/LOCAL_EMAIL.md` for switching to a provider.
+- **Signup without email.** Email stays disabled in every environment (owner
+  decision, `docs/DECISIONS.md` P6), but the installed onboarding still confirms
+  each signup with an emailed link. Locally the link is read from
+  `.mercato/email-capture/outbox.jsonl` (`docs/LOCAL_EMAIL.md`). An email-free
+  signup flow is the next spec; until it exists, a deployment cannot onboard tenants.
 - **Tenant domains.** Each organization's portal works at `/<orgSlug>/portal`.
   Subdomains and custom domains need real DNS (`CUSTOM_DOMAIN_CNAME_TARGET`,
   for example a wildcard `*.<platform-domain>` record) and TLS at the edge

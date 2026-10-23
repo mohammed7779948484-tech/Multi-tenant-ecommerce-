@@ -31,11 +31,16 @@ reviews:
         behave identically to random IDs. Never render merchant HTML, CSS,
         className, style, scripts or arbitrary attributes. Validate saved,
         published and rendered specs using the canonical strict block schemas.
-        Public routes must never import @json-render/*, directly or transitively.
+        Buyer-facing routes and client components must never import a client spec
+        renderer (@json-render/react, @json-render/next), directly or transitively;
+        @json-render/core is allowed in server code only (docs/DECISIONS.md S1/S2).
+        Section references (attachment, product, category ids) must be checked against
+        the caller's organization on save/publish/rollback; products and images are
+        public only while a published section shows them.
         Check publish/rollback/undo ordering, row-lock rechecks, slug freeze,
         immutable revisions and the 30-page cap.
     - path: "src/app/**"
       instructions: |
-        Public routes must never import @json-render/*, directly or transitively,
-        or preload a heavy admin editor chunk. Check metadata uniqueness,
+        Public routes must never import a client spec renderer (@json-render/react,
+        @json-render/next), directly or transitively, or preload a heavy admin editor chunk. Check metadata uniqueness,
         published-revision-only reads, no-store behavior and fail-closed rendering.

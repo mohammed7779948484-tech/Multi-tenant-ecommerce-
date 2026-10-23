@@ -59,6 +59,11 @@ Mercato (`yarn up '@open-mercato/*'`, `yarn mercato agentic:init --update-harnes
   directories survive (verified).
 - **On upgrade, review:** after `yarn install-skills`, confirm
   `ls .claude/skills/json-render-*/SKILL.md` still lists five files.
+- **Known doc error (2026-10-23):** `json-render-next/SKILL.md` shows
+  `export const { Page, … } = createNextApp(...)`. `@json-render/next` 0.21.1 and 0.21.2 return
+  only `{ getPageData, generateMetadata, generateStaticParams }`. The vendored file is left
+  unedited (it is refreshed from upstream); check `node_modules/@json-render/*/dist` before
+  using any json-render API.
 
 ## 5. `tsconfig.json`
 
@@ -102,6 +107,17 @@ Mercato (`yarn up '@open-mercato/*'`, `yarn mercato agentic:init --update-harnes
 - `AGENTS.md` and `.ai/specs/README.md` titles show `Multi-tenant-ecommerce-` because
   `agentic:init` derives the project name from the directory. Left as generated on purpose: a
   hand edit would mark the files user-modified and block future `--update-harness` refreshes.
+
+## 10. Upstream bugs worked around in app code (Open Mercato 0.9.0)
+
+- **CRUD `?ids=` with no valid UUID → SQL `IN ()` (500).** `mergeIdFilter` turns an
+  all-invalid list into `id: { $in: [] }`, which the hybrid query engine renders as `in ()`.
+  The storefront pages route rejects malformed ids with 400 before the factory runs
+  (DECISIONS J14). Other CRUD routes of the app inherit the bug; worth reporting upstream.
+- **Reindexing switches list search to search tokens.** Once an entity type has tokens for a
+  tenant, `$ilike` filters are answered from the token index, so a module that writes rows
+  without queuing index refreshes loses them from search after any reindex. The storefront
+  page commands queue refreshes (DECISIONS J13).
 
 ## Not divergences
 

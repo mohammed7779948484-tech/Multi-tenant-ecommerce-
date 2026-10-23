@@ -14,15 +14,17 @@ decision recorded here with a date. Detailed design lives in
 | P3 | No enterprise/commercial modules; the env switch that could enable them was removed from `src/modules.ts`. | Licensing. |
 | P4 | Payments are **cash on delivery** or **bank transfer with a receipt image** approved by the merchant. No payment gateway, checkout or gateway modules; card methods seeded by `sales` are disabled for every new tenant by the `payment_policy` module. | Market reality; no external gateway integration. |
 | P5 | Strict tenant isolation: every query is scoped by the trusted `tenant_id` (and `organization_id`); a cross-tenant id answers **404**, never 403-with-existence. | A 403 confirms the record exists. |
-| P6 | Email is **disabled in local development** and captured to a file (`docs/LOCAL_EMAIL.md`). A deployment must configure Resend or SES; without a provider, tenants cannot sign up. *engineering* | Signup must be testable without a provider account, and the disabled state must never reach production. |
+| P6 | Email stays **disabled, in production too**: no Resend, no SES, no other provider, no verification codes. Signup must complete with no email round-trip at all. *owner, 2026-10-23* | **Not met yet.** The installed `onboarding` module verifies every signup by an emailed link; development works around it with a capture file (`docs/LOCAL_EMAIL.md`). Replacing that flow is the next spec (open item below). Supersedes the engineering note of 2026-10-22 that "a deployment must configure Resend or SES", which contradicted the owner. |
 | P7 | The Claude Code harness (`.claude/`, `.agents/skills/`) is committed, including the vendored json-render skills. *engineering* | Every fresh clone or cloud session starts with the same rules and skills. |
 
 ## Storefront architecture
 
 | # | Decision | Why |
 |---|---|---|
-| S1 | The public storefront renders **server-side with our own block registry**. `@json-render/react` or any client JSON renderer never ships to public pages. | SEO and Core Web Vitals are product requirements. |
-| S2 | `json-render` lives in the **admin editor only**: section picking, live preview, later AI generation. | Its catalog-constrained specs are ideal for editing and AI; buyers do not need the runtime. |
+| S1 | Buyer pages are rendered by the storefront's own **Server Component** registry. No client-side spec renderer (`@json-render/react` `Renderer`, `@json-render/next` `PageRenderer`) ships to buyers. *owner, 2026-10-23 (spec Q11)* | **Performance, not markup.** A client renderer uses React context and hooks, so every section's code ships to the browser and the whole page hydrates, while our sections are static content. Next 16 prerenders client components to HTML too, so crawlers would see the same markup; SEO is affected only through Core Web Vitals, which is the same performance cost. TEST-012 enforces the rule (no client spec renderer in public scripts); it is a presence check, not a byte budget. |
+| S2 | json-render is the storefront's **vocabulary**. The block catalog is adapted with `defineCatalog` and drives the builder (picker, live preview) and, later, AI generation through `catalog.prompt()` on the server. `@json-render/core` is React-free and may run in server code. Our strict schemas stay the only validator. `@json-render/next` `createNextApp` is not used. *owner, 2026-10-23 (Q11)* | Verified in `node_modules`: core imports only `zod`, and a Node probe with React blocked runs it. `catalog.validate()` in 0.21 checks element types but not props, so it cannot be the gate. `createNextApp` returns no `Page` in 0.21.1/0.21.2, despite its docs. |
+
+> **Correction (2026-10-23).** The 2026-10-22 versions of S1 and S2 said json-render must never reach a public page "for SEO" and were listed as owner decisions. They were a reviewer's recommendation, and the SEO reason was imprecise. The evidence and the corrected rule are in the spec's *Revision 2026-10-23*.
 | S3 | The block catalog is ours: a Zod schema plus an SSR-safe React component per block (Hero, RichText, Image, Gallery, ProductGrid, CollectionList, Features, Footer). Schemas are server-safe and separate from components. | Validation runs in APIs, setup hooks and CLI without React. |
 | S4 | Page spec shape is `{ root, elements }` (json-render compatible), stored as **JSONB**; **our schema is the source of truth**. | Compatible with the editor and AI; validated by us. |
 | S5 | Theme = **tokens**: eight HEX colours, a font pair, a radius and a density, emitted as CSS custom properties inside a scoped wrapper. **No merchant CSS, class names or inline styles, ever.** | Brand freedom without a code-injection surface. |
@@ -81,8 +83,20 @@ decision recorded here with a date. Detailed design lives in
 | J11 | `GET /api/storefront/pages` has CRUD exports turned off. | A full export bypasses `buildFilters`, which pins the list to the store's organization. Pages are not an export surface in the spec. |
 | J12 | Public pages fail closed: a published page whose live revision row is missing, or a live store without its home page, renders the neutral unavailable page (logged), never the working copy. | Review finding; drafts (spec, title, SEO description) must never reach buyers. |
 
+## Decisions made while correcting Phase 2 (2026-10-23)
+
+| ID | Decision | Why |
+|---|---|---|
+| J13 | Page commands refresh the page's query-index entry after every write (`PAGE_INDEXER`), and the CRUD route declares `indexer`. | Any reindex (`mercato init`, `query_index reindex`) indexes pages. From then on the list search reads search tokens, so pages written afterwards were missing from the search. Found on a freshly initialised database. |
+| J14 | `GET /api/storefront/pages?ids=` rejects a non-UUID entry with 400; the CRUD factory applies the id filter. | In Open Mercato 0.9.0 an `ids` list with no valid UUID becomes `id IN ()` in SQL and fails with 500 (upstream bug; also listed in `docs/UPSTREAM_DIVERGENCES.md`). |
+| J15 | Custom staff routes give commands an `auth` whose tenant and organization are the ones the route resolved (like the CRUD factory's scoped auth). | A super-admin working in another tenant through the switcher got a 404 from brand/publish/rollback commands that looked in the session tenant. |
+| J16 | The builder's leave guard keeps a same-URL duplicate history entry while the draft is dirty. Back lands on the builder's own entry, the dialog asks, and Leave steps past it. | The App Router handles `popstate` itself; without the duplicate, Back unmounted the builder (and the draft) before the question could be answered. |
+| J17 | The payment policy writes through the installed `sales.payment-methods.update` command with a system context. | Audit log, undo and events for every policy change, the same path as an admin's edit. |
+| J18 | Operator CLIs parse flags with Node's `util.parseArgs` (strict). | A bare `--tenant` used to mean "every tenant". |
+
 ## Open items needing the owner
 
 - Spec Q2 (public path `/{siteSlug}`) and Q4 (theme saves go live immediately) are marked ⚠ in the spec.
-- Real email provider before any deployment; DNS for custom domains; release channel (stable 0.9.0 today).
-- Public page weight (J4): every public page downloads all modules' admin chunks through the upstream app shell; worth raising upstream or trimming the shell before launch.
+- **Signup without email (P6).** Signup must complete with no email at all, in production too, while the installed onboarding sends a verification link. Next session: a spec for an email-free signup (for example, an app-owned signup route that provisions directly, with abuse controls replacing the email check), reviewed against `onboarding` and `auth` before code.
+- DNS for custom domains; release channel (stable 0.9.0 today).
+- Public page weight (J4): every public page downloads all modules' admin chunks through the upstream app shell; worth raising upstream or trimming the shell before launch. (Unrelated to json-render: S1 keeps our own renderer off the client, but the shell still preloads admin code.)

@@ -1,13 +1,13 @@
 # Storefront Builder
 
 **Date**: 2026-10-22
-**Status**: Phase 1 implemented and verified (2026-10-22); Phases 2–4 pending
+**Status**: Phases 1–2 implemented and verified (2026-10-22). Phase 3 (3a/3b/3c) revised on 2026-10-23 with owner answers Q11–Q14, reviewed, and **Ready for implementation**. Phase 4 pending.
 
 > Authored with `om-spec-writing --autonomous` (skeleton → resolved assumptions → research → design → breakdown → review). Every autonomous default is recorded in **Resolved assumptions** and in the **Open Questions** table so the product owner can override it before a dependent phase starts.
 
 ## TLDR
 
-Every Suqna merchant gets a per-tenant storefront that looks like their brand within minutes of self-service signup: a site and theme are seeded when the tenant is created, a default home page is published immediately, and a brand wizard in the admin sets the store name, logo, eight colour tokens, a font pair, a corner radius and a density. Phase 2 adds page authoring (pages with draft/publish/rollback and a section builder whose editor uses `json-render` for section picking and live preview), Phase 3 media and commerce blocks, Phase 4 SEO and indexability. Custom-domain canonical hosts (roadmap Phase 5) and catalog-constrained AI generation (roadmap Phase 6) are designed in their own follow-up specs. Public pages are server-rendered by our own block registry; no client JSON renderer ships to buyers. Reused: `onboarding`, `directory`, `portal`, `customer_accounts` (buyer identity, `domain_mappings`), `catalog`, `attachments`, `translations`, `audit_logs`.
+Every Suqna merchant gets a per-tenant storefront that looks like their brand within minutes of self-service signup: a site and theme are seeded when the tenant is created, a default home page is published immediately, and a brand wizard in the admin sets the store name, logo, eight colour tokens, a font pair, a corner radius and a density. Phase 2 adds page authoring (pages with draft/publish/rollback and a section builder whose editor uses `json-render` for section picking and live preview). Phase 3 (revised 2026-10-23) makes the store *assembled*, not hand-built: complete sections for media, commerce and content, fed by the tenant's own data (theme, name, logo, images, products, categories, prices), plus store templates that compose them into pages. Phase 4 adds SEO and indexability. Custom-domain canonical hosts (roadmap Phase 5) and catalog-constrained AI generation (roadmap Phase 6) are designed in their own follow-up specs; AI generation fills the same template seam, through the same validator. json-render is the storefront's *vocabulary*: the catalog drives the editor now and AI prompts later, and its React-free core may run on the server. Buyer pages are rendered by our own Server Component registry and ship no client spec renderer, to save JavaScript and hydration on every page (not for SEO; see **Revision 2026-10-23**). Reused: `onboarding`, `directory`, `portal`, `customer_accounts` (buyer identity, `domain_mappings`), `catalog`, `attachments`, `translations`, `audit_logs`.
 
 ## Resolved assumptions (autonomous defaults)
 
@@ -45,7 +45,48 @@ Owner-chosen defaults from the brief are marked **owner**; the rest are autonomo
 | P2-Q9 | RichText is edited in a textarea with a minimal markup — blank line = paragraph, `- ` = bullet item, `1. ` = numbered item, `**bold**`, `*italic*`, `[label](href)` — parsed by our code into the structured document and serialised back for editing. No HTML anywhere. | No rich-text editor dependency; the supported subset round-trips losslessly. | — |
 | P2-Q10 | No navigation-menu builder in Phase 2. Merchants link pages from Footer links and Hero CTAs with site-relative hrefs (`/about` renders as `/{siteSlug}/about`). | Already supported by the Phase 1 renderer; a menu builder is a separate feature. | — |
 | P2-Q11 | Revisions are kept without a retention limit in Phase 2 (pages are capped at 30); the revisions list is paginated, 20 per page. | Retention is a later policy decision; nothing is lost meanwhile. | — |
-| P2-Q12 | Dependencies `@json-render/core@0.21.0` and `@json-render/react@0.21.0`, pinned exact, imported only by client components under `src/modules/storefront/components/builder/**`. The preview that imports them is loaded with `React.lazy`, because the app shell references every admin page and statically imported client code reaches public routes (docs/DECISIONS.md J4). | Owner decision "json-render is admin-editor only"; TEST-012 proves no public route ships it. | owner (json-render in the editor) |
+| P2-Q12 | Dependencies `@json-render/core@0.21.0` and `@json-render/react@0.21.0`, pinned exact. The React renderer is imported only by client components under `src/modules/storefront/components/builder/**`. The preview that imports it is loaded with `React.lazy`, because the app shell references every admin page and statically imported client code reaches public routes (docs/DECISIONS.md J4). | The owner approved these dependencies for the builder. *Corrected 2026-10-23:* the rule "json-render is admin-editor only" was a reviewer's recommendation recorded as an owner decision. The owner's decision of 2026-10-23 (Q11) is narrower: no client-side spec renderer on buyer pages; `@json-render/core` may run in server code. TEST-012 still proves no public route ships the client renderer. | owner (dependencies); Q11 (role) |
+
+## Revision 2026-10-23 — json-render's role and the assembled store
+
+**Why this revision exists.** Phase 2 recorded "json-render must never reach a public page" as an owner decision, justified by SEO. Neither part held up: the owner never made that decision, and SEO was not the real cost. The revision verifies the claim against the installed packages and the sources, records what is actually true, and redefines Phase 3 around the owner's idea of an *assembled* store. The owner answered the gate questions on 2026-10-23 (Q11–Q14 below).
+
+**Evidence (verified 2026-10-23).** `@json-render/core` and `@json-render/react` 0.21.0 are the installed versions. `@json-render/next` is **not** a dependency; versions 0.21.1 and 0.21.2 were fetched with `npm pack` into a scratch directory for inspection. The React-free and prop-validation probes are kept as a unit test (`lib/blocks/__tests__/jsonRenderAssumptions.test.ts`), so they re-run with every `yarn test` and fail if a json-render upgrade changes either fact. The owner's statement that S1/S2 were not their decision is the owner's session brief of 2026-10-23; this revision is its written record.
+
+| Claim in the old record | Verdict | Evidence |
+|---|---|---|
+| "json-render must never reach a public page" was an owner decision (S1/S2, P2-Q12 marked "owner") | **Wrong.** It was a reviewer's opinion recorded as the owner's. As a blanket rule it is also too broad. | Owner brief of 2026-10-23. The defensible rule is narrower: no client-side spec renderer on buyer pages. |
+| The reason is SEO | **Mostly wrong.** Crawlers would get the markup either way; what remains is cost. | Next 16 docs (*Server and Client Components*, updated 2026-10-05): "Client Components and the RSC Payload are used to prerender HTML". With server-provided data, a client spec renderer would still deliver full HTML. What remains is the JavaScript shipped and the hydration work on every page. That cost affects Core Web Vitals, and through them ranking, so performance is the real argument and SEO only follows from it. |
+| `@json-render/core` has React-free functions usable on the server | **Right.** | `core/dist/index.mjs` imports only `zod`, and so does `react/dist/schema.mjs` (core only). A Node probe with every `react` import blocked ran `defineCatalog`, `catalog.prompt()` (15 KB system prompt), `catalog.jsonSchema()`, `validateSpec`, `resolveElementProps` and `evaluateVisibility`. |
+| `@json-render/next` `createNextApp` returns `Page` | **Wrong (docs/code mismatch).** | `next@0.21.1` and `0.21.2` (`dist/server.js`) return only `{ getPageData, generateMetadata, generateStaticParams }`. The README, json-render.dev/docs/api/next and the vendored `.agents/skills/json-render-next` skill still show `Page`. `PageRenderer` is a `"use client"` module. |
+| (new) json-render's catalog validation can be the security gate | **No.** | In the installed 0.21.0, `catalog.validate()` checks only element types: props are `z.record(string, unknown)`. A `$state` object, a number, a 10-character string under `max(5)`, an unknown `className` prop and `visible`/`on` all pass. `validateSpec` checks structure only. |
+| (new) `@json-render/react` `Renderer` can run as a Server Component | **No.** | It uses React context and hooks (`createContext`, `useElementSignatures`, providers). It needs a client boundary, so every registry component would ship to the browser and hydrate. |
+
+**Decision (owner, Q11).** json-render is the storefront's **vocabulary**:
+
+1. **Catalog.** The block catalog (`lib/blocks/catalog.ts`: Zod props plus a description per block) is adapted with `defineCatalog`. It drives the builder's picker and live preview today, and `catalog.prompt()` / `catalog.jsonSchema()` for AI generation later (server-side; follow-up spec).
+2. **Validation.** Our strict block schemas (`validatePageSpec`) remain the only validator, because json-render's catalog validation does not check props.
+3. **Buyer pages.** Rendered by our own **Server Component** registry. No client-side spec renderer ships to buyers (`@json-render/react` `Renderer`, `@json-render/next` `PageRenderer`). The reason is cost, not SEO: a client renderer puts every section's code in the browser and hydrates the whole page, while our sections are static content. TEST-012 keeps the rule enforced (no client spec renderer in any script a public page loads). It is a presence check, not a byte or hydration budget; a measured budget is left to Phase 4.
+4. **Server code.** `@json-render/core` (React-free) may be imported by server code (APIs, CLI, AI generation). It must not be imported by a buyer-facing client component.
+5. **Rejected: `@json-render/next` `createNextApp` for stores.** Its documented `Page` export does not exist in 0.21.1/0.21.2. Its page renderer is a client component. It models one application spec per process, while a store's pages, theme and data come from the database per request, inside Open Mercato's frontend routing.
+
+**Phase 3 assumptions (owner answers and autonomous defaults, 2026-10-23):**
+
+| ID | Decision | Rationale | Marker |
+|---|---|---|---|
+| Q11 | json-render role as above | Evidence table | owner |
+| Q12 | A product or category is public only while a published section of that store shows it: a product picked in a ProductGrid, or a product in (a descendant of) a category shown by a ProductGrid or CollectionList. Inactive or deleted products and categories are never public. Everything else answers 404. | Fail-closed, like the logo route (I6): marking a product active in the back office does not publish it. Reversible: a later "all active products" or sales-channel rule only widens the set. | owner: no preference → engineering default |
+| Q13 | Phase 3 is one phase with three slices: (a) media sections, (b) commerce sections + product and collection pages, (c) content sections + store templates. SEO stays Phase 4; AI generation is a follow-up spec. | The owner's "assembled store" needs all three; AI needs a provider key and the disabled `ai_assistant`, neither available here | owner |
+| Q14 | `sharp@0.35.5` becomes a direct dependency (pinned; already installed through `@open-mercato/core`); images are resized to fixed widths and cached with the attachments module's thumbnail cache | Phone photos are several MB; the attachments module resizes the same way | owner |
+| P3-Q1 | New sections: **Image**, **ImageText**, **Gallery** (media); **ProductGrid**, **CollectionList** (commerce); **Testimonials**, **Faq**, **ContactInfo**, **CallToAction** (content). Hero gains an optional image. Every section is a Server Component with no client JavaScript; FAQ uses native `<details>`. | Shopify's default section set covers the same ground; native HTML is the "library" for disclosure, not a client accordion | — |
+| P3-Q2 | Images are uploaded through `attachments` (`entityId storefront:storefront_page`, `recordId` = page id). Only raster types are allowed, with alt text required (1–200). An image is public only while the store's logo or a published page of that store references it, or while it belongs to a public product. | Same rule as the logo (I6), extended to page and product images | — |
+| P3-Q3 | Section references (attachment, product, category ids) are checked on save, publish and rollback: they must belong to the caller's organization. A foreign and an unknown id give the same 422 `storefront.validation.referenceNotFound`. At render time a missing or inactive product or category is skipped, never an error. | AC-005 and TEST-013 ("foreign ids rejected on save"); a product deleted later must not take the page down | — |
+| P3-Q4 | Product URL `/{siteSlug}/products/{handle}` (the product's handle, or its id when it has none); collection URL `/{siteSlug}/collections/{slug}` (the category's slug, or its id). Both are server-rendered in the store frame with `noindex` off and canonical tags. | `products` and `collections` were reserved in Phase 2 for these | — |
+| P3-Q5 | Prices come from the platform pricing engine (`catalogPricingService.resolvePriceMany`, anonymous context: quantity 1, now, no channel or customer). The gross price is shown, else net, formatted with `Intl.NumberFormat` in the store's locale. A product without a resolvable price shows no price. | Reuse the pricing engine; never invent a price | — |
+| P3-Q6 | Store templates write **drafts only**. The home page draft is replaced (after a confirmation that says so); other template pages are created when their slug is free, and existing slugs are skipped and reported. Nothing is published. One command, undoable as a whole. | The merchant reviews before buyers see anything; undo restores the previous home draft and removes created pages | — |
+| P3-Q7 | Template copy is written in the admin's UI language at apply time (i18n keys in all five locales). It is filled with tenant data: store name, description, and up to four active top-level categories (ProductGrid of the first, CollectionList of all). Without categories, the commerce sections are replaced by a CallToAction that links to the contact page. | "A store is a composition of catalog sections plus tenant data" | — |
+| P3-Q8 | The builder preview gets commerce data from `POST /api/storefront/preview-data` (staff scope), which runs the same loader as the public render over the in-memory draft | One data model for preview and public render | — |
+| P3-Q9 | No cart, checkout or "order" button on product pages | Out of scope for the storefront builder; ordering by cash on delivery or bank transfer belongs to a later checkout spec | — |
 
 ## Problem Statement
 
@@ -66,18 +107,20 @@ A Suqna merchant who signs up today receives an admin back office (catalog, orde
 - **REQ-004** — Page specs are validated on save, on publish and on render; unknown block types, unknown props, oversize specs and disallowed URLs are rejected with field-level errors and never rendered best-effort.
 - **REQ-005** — Strict tenant isolation: every query is scoped by the trusted `tenant_id`/`organization_id`; a cross-tenant id answers 404.
 - **REQ-006** — Merchants manage pages with draft and published states, immutable publish revisions and rollback; the public site serves only published revisions.
-- **REQ-007** — Merchants add, reorder, edit and remove sections in a builder whose editor uses `json-render` (catalog, live preview) while public pages never ship a client JSON renderer.
-- **REQ-008** — Media and commerce blocks (Image, Gallery, ProductGrid, CollectionList) render tenant-scoped attachments and catalog data.
+- **REQ-007** — Merchants add, reorder, edit and remove sections in a builder whose editor uses `json-render` (catalog, live preview) while buyer pages ship no client-side spec renderer.
+- **REQ-008** — Media, commerce and content sections (Image, ImageText, Gallery, ProductGrid, CollectionList, Testimonials, Faq, ContactInfo, CallToAction; Hero image) render the store's own images, products, categories and prices; products and categories are public, with their own pages, only while a published section shows them; foreign references are rejected on save.
+- **REQ-010** — A merchant assembles a store from a template: complete pages composed from catalog sections and filled with the store's own data, written as drafts with one undo.
 - **REQ-009** — Stores are indexable: per-page SEO fields, a per-store sitemap and robots policy, cache revalidation on publish.
 
-Follow-up specs (separate documents, not designed here): **storefront custom domains and canonical host** (roadmap Phase 5: one canonical host per store, verified domain binding, 301 from the non-canonical host, `src/proxy.ts` change), **storefront AI generation** (roadmap Phase 6: catalog-constrained generation behind a flag and `ai_assistant`), **storefront translations**, **self-hosted webfonts**.
+Follow-up specs (separate documents, not designed here): **storefront custom domains and canonical host** (roadmap Phase 5: one canonical host per store, verified domain binding, 301 from the non-canonical host, `src/proxy.ts` change), **storefront AI generation** (roadmap Phase 6: catalog-constrained generation behind a flag and `ai_assistant`. Server-side `catalog.prompt()` over the same catalog; the model fills the Phase 3 template structure, and its output passes `validatePageSpec` and the reference check before it lands as drafts, never auto-published), **storefront translations**, **self-hosted webfonts**.
 
 ## Non-goals
 
 - Checkout, cart, payments or any payment gateway (policy: cash on delivery and bank transfer through `sales`).
 - Merchant-supplied CSS, HTML, scripts, class names or inline styles — ever.
 - A shared cross-tenant buyer identity or platform-wide buyer cookie.
-- Shipping `@json-render/react` or any client JSON renderer to public pages.
+- A client-side spec renderer on buyer pages (`@json-render/react` `Renderer`, `@json-render/next` `PageRenderer`). `@json-render/core` on the server is allowed (Revision 2026-10-23).
+- Cart, checkout or an order button on product pages (Phase 3 shows products; ordering is a later spec).
 - Multiple storefronts per organization; theme marketplaces; third-party theme code.
 - Blog/articles, forms, and A/B testing (candidates for later specs).
 
@@ -104,19 +147,20 @@ Requirements were challenged against the leaders in hosted and open-source store
 | GrapesJS | Mature drag-and-drop editing | — | Stores raw HTML/CSS: exactly the merchant HTML/CSS surface our security model forbids |
 | WordPress Gutenberg | Typed blocks with attribute schemas; invalid blocks are detected and never silently "fixed" | Validation on save, publish and render; invalid content is rejected, not rendered best-effort | Block HTML serialisation (`<!-- wp:... -->` comments); we store pure JSON |
 | Medusa / Saleor | Headless commerce with a separate Next.js storefront, SSR for SEO | SSR for SEO and Core Web Vitals | A separate storefront app per merchant: multi-tenant theming must live inside the platform |
-| `json-render` (vercel-labs) | A catalog of components with Zod props constrains what a spec (or an AI) may describe; flat `{ root, elements }` specs; `catalog.prompt()` for AI | Spec shape `{ root, elements }`; Zod props per block; the same catalog becomes a `defineCatalog` in the editor (Phase 2) and in the AI follow-up spec | Its dynamic expressions (`$state`, `$cond`, `$template`, `$computed`, directives such as `$t`), `visible`, `on`, `watch` and `repeat` are rejected in stored specs: public pages are static, literal content |
+| `json-render` (vercel-labs) | A catalog of components with Zod props constrains what a spec (or an AI) may describe; flat `{ root, elements }` specs; `catalog.prompt()` for AI; a React-free core | Spec shape `{ root, elements }`; Zod props per block; the same catalog becomes a `defineCatalog` in the editor (Phase 2) and in the AI follow-up spec; core allowed on the server | Its dynamic expressions (`$state`, `$cond`, `$template`, `$computed`, directives such as `$t`), `visible`, `on`, `watch` and `repeat` are rejected in stored specs: public pages are static, literal content. Its catalog validation is not used as a gate (props unchecked in 0.21). Its client renderers on buyer pages, and `createNextApp`, are rejected (Revision 2026-10-23). |
+| Shopify Dawn (default theme) | A small set of complete sections (image banner, image with text, featured collection, collection list, multicolumn, collapsible content, contact) covers most stores; preset templates fill them | The Phase 3 section set and store templates | Theme code and section-level CSS |
 
 Complexity skipped deliberately: nested layouts and named slots (v1 pages are a flat list of sections), per-section custom CSS, scripted interactions, theme inheritance trees.
 
 ## Proposed Solution
 
-A new app module `storefront` owns sites, themes and pages. It keeps a server-safe **block catalog** — one Zod props schema per block, with no React import — and a separate **server block registry** mapping each block type to an SSR-safe React component. A page is stored as JSON in the shape `{ root, elements }`, validated by our schema (the source of truth) on save, on publish and on render. The public route `/{siteSlug}` resolves the site by its globally unique slug, pins every subsequent query to that site's tenant and organization, validates the published spec, and renders it through the registry inside a wrapper that carries the theme as CSS custom properties. Page metadata (title, description, canonical, Open Graph) is returned through Next metadata by the page's static `generateMetadata` (see `docs/DECISIONS.md` I3); JSON-LD is rendered in the page. `json-render` enters only in the admin editor (Phase 2), which adapts the same catalog with `defineCatalog` for section picking and live preview, and later for catalog-constrained AI generation (follow-up spec).
+A new app module `storefront` owns sites, themes and pages. It keeps a server-safe **block catalog** — one Zod props schema per block, with no React import — and a separate **server block registry** mapping each block type to an SSR-safe React component. A page is stored as JSON in the shape `{ root, elements }`, validated by our schema (the source of truth) on save, on publish and on render. The public route `/{siteSlug}` resolves the site by its globally unique slug, pins every subsequent query to that site's tenant and organization, validates the published spec, and renders it through the registry inside a wrapper that carries the theme as CSS custom properties. Page metadata (title, description, canonical, Open Graph) is returned through Next metadata by the page's static `generateMetadata` (see `docs/DECISIONS.md` I3); JSON-LD is rendered in the page. `json-render` adapts the same catalog with `defineCatalog`: in the admin editor (Phase 2) for section picking and live preview, and later on the server for catalog-constrained AI generation (follow-up spec). Buyers get no client spec renderer (Revision 2026-10-23). Phase 3 adds a **section data loader**: server code that resolves the images, products, categories and prices a page's sections reference, pinned to the site's tenant and organization. It feeds the same synchronous block components on the public page and in the builder preview.
 
 ### Design Decisions and Alternatives
 
 | Decision | Rationale | Alternative considered | Why rejected / deferred |
 |---|---|---|---|
-| Own block catalog + SSR registry for public pages | SEO and Core Web Vitals; zero client renderer JS on buyer pages | `@json-render/next` `createNextApp` / `@json-render/react` `Renderer` on public pages | Ships a client renderer and hydration to buyers; owner decision forbids it |
+| Own block catalog + Server Component registry for public pages | No client renderer JavaScript and no hydration on buyer pages; our strict validator gates every render | `@json-render/next` `createNextApp` / `@json-render/react` `Renderer` on public pages | Client components (context and hooks) that ship every section and hydrate; catalog validation does not check props; `createNextApp`'s documented `Page` is absent in 0.21.1/0.21.2 (Revision 2026-10-23). Not an SEO question: client components are prerendered to HTML too. |
 | Catalog definitions separate from React components | Server-safe validation (API, setup, CLI) without importing React; mirrors `@json-render/shadcn/catalog` vs `@json-render/shadcn` | One file per block with schema + component | Would drag React into validators and setup hooks |
 | Flat page: root `Page` element whose children are sections; sections have no children | Simple validation, reorder is a list operation, matches section-based market leaders | Arbitrary nesting with slots | Harder to validate and edit; no v1 requirement needs nesting |
 | Theme as validated tokens in JSONB with a `version` | Token set can grow (new colours, fonts) without migrations; validated on every read | One column per token | Migration per token change; no validation benefit |
@@ -155,7 +199,7 @@ A new app module `storefront` owns sites, themes and pages. It keeps a server-sa
 | Logo and images | reuse | `attachments` | `POST /api/attachments` for upload; DI `storageDriverFactory` + scoped read for public serving | Existing storage, partitions, quotas, thumbnails |
 | Buyer identity and portal | reuse unchanged | `customer_accounts`, `portal` | links to `/{orgSlug}/portal` | Tenant-scoped buyers already exist |
 | Custom domains | reuse (follow-up spec) | `customer_accounts` `domain_mappings` + `src/proxy.ts` | domain-resolve endpoint + proxy rewrite | Verified domains already exist |
-| Products and categories | reuse (Phase 4) | `catalog` | scoped read service / query engine | Source of truth for products |
+| Products, categories and prices | reuse (Phase 3) | `catalog` (+ `catalogPricingService`) | scoped reads by scalar id in the section data loader; pricing engine via DI | Source of truth for products and prices |
 | Translations | reuse (follow-up spec) | `translations` | `translations.ts` for site fields | Translation Manager already exists |
 | Audit | reuse | `audit_logs` | command bus action logs | Every command is audited automatically |
 | AI generation | reuse (follow-up spec, optional) | `ai_assistant` (currently disabled) | guarded optional DI + feature flag | Nothing in this spec may depend on it |
@@ -179,7 +223,7 @@ buyer GET /api/storefront/media/{siteSlug}/{attachmentId} --> site-referenced? -
 editor (Phase 2) --> json-render defineCatalog(adapter(blockCatalog)) --> section picker + live preview (admin only)
 ```
 
-- **Module boundaries:** `storefront` owns everything storefront-specific; it reads `directory`, `attachments` and (Phase 4) `catalog` only by scalar id under the site's scope, and never holds an ORM relation to them.
+- **Module boundaries:** `storefront` owns everything storefront-specific; it reads `directory`, `attachments` and (Phase 3) `catalog` only by scalar id under the site's scope, and never holds an ORM relation to them.
 - **Extension points:** setup hook (`onTenantCreated`), page metadata/nav, frontend page discovery, API discovery, command bus, typed events, CLI command, i18n catalogs.
 - **Alternatives considered:** a CMS-style `content` page (the installed `content` module only serves static legal pages and has no data model), and Shopify-style themes as code (rejected above).
 - **Compatibility:** all identifiers are new and additive. Once released they are frozen surfaces under `BACKWARD_COMPATIBILITY.md`: routes `/api/storefront/*`, `/backend/storefront*`, `/{siteSlug}`; entity ids `storefront:storefront_site|storefront_theme|storefront_page|storefront_page_revision` (the generated ids; corrected at the Phase 2 detail pass — the earlier short names never existed in code); events `storefront.*`; ACL features `storefront.*`; CLI `storefront ensure-sites`; the page-spec JSON shape (versioned through its schema; additive evolution only).
@@ -318,6 +362,26 @@ Revisions → Drawer: revision list (no, source, title, date, current); Restore 
 - **Responsive:** below `lg` the preview stacks under the section list; the Phone toggle constrains the preview to the design-system `max-w-sm` width (24rem, 384 px; arbitrary widths are rejected by `ds:check`).
 - **Theming:** the admin chrome uses semantic tokens in light and dark mode; the preview always shows the merchant's theme (it is the store's look), scoped by the same `[data-sf-site]` wrapper and `.sf-*` structural classes as the public page.
 
+### Phase 3 surfaces
+
+| Surface / route | Purpose and primary actions | Data source / mutations | Closest installed reference | Canonical shell / components | Required states | Requirement IDs |
+|---|---|---|---|---|---|---|
+| Builder inspector (new field kinds) | **Image**: upload with `ImageUpload` (to `/api/attachments`, page as the record) + alt text; **image list** for Gallery (add, alt, move, remove); **product source** (`SegmentedControl` category/pick + `LookupSelect` for a category, `TagsInput` with catalog suggestions for products); **categories** (`TagsInput`); **switch** (`Switch`) for "show prices" | `/api/attachments`, `/api/catalog/categories?search=`, `/api/catalog/products?search=`, `?ids=` for labels | `/backend/directory/branding` (logo upload), catalog product form (category picker) | embedded compact `CrudForm` custom fields composed from the primitives above | uploading (spinner, `role=status`), upload error (flash; previous image kept), picker loading/empty/error, required alt text, keyboard reachable, labels on every control | REQ-007, REQ-008 |
+| Builder preview (commerce) | Shows real products, categories and prices for the draft | `POST /api/storefront/preview-data` on draft change (debounced) | — | same block components as the public page | loading keeps the last data; error shows placeholders; empty category shows the section's empty text | REQ-007, REQ-008 |
+| `/backend/storefront/pages` — **Start from a template** | Dialog listing templates (name, description, pages); **Apply** asks for confirmation ("replaces the home page draft; existing pages are kept"); result flash names created and skipped pages; the platform's last-operation banner offers **Undo** (409 on undo → error flash naming the conflict) | `GET /api/storefront/templates`; `POST /api/storefront/templates/{id}/apply` via `useGuardedMutation` with the home page version | catalog import dialogs; `useConfirmDialog` | `Dialog`, radio list (`RadioField`), `useConfirmDialog`, `FlashMessages` | loading, error, conflict (409 → conflict bar + reload), permission (hidden without `storefront.pages.manage`), keyboard (Cmd/Ctrl+Enter, Escape) | REQ-010 |
+| `/{siteSlug}/products/{productKey}`, `/{siteSlug}/collections/{categoryKey}` | Buyer browses products and collections | server reads (section data loader, visibility rule) | `/{siteSlug}/{pageSlug}` | storefront Server Components in the store frame | not found (404), empty collection, pagination, no price | REQ-008 |
+
+```text
+Product page                                Collection page
+┌ Atlas Coffee ─────────────── Sign in ┐    ┌ Atlas Coffee ─────────────── Sign in ┐
+│ ← Beans                              │    │ Beans                                │
+│ [image]   Ethiopia Guji              │    │ Single-origin coffee from …          │
+│           Washed, 250 g              │    │ [img] Guji 12,00 €  [img] Huila …    │
+│           12,00 €                    │    │ [img] …                              │
+│           Floral, stone fruit …      │    │            ‹ 1 2 › (24 per page)     │
+└──────────────────────────────────────┘    └──────────────────────────────────────┘
+```
+
 ## Data Models
 
 ### `storefront:site` (`storefront_sites`)
@@ -384,6 +448,47 @@ Revisions → Drawer: revision list (no, source, title, date, current); Restore 
 
 **Migration (Phase 2):** additive — three nullable columns on `storefront_pages`, the new table and its indexes, plus a backfill that writes revision 1 (`source = publish`, `published_by_user_id = null`) for every page that already has a `published_spec` and points `published_revision_id` at it. The Phase 1 seeding function writes the same revision 1 for every new home page. No field holds PII, so no encryption map is needed; merchant-entered text is public marketing content.
 
+### Phase 3 — no schema change; the page-spec vocabulary grows
+
+Phase 3 adds no table and no column. Sections live in the page spec JSON (`draft_spec`, `published_spec`, revision `spec`). The block catalog grows additively, so older specs stay valid. Images, products and categories are referenced by **scalar ids** and read through the installed modules, scoped to the site's tenant and organization. There are no ORM relations across modules.
+
+| Section | Props (strict; text limits in characters) | Data resolved at render |
+|---|---|---|
+| Hero (extended) | existing props + `image?: { attachmentId: uuid, alt: 1–200 }` | image URL |
+| Image | `image { attachmentId, alt }`, `caption?` ≤ 200, `href?` safe href, `width` `contained`\|`full` (default `contained`) | image URL |
+| ImageText | `image`, `heading` ≤ 120, `body?` ≤ 600 (plain text, line breaks kept), `cta? { label ≤ 40, href }`, `imagePosition` `start`\|`end` | image URL |
+| Gallery | `heading?` ≤ 120, `images` 2–12 × `{ attachmentId, alt }` | image URLs |
+| ProductGrid | `heading?` ≤ 120, `source`: `{ kind: 'category', categoryId }` or `{ kind: 'products', productIds: 1–12 unique }`, `limit` 1–12 (default 8), `showPrice` (default true) | visible products: title, URL, cover image, formatted price |
+| CollectionList | `heading?` ≤ 120, `categoryIds` 1–12 unique | categories: name, description, URL, cover image (first visible product's) |
+| Testimonials | `heading?`, `items` 1–6 × `{ quote ≤ 400, author ≤ 80, role? ≤ 80 }` | — |
+| Faq | `heading?`, `items` 1–12 × `{ question ≤ 200, answer ≤ 1000 }` | — (native `<details>`) |
+| ContactInfo | `heading?`, `address?` ≤ 300, `phone?` (`+`, digits, spaces, `()-`; 5–40), `email?` (email, ≤ 120), `hours?` ≤ 300; at least one of the four | `tel:`/`mailto:` links built by our code from the validated value, never merchant hrefs |
+| CallToAction | `heading` ≤ 120, `body?` ≤ 200, `cta { label, href }`, `tone` `surface`\|`primary` | — |
+
+**Reference rules.**
+- **Image references** (`attachmentId`) must be raster-type attachments uploaded to **this store's pages**: `entity_id = storefront:storefront_page` and `record_id` = a page of this site, in the caller's tenant and organization. Any other attachment of the organization is refused, so a customer's, order's or staff member's file can never be published through a page.
+- **Products and categories** (`productId`, `categoryId`) must be rows of the caller's organization. Soft-deleted or inactive rows still pass: they are skipped at render, so a later deletion never blocks a title-only re-publish or a rollback.
+- These rules are checked on draft save, publish, rollback and template apply. A foreign id and an id that never existed give the same 422. An attachment that was hard-deleted fails with the same 422, naming the section and prop, and the merchant replaces the image. **Public visibility (Q12):**
+- the visible categories are those referenced by a published ProductGrid or CollectionList of the store, plus their descendants (`descendant_ids`), if active and not deleted;
+- the visible products are those picked by a published ProductGrid, plus products assigned to a visible category, if active and not deleted.
+
+The media route serves an attachment of the store's tenant and organization only when it is:
+- the store's logo (`entity_id = storefront:storefront_site`);
+- a page image (`entity_id = storefront:storefront_page`, recorded on a page of this site) referenced by a published page of this store; or
+- an image of a visible product (`entity_id = catalog:catalog_product`).
+
+The route checks these rules **before** reading the thumbnail cache or storage. Attachments of private partitions are served only through this check; nothing else about the partition is exposed. Responses carry `Cache-Control: public, max-age=300`, so an image that stops being public can stay in shared caches for up to five minutes. Decoding is capped with the attachments module's limits (`validateImageMagicBytes`, `MAX_IMAGE_SOURCE_PIXELS` via `sharp`'s `limitInputPixels`).
+
+**Failure behaviour of the section data loader.** Each section's data is loaded independently:
+- a failing catalog read or price resolution is logged at warn level, with site and section ids and never content;
+- that section then renders its empty state, or omits prices when only pricing failed;
+- the page itself still answers 200;
+- a storage read failure in the media route answers 404, as for a missing image.
+
+**Prices (anonymous context).** Rows restricted to a channel, customer, customer group, user or user group never match an anonymous buyer (the pricing engine's own `matchesContext`). Product-level rows are resolved first. When a product has only variant prices, the lowest best variant price is shown with a "From" label.
+
+**Keys.** Product handles and category slugs are unique per organization (installed unique indexes `catalog_products_handle_scope_unique`, `catalog_product_categories_slug_unique`). A URL key is looked up as a handle or slug first, then as an id.
+
 ## API, Command, and Error Contracts
 
 | Method / command | Path / ID | Auth and feature gate | Input | Success response / event | Errors and concurrency | Requirement IDs |
@@ -409,6 +514,18 @@ Revisions → Drawer: revision list (no, source, title, date, current); Restore 
 
 Both brand routes are custom (singleton aggregate, not a list), so they wire `runMutationGuards` with the caller's features, merge `modifiedPayload`, and run post-success callbacks after commit; each route exports per-method `metadata` and `openApi`. Scope is derived with `resolveOrganizationScopeForRequest`; body fields named `tenantId`/`organizationId` are ignored by the strict schema.
 
+**Phase 3 contracts.**
+
+| Method / command | Path / ID | Auth and feature gate | Input | Success response / event | Errors and concurrency | Requirement IDs |
+|---|---|---|---|---|---|---|
+| (update/publish/rollback) | existing page commands | as Phase 2 | — | — | additional 422 `issues[].code = unknown_reference` (`storefront.validation.referenceNotFound`) for a foreign or unknown attachment, product or category id, at the section prop's path | REQ-004, REQ-005, REQ-008 |
+| `POST` | `/api/storefront/preview-data` | auth + `storefront.view` + `catalog.products.view` + `catalog.categories.view` | `{ sections: [{ id, type, props }] }` (≤ 40) | `{ sections: { [id]: { products?, categories? } } }`: the same view model as the public render, but **without** the published-section condition, so the draft can be previewed. It is still limited to active, non-deleted rows of the staff scope. Image URLs use the authenticated attachments image route (staff hold `attachments.view` by default). Sections with invalid props are omitted. | 422 invalid body; 403 without the catalog features (the builder then shows product placeholders); foreign or unknown ids are simply absent (no existence signal) | REQ-007, REQ-008 |
+| `GET` | `/api/storefront/templates` | auth + `storefront.view` | none | `{ items: [{ id, name, description, pages: [{ slug, title }] }] }` in the caller's locale | 401, 403 | REQ-010 |
+| `POST` / command `storefront.templates.apply` | `/api/storefront/templates/{id}/apply` | auth + `storefront.pages.manage`; mutation guards | `{}` (strict) + the **home page's** `updatedAt` in the lock header | `{ homePageId, createdPages: [{ id, slug }], skippedSlugs, updatedAt }`.<br>- Writes the home page draft (spec, title, SEO description) and creates the other template pages as drafts, in one transaction under the site row lock.<br>- Every generated spec passes `validatePageSpec` and the reference check before anything is written.<br>- The response carries `x-om-operation`, so the platform's last-operation banner offers **Undo**.<br>- Event `storefront.template.applied` `{ tenantId, organizationId, siteId, templateId, pageIds }`, where `pageIds` includes the home page. | 404 unknown template; 409 stale home version; 422 `pageLimit` when the new pages would pass 30.<br>**Undo** restores the home page's previous draft spec, title, SEO description and `draft_updated_at` from the command snapshot, and soft-deletes the created pages. It compares each page's `updated_at` with the value recorded right after the apply, and refuses with 409 `storefront.errors.undoTemplateChanged` (nothing reverted) when any differs. | REQ-010 |
+| `GET` | `/api/storefront/media/{siteSlug}/{attachmentId}?w=` | public | `w` ∈ 320, 640, 960, 1280, 1920 (optional) | image bytes; resized with `sharp` (never upscaled, same format) and cached with the attachments thumbnail cache | 404 for anything not public under the visibility rule; 404 for an unsupported `w` | REQ-003, REQ-005, REQ-008 |
+| frontend | `/{siteSlug}/products/{productKey}` | public | handle or id | product page in the store frame: title, subtitle, images, price, description (plain text), back link to its first visible category | 404 unless visible (Q12); a key that is the id of a product with a handle → 308 to the handle URL | REQ-008 |
+| frontend | `/{siteSlug}/collections/{categoryKey}` | public | slug or id; `?page=` | collection page: name, description, visible products, 24 per page, with links to products; a non-numeric or out-of-range `page` is clamped to the nearest valid page | 404 unless visible; id URL of a category with a slug → 308 | REQ-008 |
+
 ## Events, Jobs, Notifications, and Cross-Module Flows
 
 | Trigger | Producer | Consumer | Side effect | Retry / idempotency / audit behavior |
@@ -416,6 +533,7 @@ Both brand routes are custom (singleton aggregate, not a list), so they wire `ru
 | `storefront.site.created` | seeding function | workflow trigger discovery today (e.g. a "new store" automation) | — | emitted once per created site; seeding is idempotent so a re-run emits nothing |
 | `storefront.brand.updated` | `storefront.brand.update` | workflow trigger discovery today; Phase 4 cache revalidation | — | after commit; command log gives audit and undo |
 | `storefront.page.created` / `.updated` / `.deleted` | Phase 2 page commands | workflow trigger discovery | — | after commit; command log gives audit and undo |
+| `storefront.template.applied` | Phase 3 command | workflow trigger discovery | — | after commit; the command log gives audit and undo |
 | `storefront.page.published` / `storefront.page.rolled_back` | Phase 2 commands | workflow trigger discovery; Phase 4 sitemap/cache | revalidation (Phase 4) | after commit; payload `{ id, tenantId, organizationId, siteId, revisionId, revisionNo }`; the revision row is the audit record |
 
 No jobs or notifications in Phase 1. No phase in this spec depends on an optional module.
@@ -447,6 +565,14 @@ No jobs or notifications in Phase 1. No phase in this spec depends on an optiona
 | Restoring a deleted page whose slug was reused (Phase 2) | Undo answers 409; the reused page is untouched. |
 | A buyer requests a draft-only, deleted or reserved page path (Phase 2) | 404; drafts are never served. |
 | The json-render preview throws for one section (Phase 2) | That section shows "Preview unavailable"; the rest of the preview and all editing keep working. |
+| A product shown by a published ProductGrid is deactivated or deleted (Phase 3) | It disappears from the grid and its product page answers 404; the page itself still renders. |
+| A section references another organization's product, category or image (Phase 3) | Save, publish and rollback answer 422 `referenceNotFound` on that prop, exactly as for an unknown id. |
+| A page image is removed from every published page (Phase 3) | The media route answers 404 for it from then on (drafts never make an image public). |
+| A category referenced by a section has no visible products (Phase 3) | The grid shows nothing for it and the collection page shows an empty state; nothing errors. |
+| Applying a template when `about`/`faq`/`contact` already exist (Phase 3) | Those pages are skipped and listed in the result; only free slugs are created. |
+| Applying a template would pass 30 pages (Phase 3) | 422 `pageLimit`; nothing is written. |
+| Template applied, then the merchant edits the home draft, then presses Undo (Phase 3) | 409 `undoTemplateChanged`; nothing is reverted, so the newer edit is never lost. |
+| Image resize fails (corrupt or oversize file) (Phase 3) | 404 from the media route, logged at warn level; the rest of the page renders. |
 
 ## Integration Coverage
 
@@ -471,7 +597,11 @@ Tests are self-contained (each creates and removes its own fixtures) and map to 
 | TEST-017 | unit (command, Phase 2) | in-memory command context | page create/update/delete/publish/rollback | cap under lock, slug rules, draft validation, revision numbering, rollback copy + draft reset, `nothingToPublish`, foreign-scope 404, undo of update and delete | REQ-004, REQ-006 |
 | TEST-018 | UI (Phase 2) | tenant A admin, real browser | pages list (create, delete with confirm, delete conflict); builder: add via picker, edit in inspector (text, link, list, rich text), reorder (keyboard), remove, save draft, publish, restore a revision (with the replace-draft warning), conflict in two tabs; narrow width and dark admin theme | public page changes only after publish/restore; conflict bars shown; keyboard path works; layout and contrast hold in both themes | REQ-006, REQ-007 |
 | TEST-019 | security (Phase 2) | tenants A and B (fresh signups) | B reads, updates, publishes, rolls back and lists revisions of A's page ids; B requests A's page path under B's slug | every call 404; A's page unchanged | REQ-005 |
-| TEST-013 | integration (Phase 3) | tenants A and B with products and images | ProductGrid/Gallery/Image/CollectionList render | only the site's own products and images; foreign ids rejected on save | REQ-008, REQ-005 |
+| TEST-013 | integration (Phase 3a/3b, `TC-STOREFRONT-005`; a = media and content sections and images, b = commerce) | superadmin organization: two categories, products (one inactive, one unassigned), product images and page images, created through the catalog and attachments APIs | page with ImageText, Gallery, ProductGrid (category), ProductGrid (picked), CollectionList; save, publish, request the public page, product pages, collection pages and the media route (with and without `w`); save, publish and roll back with an unknown, a foreign-entity and a deleted id; render a page holding all content sections | public page lists exactly the visible products with prices and images; product and collection pages 200 for visible items, 404 for the inactive product, the unreferenced product and an unreferenced upload; resized image is smaller than the original; unknown or other-entity id → 422 `unknown_reference` on save, publish and rollback; a soft-deleted product passes the check and is skipped at render; content sections render their text (FAQ as `<details>`) | REQ-008, REQ-005 |
+| TEST-020 | unit (Phase 3) | none | new block schemas; reference collection; visibility rule; price formatting; editor-field parity extended to the new sections | malformed props rejected per field (alt required, unsafe image link, ContactInfo empty, duplicate product ids, unknown source kind); collected references match the spec; visibility includes descendants and excludes inactive items | REQ-004, REQ-008 |
+| TEST-021 | unit (command, Phase 3) | in-memory command context | `storefront.templates.apply` and its undo | home draft replaced and other pages created as drafts; taken slugs skipped; cap enforced; nothing published; undo restores; undo after a later edit → 409 | REQ-010 |
+| TEST-022 | UI (Phase 3, `TC-STOREFRONT-006`) | superadmin organization, real browser | apply a template from the pages list (replace-draft warning); in the builder add an Image section by uploading a file, a ProductGrid by picking a category; preview shows the product; publish; narrow width and dark theme | template pages appear as drafts; preview and public page show the image and the product; keyboard path works | REQ-007, REQ-008, REQ-010 |
+| TEST-023 | security (Phase 3) | tenants A and B (fresh signups) | B saves sections with A's product, category and image ids; B requests A's product, collection and image paths under B's slug and A's slug for unpublished items; B's preview-data with A's ids; B applies a template | every reference 422; every path 404; preview-data returns nothing for A's ids; A's pages unchanged | REQ-005, REQ-008 |
 | TEST-014 | integration (Phase 4) | tenant A with published pages | per-page SEO fields; sitemap and robots endpoints; revalidation after publish | sitemap lists published pages only; changes visible after publish | REQ-009 |
 
 ## Implementation Phases
@@ -518,12 +648,61 @@ Phases are dependency ordered. Only the current phase may enter implementation; 
 - **Validation:** `yarn generate`, `yarn db:generate` probe, `yarn typecheck`, `yarn lint`, `yarn ds:check`, `yarn test`, `yarn build`, `TC-STOREFRONT-001/002`, two-tenant checks.
 - **Exit gate:** a page authored in the builder round-trips through draft save, publish and rollback; the public site never serves a draft (spec, title or SEO description); public routes ship no json-render code; tenant B cannot reach any of tenant A's pages or revisions; slug, cap and home-page rules hold (AC-010); the new admin screens pass their state contracts at narrow width and in light and dark admin themes.
 
-### Phase 3 — Media and commerce blocks
+### Phase 3 — The assembled store (three sub-phases, one owner decision Q13)
 
-- **Depends on:** Phase 2
-- **Outcome:** Image, Gallery, ProductGrid and CollectionList blocks.
-- **Deliverables:** two independent slices: (a) media blocks + the media route extended to page-referenced assets; (b) commerce blocks + a scoped catalog read (published products/categories only).
-- **Requirements closed:** REQ-008. **Tests:** TEST-013. **Exit gate:** two-tenant media and product isolation proven.
+**Outcome of Phase 3 as a whole:** a merchant applies a store template and gets complete pages built from real sections, filled with the store's own name, categories, products, prices and images. Buyers browse products and collections, and nothing outside the store's published sections is public. **Why:** the Phase 2 builder had four text-only blocks, so a merchant could not show a single product. Templates turn the catalog into a store in one step, and they are the seam AI generation fills later.
+
+The fresh-context review (2026-10-23) found that the three parts ship independently, each on its predecessor alone. So each gets its own exit gate, and Phase 3 is verified when 3c is.
+
+#### Phase 3a — Media and content sections
+
+- **Depends on:** Phase 2 (verified 2026-10-22; corrected 2026-10-23).
+- **Deliverables:**
+  - Image, ImageText, Gallery, the Hero image, Testimonials, Faq, ContactInfo and CallToAction: schemas, Server Components, editor fields (`ImageUpload` + alt text; image list) and i18n;
+  - the image reference check (page attachments of this site only);
+  - the media route serving page-referenced images, with resizing (`sharp`, decode limits, thumbnail cache after the visibility check);
+  - `jsonRenderAssumptions` unit test;
+  - the dependency `sharp@0.35.5`.
+- **Tests:** TEST-015 (extended), TEST-017 (references on save, publish and rollback), TEST-020 (schemas, image references), TEST-013a (`TC-STOREFRONT-005`, media and content part).
+- **Acceptance:** AC-008. **Exit gate:**
+  - A published page with all eight sections renders them publicly with the store's images.
+  - A resized image is smaller than the original.
+  - An unreferenced upload, another entity's attachment and a draft-only image answer 404.
+  - A foreign or never-existing image id gives 422 on save, publish and rollback.
+  - Public pages load no json-render code.
+
+#### Phase 3b — Commerce sections and the public catalog
+
+- **Depends on:** Phase 3a.
+- **Deliverables:**
+  - ProductGrid and CollectionList: schemas, components, editor fields (`LookupSelect`, `TagsInput` over the catalog APIs);
+  - product and category reference checks;
+  - the section data loader (catalog reads, `catalogPricingService`, per-section failure isolation) and the visibility rule (Q12);
+  - product and collection pages; product images through the media route;
+  - `POST /api/storefront/preview-data` with the builder preview wiring.
+- **Tests:** TEST-013b (`TC-STOREFRONT-005`, commerce part), TEST-020 (visibility, prices), TEST-023 (two-tenant, fresh signups).
+- **Acceptance:** AC-012. **Exit gate:**
+  - The public store lists exactly the visible products with prices and images.
+  - Product and collection pages answer 200 for visible items, and 404 for inactive, unreferenced and foreign ones.
+  - A second tenant can neither reference nor reach any of the first tenant's products, categories or images.
+
+#### Phase 3c — Store templates
+
+- **Depends on:** Phase 3b.
+- **Deliverables:**
+  - template definitions filled from store data (P3-Q7);
+  - command `storefront.templates.apply` with undo;
+  - `GET /api/storefront/templates`, `POST /api/storefront/templates/{id}/apply`, event `storefront.template.applied`;
+  - the "Start from a template" dialog on the pages list, with undo through the last-operation banner;
+  - i18n.
+- **Tests:** TEST-021 (`TC-STOREFRONT-006`, command and undo), TEST-022 (UI).
+- **Acceptance:** AC-011. **Exit gate:**
+  - A freshly signed-up tenant applies a template; it adds categories, products and images and publishes the drafted pages.
+  - The store shows its own data.
+  - Undo works, and after a later edit undo refuses with 409.
+  - The new admin UI works with the keyboard, at narrow width, and in light and dark themes.
+
+**Phase 3 validation (every sub-phase):** `yarn generate`, `yarn typecheck`, `yarn lint`, `yarn ds:check`, `yarn test`, `yarn build`, plus that sub-phase's integration tests. **Requirements closed by Phase 3:** REQ-008, REQ-010; REQ-004 and REQ-005 for the new references.
 
 ### Phase 4 — SEO and indexability
 
@@ -535,7 +714,7 @@ Roadmap Phases 5 (custom domains and canonical host) and 6 (AI generation, flag-
 
 ## Phasing
 
-Phase 1 (brand + home) → Phase 2 (page authoring: pages, publishing, json-render builder) → Phase 3 (media + commerce blocks) and Phase 4 (SEO and indexability), which both depend only on Phase 2. Roadmap Phases 5 (custom domains, canonical host) and 6 (AI, flag-gated) follow in separate specs. Each phase is independently shippable once its exit gate passes.
+Phase 1 (brand + home) → Phase 2 (page authoring: pages, publishing, json-render builder) → Phase 3a (media and content sections) → Phase 3b (commerce sections and public catalog pages) → Phase 3c (store templates); Phase 4 (SEO and indexability) depends only on Phase 2. Roadmap Phases 5 (custom domains, canonical host) and 6 (AI, flag-gated) follow in separate specs. Each phase is independently shippable once its exit gate passes.
 
 ## Implementation Plan
 
@@ -552,7 +731,8 @@ The numbered steps under each phase in **Implementation Phases** are the plan; e
 | REQ-005 | all routes | scoped reads/writes, media route | Phase 1 (+ every later phase) | TEST-007, TEST-013, TEST-019 | AC-005 |
 | REQ-006 | J-004, pages list/create/settings, builder, `/{siteSlug}/{pageSlug}` | `/api/storefront/pages*`, `storefront.pages.*` commands and events, `storefront_page_revisions` | Phase 2 | TEST-011, TEST-017, TEST-018, TEST-019 | AC-006, AC-010 |
 | REQ-007 | J-004, builder | json-render adapter, preview registry, rich-text markup | Phase 2 | TEST-012, TEST-015, TEST-016, TEST-018 | AC-007 |
-| REQ-008 | builder, public pages | media/commerce blocks | Phase 3 | TEST-013 | AC-008 |
+| REQ-008 | builder, public pages, product and collection pages | Phase 3 section catalog, reference check, section data loader, media route, `preview-data` | Phase 3a, 3b | TEST-013, TEST-017, TEST-020, TEST-022, TEST-023 | AC-008, AC-012 |
+| REQ-010 | pages list (template dialog), builder | `GET /api/storefront/templates`, `storefront.templates.apply` | Phase 3c | TEST-021, TEST-022 | AC-011 |
 | REQ-009 | public pages | per-page SEO, sitemap/robots, revalidation | Phase 4 | TEST-014 | AC-009 |
 
 ### Extension-surface traceability (Phase 1)
@@ -591,6 +771,18 @@ Each new discovery surface adapts exactly one reference file from `src/modules/e
 | `storefront/backend/storefront/pages/[id]/builder/page.tsx` + `components/builder/**` | REQ-007 | approved custom canvas (no example row); installed reference `@open-mercato/core` workflows visual editor | 2 | TEST-015, TEST-016, TEST-018 | approved-exception |
 | `storefront/frontend/[siteSlug]/[pageSlug]/page.tsx` | REQ-006 | `ui.frontend-page` → `src/modules/example/frontend/example.tsx` | 2 | TEST-011, TEST-012 | emitted-example |
 
+### Extension-surface traceability (Phase 3)
+
+| Surface | Requirement | Reference capability → exact file | Phase | Own test | Classification |
+|---|---|---|---|---|---|
+| `storefront/api/preview-data/route.ts` | REQ-008 | `api.custom-route` → `src/modules/example/api/organizations/route.ts` | 3 | TEST-013, TEST-022 | emitted-example |
+| `storefront/api/templates/route.ts`, `api/templates/[id]/apply/route.ts` | REQ-010 | `api.custom-route` → `src/modules/example/api/organizations/route.ts` | 3 | TEST-021, TEST-022 | emitted-example |
+| `storefront/commands/templates.ts` | REQ-010 | `commands.write` → `src/modules/example/commands/todos.ts` | 3 | TEST-021 | emitted-example |
+| `storefront/events.ts` (`storefront.template.applied`) | REQ-010 | `events.typed-definitions` → `src/modules/example/events.ts` | 3 | TEST-021 | emitted-example |
+| `storefront/frontend/[siteSlug]/products/[productKey]/page.tsx`, `frontend/[siteSlug]/collections/[categoryKey]/page.tsx` | REQ-008 | `ui.frontend-page` → `src/modules/example/frontend/example.tsx` | 3 | TEST-013 | emitted-example |
+| `storefront/api/media/[siteSlug]/[attachmentId]/route.ts` (extended) | REQ-008 | `api.custom-route` → `src/modules/example/api/organizations/route.ts` | 3 | TEST-013, TEST-023 | emitted-example |
+| `storefront/components/builder/**` (new field kinds), `components/pages/TemplateDialog.tsx` | REQ-007, REQ-010 | approved custom canvas (Phase 2 exception) | 3 | TEST-022 | approved-exception |
+
 The reference module is source-present and unregistered; nothing above is behavior the app already has until `storefront` is enabled.
 
 ## Rollout, Migration, and Rollback
@@ -615,6 +807,10 @@ The reference module is source-present and unregistered; nothing above is behavi
 | Anonymous media route becomes an asset oracle | Data exposure | serves only ids the site references; 404 otherwise; image MIME only | Low |
 | json-render leaks into a public bundle (Phase 2) | Buyers download a client renderer | imports confined to `components/builder/**` client components; TEST-012 scans public chunks with a positive control | Low |
 | json-render 0.x API changes on upgrade (Phase 2) | Builder breaks | exact pin; the adapter is the only seam (TEST-015) | Medium until 1.0 |
+| json-render docs drift from code (Revision 2026-10-23: `createNextApp` `Page`) | A later session builds on an API that does not exist | verify against `node_modules/*/dist` before adopting any json-render API; the vendored `json-render-next` skill repeats the doc error | Low once noted |
+| Product visibility derived from published specs on every request (Phase 3) | Extra reads per public request and media request (≤ 30 specs, scoped) | per-request memoisation; Phase 4 caching on `storefront.*` and catalog events | Acceptable at launch scale |
+| Template copy written in one UI language (Phase 3) | A merchant applying in English gets English copy | the copy is a draft the merchant edits; storefront translations are a follow-up spec | Low |
+| `sharp` native binary (Phase 3) | Install or platform issues | already a dependency of `@open-mercato/core`, same version pinned | Low |
 | Unbounded revisions (Phase 2) | Table growth (≤ 64 KB per revision; publish/rollback are not rate-limited) | only staff with `storefront.pages.publish` can append; 30-page cap; paginated reads; retention policy deferred (P2-Q11) | Low at launch scale |
 
 ## Acceptance Criteria
@@ -627,7 +823,9 @@ The reference module is source-present and unregistered; nothing above is behavi
 - [x] **AC-006** — Publish creates an immutable, numbered revision from the saved draft; rollback appends a copy of an earlier revision and resets the draft to it; drafts are never public; a page is served at `/{siteSlug}/{pageSlug}` only while published.
 - [x] **AC-007** — In the builder a merchant adds (from the json-render catalog), edits, reorders and removes sections with a live preview, by pointer and by keyboard; edits round-trip through draft save and publish; public routes ship no `@json-render/*` code.
 - [x] **AC-010** — Page slugs follow the grammar, are unique per site, avoid reserved words and freeze after the first publish; a store holds at most 30 pages; the home page cannot be deleted.
-- [ ] **AC-008** — Media and commerce blocks render only the site's tenant data.
+- [ ] **AC-008** — Media and content sections render the store's own page images. A page may reference only images uploaded to this store's pages; foreign, other-entity and never-existing image ids are rejected on save, publish and rollback. An image is public only while a published page references it. Buyer pages still ship no client spec renderer.
+- [ ] **AC-012** — Commerce sections render only the store's own active products, categories and prices. Products and categories are public, with their own pages, only while a published section shows them. Foreign product and category ids are rejected on save, publish and rollback. A failing catalog or price read degrades one section, never the page.
+- [ ] **AC-011** — From the pages list a merchant applies a store template that drafts complete pages filled with the store's own data, never publishes them, skips existing pages and can be undone from the last-operation banner (refused with a conflict once any of those pages changed).
 - [ ] **AC-009** — Each store exposes per-page SEO, a sitemap of published pages and a robots policy; publishing refreshes them.
 - [ ] Every listed backend surface matches its recorded Open Mercato reference and uses the canonical shell/components, shared API helpers, semantic tokens, and complete loading, empty, error, conflict, keyboard, accessibility, responsive, light-mode, and dark-mode states.
 - [ ] Every affected API and UI path has self-contained integration coverage and the configured validation gate passes.
@@ -704,6 +902,29 @@ Validation gate: all six configured commands pass. Findings and outcome:
 - **Minor, fixed:** export disabled on the page list (a full export skipped the organization pin); revisions query projects no specs and rejects bad paging with 400; public page reads skip the draft and fail closed when the live revision is missing; a store without its home page shows the unavailable page; undo slug races answer 409; undo emits events only when it changed something; publish rejects body fields (422); `..` segments rejected in store paths; key-order-independent dirty check; stable list keys and focus; item-level inspector errors and `aria-invalid`; organization errors no longer shown as "not found"; list delete through `useGuardedMutation`; the preview region stays announced (`inert` moved inside it); preview error boundary and per-section reset; focus after removing the last section; picker focus; accessible names on custom inputs; retry on load errors.
 - **Accepted:** in "all organizations" mode the CRUD factory passes a null organization to mutation guards while the command writes to the resolved store (J10); an update that changes nothing still records an update (nit).
 
+### Revision review (2026-10-23, fresh-context reviewer, spec path only)
+
+- **Scope cohesion — FAIL → resolved.** Media, the public catalog and templates each ship on their predecessor alone. Phase 3 is split into 3a/3b/3c, each with its own exit gate, inside one spec (owner decision Q13).
+- **Critical — any organization image could be published through a page → resolved.** Page images must be attachments recorded on this store's pages; the media route also checks the entity.
+- **High, all resolved:**
+  - media-route ordering, partition and cache wording;
+  - failure behaviour for catalog, price and storage reads (per-section degradation);
+  - deleted references no longer block publish or rollback (soft-deleted rows pass, render skips them);
+  - template undo surfaced through the platform's last-operation banner.
+- **Medium, all resolved:**
+  - undo snapshot rules;
+  - handle and slug uniqueness and lookup order;
+  - anonymous pricing for restricted and variant-only prices;
+  - `preview-data` gated by the catalog view features, limited to active rows, answering 422;
+  - publish/rollback reference tests and content-section rendering added to TEST-013;
+  - `sharp` decode limits.
+- **Low, all resolved:** page clamping; apply validates its output; `pageIds` includes home.
+- **Over-claims, corrected:**
+  - `@json-render/next` was inspected from `npm pack`; it is not installed;
+  - the probes are kept as a unit test;
+  - SEO softened to "mostly wrong: performance is the argument";
+  - TEST-012 described as a presence check, not a budget.
+
 ### Checklist
 
 | Heuristic | Verdict | Justification |
@@ -736,6 +957,10 @@ All questions are resolved; see **Resolved assumptions** for rationale. Rows mar
 | Q10 | Storefront cardinality | product owner | no | One per organization — autonomous default, 2026-10-22 |
 | D1 | Launch host | product owner | no | Platform path at launch, custom-domain binding available — owner, 2026-10-22 |
 | D2 | Publication of new stores | product owner | no | Publish immediately — owner, 2026-10-22 |
+| Q11 | json-render's role | product owner | yes (Phase 3) | Vocabulary + editor; core allowed server-side; no client spec renderer on buyer pages — owner, 2026-10-23 |
+| Q12 | Which products a store shows | product owner | yes (Phase 3) | Owner: no preference → engineering default: only what a published section shows (fail closed) — 2026-10-23 |
+| Q13 | Phase 3 scope | product owner | yes (Phase 3) | One phase, three slices; AI in a follow-up spec — owner, 2026-10-23 |
+| Q14 | `sharp` dependency | product owner | yes (Phase 3) | Approved, pinned 0.35.5 — owner, 2026-10-23 |
 
 ## Implementation Status
 
@@ -753,7 +978,9 @@ Source doc: .ai/specs/2026-10-22-storefront-builder.md
 |---|---|---|---|---|---|
 | Phase 1 — Brand foundation and published home page | done | none | AC-001…AC-005 | `yarn generate && yarn typecheck && yarn test` + two-tenant checks | two fresh tenants, wizard, public page, isolation |
 | Phase 2 — Page authoring | done | Phase 1 (verified) | AC-004 (save/publish), AC-005, AC-006, AC-007, AC-010 | `yarn generate && yarn typecheck && yarn test` + `TC-STOREFRONT-002` + two-tenant checks | builder round trip; drafts never public; no json-render on public routes; isolation; AC-010 rules; UI states |
-| Phase 3 — Media and commerce blocks | pending | Phase 2 | AC-008 | — | — |
+| Phase 3a — Media and content sections | pending | Phase 2 (verified; corrected 2026-10-23) | AC-008 | `yarn typecheck && yarn jest src/modules/storefront` + `TC-STOREFRONT-005` (media/content) | Phase 3a exit gate |
+| Phase 3b — Commerce sections and public catalog | pending | Phase 3a | AC-012 | + `TC-STOREFRONT-005` (commerce) + two-tenant check | Phase 3b exit gate |
+| Phase 3c — Store templates | pending | Phase 3b | AC-011 | + `TC-STOREFRONT-006` | Phase 3c exit gate |
 | Phase 4 — SEO and indexability | pending | Phase 2 | AC-009 | — | — |
 
 ### Phase 1 progress
@@ -789,6 +1016,20 @@ Source doc: .ai/specs/2026-10-22-storefront-builder.md
 - [x] (h-1) TEST-012 `TC-STOREFRONT-004` 1 passed (dev server; public home/page load no json-render code, builder does); TEST-019 two fresh signups (scratch `iso2.py`) 16/16 checks passed
 - [x] (h-2) gates and review: `yarn generate`, `yarn typecheck`, `yarn lint` (no storefront warnings), `yarn ds:check`, `yarn test` (113 passed), `yarn build` all exit 0; on the production server `TC-STOREFRONT-001…004` 12 passed (`--retries=0`), TEST-012 bundle scan passed, TEST-019 16/16; `om-code-review` (three focused reviewers) → findings fixed, see the review section below; README and `docs/DECISIONS.md` (J1–J12) updated
 
+### Phase 2 corrections (2026-10-23)
+
+- [x] CodeRabbit review on PR #1 (9 threads): payment policy through `sales.payment-methods.update`; strict `util.parseArgs` CLIs; Back-button guard with a same-URL sentinel (TC-STOREFRONT-003); `APP_URL` required in production; `.sf-brand` specificity (TC-STOREFRONT-001); malformed `?ids=` → 400 (0.9.0 renders an all-invalid id list as `IN ()`); command context carries the resolved tenant; after-success hooks already isolated (no change); `.coderabbit.yaml` filters narrowed. Commit `c0ad04a`.
+- [x] Page search index: any reindex indexes pages and switches the list search to search tokens, so pages written later were unfindable. The commands now refresh the page's index entry after every write, and the route declares `indexer`. TEST-017 extended; TC-STOREFRONT-003 pages list passes on a reindexed database. Commit `35e957e`.
+
+### Phase 3 progress
+
+**Phase 3 execution plan** (om-implement-spec). Owner answers Q11–Q14 of 2026-10-23 approve the scope and `sharp`; there is no migration. The sub-phases are 3a → 3b → 3c, each closed by its own exit gate.
+
+- **Goal:** a merchant's store assembled from real sections, the store's own data and a template.
+- **Scope:** Phase 3; AC-008, AC-011; module `storefront`; call sites: page commands, `/api/storefront/{preview-data,templates}`, the media route, `/{siteSlug}/{products,collections}/…`, the builder and the pages list.
+- **Non-goals:** AI generation (follow-up spec), cart/checkout, SEO additions (Phase 4), navigation menus.
+- **Risks:** catalog read shapes (prices, category tree); image resizing; preview data latency.
+
 ## Changelog
 
 | Date | Change |
@@ -800,3 +1041,4 @@ Source doc: .ai/specs/2026-10-22-storefront-builder.md
 | 2026-10-22 | Phase 1 implemented and verified (ledger above); keyboard-submit wording corrected; implementation decisions I1–I7 in `docs/DECISIONS.md` |
 | 2026-10-22 | Phase 2 detail pass (`om-spec-writing --autonomous`): defaults P2-Q1…P2-Q12, page/revision data model, per-route contracts, pages list/create/settings/builder UI with mockups and states, edge cases, TEST-011/012/015…019, AC-010 |
 | 2026-10-22 | Phase 2 implemented, reviewed (`om-code-review`, findings fixed) and verified on a production build; AC-004/006/007/010 met; implementation decisions J1–J12 in `docs/DECISIONS.md` |
+| 2026-10-23 | Revision: json-render claims verified against the packages (two of the four inherited claims wrong, one documentation error confirmed, json-render catalog validation found not to check props); S1/S2 replaced (owner Q11); Phase 3 redefined as the assembled store (sections + store data + templates; Q12–Q14); REQ-008 rewritten, REQ-010/AC-011 added, TEST-013 detailed, TEST-020…023 added; Phase 2 corrections from the CodeRabbit review and the page search index |
