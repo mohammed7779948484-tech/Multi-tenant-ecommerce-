@@ -1,3 +1,4 @@
+import { getSecurityEmailBaseUrl } from '@open-mercato/shared/lib/url'
 import type { EntityManager } from '@mikro-orm/postgresql'
 import { Organization, Tenant } from '@open-mercato/core/modules/directory/data/entities'
 import { findOneWithDecryption } from '@open-mercato/shared/lib/encryption/find'
@@ -84,10 +85,14 @@ export async function resolvePublicStorefrontPage(
   return { ...base, page, revision }
 }
 
-/** Absolute public URL of a store on the platform host. */
-export function storefrontPublicUrl(slug: string, path = ''): string {
-  const base = (process.env.APP_URL || 'http://localhost:3000').replace(/\/+$/, '')
-  return `${base}/${slug}${path}`
+/**
+ * Absolute public URL of a store on the platform host (canonical, Open Graph,
+ * JSON-LD). The base comes from the framework's configured-URL rule: `APP_URL`,
+ * required in production (a missing value throws instead of publishing
+ * `localhost` canonicals), with the local default only outside production.
+ */
+export function storefrontPublicUrl(slug: string, path = '', env: Record<string, string | undefined> = process.env): string {
+  return `${getSecurityEmailBaseUrl(undefined, env)}/${slug}${path}`
 }
 
 export function storefrontMediaPath(slug: string, attachmentId: string): string {

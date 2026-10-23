@@ -53,12 +53,18 @@ export async function resolveStaffSite(req: Request): Promise<StaffSiteContext |
   return { auth, container, em, site, tenantId, organizationId, translate }
 }
 
-/** Command context pinned to the resolved organization (what the command bus and audit log record). */
+/**
+ * Command context pinned to the resolved tenant and organization (what the command
+ * bus and audit log record). Like the CRUD factory's scoped auth, `auth.tenantId`
+ * is the effective tenant the route resolved — a super-admin's switcher selection —
+ * not the raw session tenant, so commands look in the same tenant the route loaded
+ * the site from.
+ */
 export function buildStaffCommandContext(context: StaffSiteContext, req: Request): CommandRuntimeContext {
   const { container, auth, organizationId, tenantId } = context
   return {
     container,
-    auth,
+    auth: { ...auth, tenantId, orgId: organizationId },
     organizationScope: { selectedId: organizationId, filterIds: [organizationId], allowedIds: null, tenantId },
     selectedOrganizationId: organizationId,
     organizationIds: [organizationId],

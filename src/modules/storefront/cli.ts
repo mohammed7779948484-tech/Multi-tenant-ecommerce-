@@ -2,18 +2,8 @@ import type { ModuleCli } from '@open-mercato/shared/modules/registry'
 import { createRequestContainer } from '@open-mercato/shared/lib/di/container'
 import type { EntityManager } from '@mikro-orm/postgresql'
 import { Organization } from '@open-mercato/core/modules/directory/data/entities'
+import { parseTenantArgs } from './lib/cliArgs'
 import { ensureStorefrontSite } from './lib/seeding'
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-function readFlag(argv: string[], name: string): string | null {
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i]!
-    if (arg === `--${name}`) return argv[i + 1] ?? null
-    if (arg.startsWith(`--${name}=`)) return arg.slice(name.length + 3)
-  }
-  return null
-}
 
 /**
  * `yarn mercato storefront ensure-sites [--tenant <uuid>]`
@@ -25,12 +15,13 @@ function readFlag(argv: string[], name: string): string | null {
 const ensureSites: ModuleCli = {
   command: 'ensure-sites',
   async run(argv) {
-    const tenantId = readFlag(argv, 'tenant')
-    if (tenantId !== null && !UUID_PATTERN.test(tenantId)) {
-      console.error('--tenant must be a UUID')
+    const args = parseTenantArgs(argv)
+    if (!args.ok) {
+      console.error(args.error)
       process.exitCode = 1
       return
     }
+    const tenantId = args.tenantId
     const container = await createRequestContainer()
     const em = container.resolve('em') as EntityManager
     const organizations = await em.find(

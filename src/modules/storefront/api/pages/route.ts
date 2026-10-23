@@ -2,10 +2,11 @@ import { z } from 'zod'
 import type { EntityManager } from '@mikro-orm/postgresql'
 import { makeCrudRoute, type CrudCtx } from '@open-mercato/shared/lib/crud/factory'
 import { escapeLikePattern } from '@open-mercato/shared/lib/db/escapeLikePattern'
+import { parseCommaSeparatedList } from '@open-mercato/shared/lib/string'
 import type { Where, WhereValue } from '@open-mercato/shared/lib/query/types'
 import { StorefrontPage, StorefrontPageRevision, StorefrontSite } from '../../data/entities'
 import { pageCreateSchema, pageUpdateSchema } from '../../data/validators'
-import { PAGE_COMMAND_IDS } from '../../commands/pages'
+import { PAGE_COMMAND_IDS, PAGE_INDEXER } from '../../commands/pages'
 import { resolveStoreOrganizationForContext, storeOrganizationError } from '../../lib/commandScope'
 import { pagePublicPath, pageStatus, type PageListItem } from '../../lib/pages'
 import { HOME_PAGE_SLUG_VALUE } from '../../lib/slug'
@@ -17,10 +18,19 @@ import {
 
 const ENTITY_ID = 'storefront:storefront_page' as const
 
+const UUID = z.string().uuid()
+
 const querySchema = z
   .object({
     id: z.string().uuid().optional(),
-    ids: z.string().optional(),
+    // `?ids=` is applied by the CRUD factory. A malformed entry is rejected here (400): with
+    // no valid id left, the factory's `id: { $in: [] }` reaches SQL as `IN ()` (0.9.0) and fails.
+    ids: z
+      .string()
+      .optional()
+      .refine((value) => value === undefined || parseCommaSeparatedList(value).every((id) => UUID.safeParse(id).success), {
+        message: 'ids must be a comma-separated list of UUIDs',
+      }),
     page: z.coerce.number().min(1).default(1),
     pageSize: z.coerce.number().min(1).max(100).default(50),
     search: z.string().max(100).optional(),
@@ -144,6 +154,9 @@ export const { metadata, GET, POST, PUT, DELETE } = makeCrudRoute({
     PUT: { requireAuth: true, requireFeatures: ['storefront.pages.manage'] },
     DELETE: { requireAuth: true, requireFeatures: ['storefront.pages.manage'] },
   },
+  // Pages are indexed by every reindex; once indexed, the list search reads search tokens.
+  // The commands refresh the entry after each write (`PAGE_INDEXER`), and so does this declaration.
+  indexer: PAGE_INDEXER,
   orm: {
     entity: StorefrontPage,
     idField: 'id',
@@ -168,10 +181,6 @@ export const { metadata, GET, POST, PUT, DELETE } = makeCrudRoute({
       const organizationId = resolved.organizationId
       F.organization_id = organizationId
       if (q.id) F.id = q.id
-      if (q.ids) {
-        const ids = q.ids.split(',').map((value) => value.trim()).filter(Boolean).slice(0, 100)
-        if (ids.length) F.id = { $in: ids }
-      }
       if (q.search) {
         const pattern = `%${escapeLikePattern(q.search)}%`
         ;(filters as Record<string, unknown>).$or = [{ title: { $ilike: pattern } }, { slug: { $ilike: pattern } }]

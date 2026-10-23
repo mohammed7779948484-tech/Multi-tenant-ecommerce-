@@ -46,6 +46,7 @@ export async function runPageAction(
       input,
       ctx: buildStaffCommandContext(resolved, req),
     })
+    // Committed: `runAfterSuccess` catches and logs each hook's failure itself, so it never fails the request.
     await guard.runAfterSuccess()
     return NextResponse.json({
       pageId: result.pageId,

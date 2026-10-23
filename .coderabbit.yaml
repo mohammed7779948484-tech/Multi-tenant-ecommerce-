@@ -9,7 +9,17 @@ reviews:
   path_filters:
     - "!.agents/**"
     - "!.claude/**"
-    - "!.ai/**"
+    # .ai: keep the specs, the review checklist and the hand-written guides (contracts,
+    # architecture, backend UI) reviewable; skip generated facts and harness tooling.
+    - "!.ai/agentic.config.json"
+    - "!.ai/harness/**"
+    - "!.ai/skills/**"
+    - "!.ai/lessons/**"
+    - "!.ai/qa/**"
+    - "!.ai/trackers/**"
+    - "!.ai/guides/modules/**"
+    - "!.ai/guides/reference-modules/**"
+    - "!.ai/guides/*.json"
     - "!docs/**"
     - "!yarn.lock"
   path_instructions:

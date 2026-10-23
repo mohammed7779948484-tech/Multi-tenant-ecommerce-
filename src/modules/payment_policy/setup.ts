@@ -11,8 +11,8 @@ export const setup: ModuleSetupConfig = {
    * swallowed here: they reach the setup orchestrator's log for this module.
    * `yarn mercato payment_policy enforce` applies the policy to existing tenants.
    */
-  async seedDefaults({ em, tenantId, organizationId }) {
-    const result = await enforcePaymentPolicy(em, { tenantId, organizationId })
+  async seedDefaults({ em, container, tenantId, organizationId }) {
+    const result = await enforcePaymentPolicy({ em, container }, { tenantId, organizationId })
     if (result.deactivated.length) {
       logger.info('Deactivated gateway payment methods', {
         tenantId,

@@ -208,6 +208,36 @@ test.describe('TC-STOREFRONT-003: page builder UI', () => {
     expect(live3.html).not.toContain('Unpublished draft')
   })
 
+  test('builder: browser Back with unsaved edits asks first and keeps the draft on cancel', async ({ page, request }) => {
+    test.setTimeout(180_000)
+    const created = await createPage(request, `tc3-back-${RUN}`, `Back ${RUN}`)
+    await login(page, 'superadmin')
+    await page.goto('/backend/storefront/pages')
+    await openBuilder(page, created.id)
+    const builderUrl = page.url()
+
+    await sectionList(page).getByRole('button', { name: 'Edit section 1' }).click()
+    await page.getByRole('dialog').getByRole('textbox').first().fill(`Unsaved ${RUN}`)
+    await applyInspector(page)
+    const preview = page.getByRole('region', { name: 'Preview of the draft' })
+    await expect(preview).toContainText(`Unsaved ${RUN}`)
+
+    // Back: the builder stays mounted behind the question; Cancel keeps the edit.
+    await page.goBack()
+    const question = page.getByRole('alertdialog')
+    await expect(question).toContainText('Leave without saving?')
+    expect(page.url()).toBe(builderUrl)
+    await question.getByRole('button', { name: 'Cancel' }).click()
+    await expect(question).toBeHidden()
+    expect(page.url()).toBe(builderUrl)
+    await expect(preview).toContainText(`Unsaved ${RUN}`)
+
+    // Back again and leave: the previous page opens.
+    await page.goBack()
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Leave' }).click()
+    await expect(page).toHaveURL(/\/backend\/storefront\/pages$/)
+  })
+
   test('builder: a save from a stale tab shows the conflict bar', async ({ page, context, request }) => {
     test.setTimeout(180_000)
     const created = await createPage(request, `tc3-conflict-${RUN}`, `Conflict ${RUN}`)

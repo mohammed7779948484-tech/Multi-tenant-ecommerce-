@@ -12,7 +12,7 @@ export const STOREFRONT_STRUCTURAL_CSS = [
   '.sf-container{width:100%;max-width:72rem;margin:0 auto;padding:0 calc(var(--sf-space) * 1.25)}',
   '.sf-header{border-bottom:1px solid var(--sf-color-border);background:var(--sf-color-surface)}',
   '.sf-header-inner{display:flex;align-items:center;justify-content:space-between;gap:var(--sf-space);padding-top:calc(var(--sf-space) * 0.75);padding-bottom:calc(var(--sf-space) * 0.75)}',
-  '.sf-brand{display:flex;align-items:center;gap:calc(var(--sf-space) * 0.75);color:var(--sf-color-text);text-decoration:none;font-family:var(--sf-font-heading);font-weight:700;font-size:1.25rem}',
+  '.sf-root .sf-brand{display:flex;align-items:center;gap:calc(var(--sf-space) * 0.75);color:var(--sf-color-text);text-decoration:none;font-family:var(--sf-font-heading);font-weight:700;font-size:1.25rem}',
   '.sf-logo{display:block;height:2.5rem;width:auto;max-width:10rem;object-fit:contain}',
   '.sf-header-link{font-weight:600}',
   '.sf-main{flex:1}',

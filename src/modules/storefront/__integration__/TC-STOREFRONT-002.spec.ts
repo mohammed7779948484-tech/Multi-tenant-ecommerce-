@@ -173,6 +173,18 @@ test.describe('TC-STOREFRONT-002: page authoring and publishing', () => {
     expect((await request.get(`/${siteSlug}/${slug}`)).status()).toBe(404)
   })
 
+  test('the page list rejects malformed ids as a client error, never a database error', async ({ request }) => {
+    const created = await apiRequest(request, 'POST', '/api/storefront/pages', { token, data: { title: 'Ids check', slug: `tc2-ids-${RUN}` } })
+    expect(created.status()).toBe(201)
+    const id = (await readJsonSafe<{ id: string }>(created))!.id
+    createdPageIds.push(id)
+    expect((await apiRequest(request, 'GET', '/api/storefront/pages?ids=abc', { token })).status()).toBe(400)
+    expect((await apiRequest(request, 'GET', `/api/storefront/pages?ids=abc,${id}`, { token })).status()).toBe(400)
+    const valid = await apiRequest(request, 'GET', `/api/storefront/pages?ids=${id},00000000-0000-4000-8000-000000000000`, { token })
+    expect(valid.status()).toBe(200)
+    expect((await readJsonSafe<{ items: Array<{ id: string }> }>(valid))!.items.map((item) => item.id)).toEqual([id])
+  })
+
   test('slug rules, the home page and the 30-page cap', async ({ request }) => {
     for (const slug of ['portal', 'index', 'Bad Slug']) {
       const res = await apiRequest(request, 'POST', '/api/storefront/pages', { token, data: { title: 'X', slug } })

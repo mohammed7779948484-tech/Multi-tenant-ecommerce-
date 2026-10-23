@@ -90,7 +90,7 @@ test.describe('TC-STOREFRONT-001: storefront brand and public page', () => {
     expect(smuggled.status()).toBe(422)
   })
 
-  test('saves the brand, refuses a stale version and renders it publicly', async ({ request }) => {
+  test('saves the brand, refuses a stale version and renders it publicly', async ({ request, page: browserPage }) => {
     const brand = await readBrand(request, token)
     const tokens = { ...brand.tokens, colors: { ...brand.tokens.colors, primary: '#2a6f4e' } }
     const saved = await apiRequest(request, 'PUT', '/api/storefront/brand', {
@@ -116,6 +116,15 @@ test.describe('TC-STOREFRONT-001: storefront brand and public page', () => {
     expect(html.match(/<title>/g)).toHaveLength(1)
     expect(html).toContain('application/ld+json')
     expect(html.toLowerCase()).not.toContain('json-render')
+
+    // The store name in the header uses the text colour, not the link (primary) colour.
+    await browserPage.goto(`/${brand.slug}`)
+    const colors = await browserPage.locator('.sf-brand').evaluate((brandLink) => ({
+      brand: getComputedStyle(brandLink).color,
+      text: getComputedStyle(brandLink.closest('.sf-root')!).color,
+    }))
+    expect(colors.brand).toBe(colors.text)
+    expect(colors.brand).not.toBe('rgb(42, 111, 78)')
   })
 
   test('an employee can read the brand but not change it', async ({ request }) => {
