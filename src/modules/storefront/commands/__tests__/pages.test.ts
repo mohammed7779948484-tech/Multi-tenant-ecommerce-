@@ -106,9 +106,17 @@ function seedSite(em: FakeEm, tenantId: string, organizationId: string) {
   return { site: site as StorefrontSite, home }
 }
 
+/** Side effects queued on the data engine (flushed by the command bus after commit). */
+const indexMarks: Array<{ action: string; identifiers: Record<string, unknown>; indexer?: { entityType: string } }> = []
+const fakeDataEngine = {
+  markOrmEntityChange: (entry: (typeof indexMarks)[number]) => {
+    indexMarks.push(entry)
+  },
+}
+
 function ctxFor(em: FakeEm, tenantId: string, organizationId: string, headers: Record<string, string> = {}) {
   return {
-    container: { resolve: (name: string) => (name === 'em' ? em : undefined) },
+    container: { resolve: (name: string) => (name === 'em' ? em : name === 'dataEngine' ? fakeDataEngine : undefined) },
     auth: { sub: randomUUID(), tenantId, orgId: organizationId },
     selectedOrganizationId: organizationId,
     organizationIds: [organizationId],
@@ -142,6 +150,22 @@ describe('storefront page commands (TEST-017)', () => {
     expect((page.draftSpec as { elements: Record<string, { type: string }> }).elements.hero.type).toBe('Hero')
     expect(em.counters).toMatchObject({ begin: 1, commit: 1 })
     expect(emitMock).toHaveBeenCalledWith('storefront.page.created', expect.objectContaining({ id: created.id, tenantId: tenantA }), expect.anything())
+  })
+
+  it('refreshes the query index entry of the page after every write', async () => {
+    indexMarks.length = 0
+    const created = await createPage(em, ctx)
+    const page = () => pages(em).find((p) => p.id === created.id)!
+    const lock = (row: StorefrontPage) => ctxFor(em, tenantA, orgA, { [LOCK_HEADER]: row.updatedAt!.toISOString() })
+    await updatePageCommand.execute({ id: created.id, title: 'About the roastery' }, lock(page()))
+    await publishPageCommand.execute({ id: created.id }, lock(page()))
+    await deletePageCommand.execute({ id: created.id }, lock(page()))
+    expect(indexMarks.map((mark) => [mark.action, mark.indexer?.entityType, mark.identifiers])).toEqual([
+      ['created', 'storefront:storefront_page', { id: created.id, tenantId: tenantA, organizationId: orgA }],
+      ['updated', 'storefront:storefront_page', { id: created.id, tenantId: tenantA, organizationId: orgA }],
+      ['updated', 'storefront:storefront_page', { id: created.id, tenantId: tenantA, organizationId: orgA }],
+      ['deleted', 'storefront:storefront_page', { id: created.id, tenantId: tenantA, organizationId: orgA }],
+    ])
   })
 
   it('rejects invalid, reserved and taken slugs with a slug field error', async () => {

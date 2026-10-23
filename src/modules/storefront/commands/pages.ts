@@ -4,12 +4,13 @@ import type { EntityManager } from '@mikro-orm/postgresql'
 import type { CommandHandler, CommandRuntimeContext } from '@open-mercato/shared/lib/commands'
 import { registerCommand } from '@open-mercato/shared/lib/commands'
 import { withAtomicFlush } from '@open-mercato/shared/lib/commands/flush'
-import { buildChanges } from '@open-mercato/shared/lib/commands/helpers'
+import { buildChanges, emitCrudSideEffects } from '@open-mercato/shared/lib/commands/helpers'
 import { extractUndoPayload, type UndoPayload } from '@open-mercato/shared/lib/commands/undo'
 import { CrudHttpError } from '@open-mercato/shared/lib/crud/errors'
 import { enforceCommandOptimisticLock } from '@open-mercato/shared/lib/crud/optimistic-lock-command'
 import { resolveTranslations } from '@open-mercato/shared/lib/i18n/server'
 import { createLogger } from '@open-mercato/shared/lib/logger'
+import type { DataEngine } from '@open-mercato/shared/lib/data/engine'
 import { StorefrontPage, StorefrontPageRevision, StorefrontSite } from '../data/entities'
 import {
   pageCreateSchema,
@@ -153,7 +154,29 @@ async function assertSlugFree(em: EntityManager, siteId: string, slug: string, e
   if (existing && existing.id !== exceptPageId) throw await slugError('slugTaken')
 }
 
-async function emitPageEvent(id: StorefrontEventId, payload: Record<string, unknown> & Scope): Promise<void> {
+/** The query index entry of pages (list search reads it once any page of the tenant is indexed). */
+export const PAGE_INDEXER = { entityType: 'storefront:storefront_page' } as const
+
+/**
+ * After-commit side effects of every page write: the typed storefront event, and
+ * a query-index refresh of the page. Reindexing (`mercato init`, `query_index
+ * reindex`) indexes pages like any entity, and once a tenant has indexed pages
+ * the list search reads search tokens; without this refresh, pages created or
+ * renamed afterwards would be missing from the search.
+ */
+async function emitPageEvent(ctx: CommandRuntimeContext, id: StorefrontEventId, payload: Record<string, unknown> & Scope): Promise<void> {
+  try {
+    const dataEngine = ctx.container.resolve('dataEngine') as DataEngine
+    await emitCrudSideEffects({
+      dataEngine,
+      action: id === 'storefront.page.created' ? 'created' : id === 'storefront.page.deleted' ? 'deleted' : 'updated',
+      entity: payload,
+      identifiers: { id: String(payload.id), tenantId: payload.tenantId, organizationId: payload.organizationId },
+      indexer: PAGE_INDEXER,
+    })
+  } catch (err) {
+    logger.warn('Storefront page index refresh could not be queued', { err, eventId: id, pageId: payload.id })
+  }
   try {
     await emitStorefrontEvent(id, payload, {
       persistent: true,
@@ -225,7 +248,7 @@ const createPageCommand: CommandHandler<Record<string, unknown>, PageSnapshot> =
       throw err
     }
     const snapshot = serializePage(page!)
-    await emitPageEvent('storefront.page.created', { id: snapshot.id, ...scope, siteId: snapshot.siteId })
+    await emitPageEvent(ctx, 'storefront.page.created', { id: snapshot.id, ...scope, siteId: snapshot.siteId })
     return snapshot
   },
   captureAfter: async (_input, result) => result,
@@ -263,7 +286,7 @@ const createPageCommand: CommandHandler<Record<string, unknown>, PageSnapshot> =
       ],
       { transaction: true, label: `${PAGE_COMMAND_IDS.create}.undo` },
     )
-    if (changed) await emitPageEvent('storefront.page.deleted', { id: after.id, ...scope, siteId: after.siteId })
+    if (changed) await emitPageEvent(ctx, 'storefront.page.deleted', { id: after.id, ...scope, siteId: after.siteId })
   },
 }
 
@@ -338,7 +361,7 @@ const updatePageCommand: CommandHandler<Record<string, unknown>, PageSnapshot> =
       throw err
     }
     const snapshot = serializePage(page!)
-    await emitPageEvent('storefront.page.updated', { id: snapshot.id, ...scope, siteId: snapshot.siteId })
+    await emitPageEvent(ctx, 'storefront.page.updated', { id: snapshot.id, ...scope, siteId: snapshot.siteId })
     return snapshot
   },
   captureAfter: async (_input, result) => result,
@@ -408,7 +431,7 @@ const updatePageCommand: CommandHandler<Record<string, unknown>, PageSnapshot> =
       if (isUniqueViolation(err)) throw await conflictError('storefront.errors.undoSlugTaken', 'Another page now uses this address.')
       throw err
     })
-    await emitPageEvent('storefront.page.updated', { id: before.id, ...scope, siteId: before.siteId })
+    await emitPageEvent(ctx, 'storefront.page.updated', { id: before.id, ...scope, siteId: before.siteId })
   },
 }
 
@@ -446,7 +469,7 @@ const deletePageCommand: CommandHandler<Record<string, unknown>, PageSnapshot> =
       { transaction: true, label: PAGE_COMMAND_IDS.delete },
     )
     const snapshot = serializePage(page!)
-    await emitPageEvent('storefront.page.deleted', { id: snapshot.id, ...scope, siteId: snapshot.siteId })
+    await emitPageEvent(ctx, 'storefront.page.deleted', { id: snapshot.id, ...scope, siteId: snapshot.siteId })
     return snapshot
   },
   captureAfter: async (_input, result) => result,
@@ -497,7 +520,7 @@ const deletePageCommand: CommandHandler<Record<string, unknown>, PageSnapshot> =
       if (isUniqueViolation(err)) throw await conflictError('storefront.errors.undoSlugTaken', 'Another page now uses this address.')
       throw err
     })
-    if (changed) await emitPageEvent('storefront.page.updated', { id: before.id, ...scope, siteId: before.siteId })
+    if (changed) await emitPageEvent(ctx, 'storefront.page.updated', { id: before.id, ...scope, siteId: before.siteId })
   },
 }
 
@@ -582,7 +605,7 @@ const publishPageCommand: CommandHandler<Record<string, unknown>, PublishResult>
       { transaction: true, label: PAGE_COMMAND_IDS.publish },
     )
     const result = toPublishResult(page!, revision!)
-    await emitPageEvent('storefront.page.published', {
+    await emitPageEvent(ctx, 'storefront.page.published', {
       id: result.pageId,
       ...scope,
       siteId: result.siteId,
@@ -665,7 +688,7 @@ const rollbackPageCommand: CommandHandler<Record<string, unknown>, PublishResult
       { transaction: true, label: PAGE_COMMAND_IDS.rollback },
     )
     const result = toPublishResult(page!, revision!)
-    await emitPageEvent('storefront.page.rolled_back', {
+    await emitPageEvent(ctx, 'storefront.page.rolled_back', {
       id: result.pageId,
       ...scope,
       siteId: result.siteId,
