@@ -293,5 +293,107 @@
   "storefront.validation.unknownBlock": "Este tipo de sección no es compatible.",
   "storefront.validation.unknownField": "Este campo no está permitido.",
   "storefront.validation.unknownProp": "Este ajuste no es compatible con esta sección.",
-  "storefront.validation.unsafeHref": "Usa un enlace https:// o una ruta que empiece por /."
+  "storefront.validation.unsafeHref": "Usa un enlace https:// o una ruta que empiece por /.",
+  "storefront": {
+    "public": {
+      "contact": {
+        "address": "Dirección",
+        "phone": "Teléfono",
+        "email": "Correo electrónico",
+        "hours": "Horario"
+      }
+    },
+    "builder": {
+      "fields": {
+        "heroImage": "Imagen junto al texto (opcional)",
+        "image": "Imagen",
+        "caption": "Pie de foto",
+        "imageLink": "Dirección del enlace (opcional)",
+        "width": "Ancho",
+        "body": "Texto",
+        "imagePosition": "Posición de la imagen",
+        "images": "Imágenes",
+        "imageN": "Imagen {n}",
+        "quotes": "Citas",
+        "quoteN": "Cita {n}",
+        "quote": "Cita",
+        "author": "Nombre",
+        "role": "Cargo o ciudad",
+        "questions": "Preguntas",
+        "questionN": "Pregunta {n}",
+        "question": "Pregunta",
+        "answer": "Respuesta",
+        "address": "Dirección",
+        "phone": "Teléfono",
+        "email": "Correo electrónico",
+        "hours": "Horario",
+        "button": "Botón",
+        "tone": "Estilo"
+      },
+      "blocks": {
+        "Image": "Imagen",
+        "ImageText": "Imagen con texto",
+        "Gallery": "Galería",
+        "Testimonials": "Opiniones",
+        "Faq": "Preguntas y respuestas",
+        "ContactInfo": "Datos de contacto",
+        "CallToAction": "Llamada a la acción"
+      },
+      "width": {
+        "contained": "Ancho de página",
+        "full": "Ancho completo"
+      },
+      "position": {
+        "start": "Primero la imagen",
+        "end": "Primero el texto"
+      },
+      "actions": {
+        "addImage": "Añadir imagen",
+        "addQuote": "Añadir cita",
+        "addQuestion": "Añadir pregunta"
+      },
+      "tone": {
+        "surface": "Discreto",
+        "primary": "Color de marca"
+      },
+      "defaults": {
+        "imageTextHeading": "Hecho con cuidado",
+        "quote": "Servicio estupendo y entrega rápida.",
+        "quoteAuthor": "Una clienta satisfecha",
+        "faqHeading": "Preguntas y respuestas",
+        "faqQuestion": "¿Cómo puedo pagar?",
+        "faqAnswer": "Paga contra reembolso o por transferencia bancaria.",
+        "contactHeading": "Contacto",
+        "contactHours": "De lunes a viernes, 9:00–17:00",
+        "ctaHeading": "¿Listo para pedir?",
+        "ctaLabel": "Contáctanos"
+      },
+      "image": {
+        "uploadFailed": "No se pudo subir la imagen. Prueba con otro archivo.",
+        "uploading": "Subiendo…",
+        "alt": "Describe la imagen (texto alternativo)",
+        "hint": "PNG o JPEG, al menos 200×200 px, hasta 8 MB.",
+        "listHint": "PNG o JPEG, al menos 200×200 px, hasta 8 MB. {count} de {max} añadidas."
+      },
+      "blockDescriptions": {
+        "Hero": "Gran banner de bienvenida con título, subtítulo opcional, un enlace de acción y una imagen opcional junto al texto.",
+        "Image": "Una imagen con texto alternativo, pie opcional y enlace opcional; ancho de página o completo.",
+        "ImageText": "Una imagen junto a un título, un texto breve y un enlace de acción opcional.",
+        "Gallery": "Una cuadrícula de 2 a 12 imágenes con texto alternativo bajo un título opcional.",
+        "Testimonials": "Hasta seis citas de clientes con nombre y cargo opcional.",
+        "Faq": "Hasta doce preguntas con respuestas desplegables.",
+        "ContactInfo": "Cómo contactar con la tienda: dirección, teléfono, correo y horario.",
+        "CallToAction": "Un banner breve con título, una frase opcional y un botón."
+      }
+    },
+    "validation": {
+      "galleryTooFew": "Añade al menos dos imágenes.",
+      "referenceNotFound": "Este elemento no está disponible para esta tienda. Elige o sube otro.",
+      "imageRequired": "Añade una imagen.",
+      "listTooLong": "Esta sección tiene demasiados elementos.",
+      "phoneInvalid": "Usa dígitos, espacios, +, ( ) o - (5–40 caracteres).",
+      "emailInvalid": "Introduce un correo electrónico válido.",
+      "contactEmpty": "Indica al menos una forma de contactar con la tienda."
+    }
+  }
 }

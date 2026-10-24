@@ -28,6 +28,7 @@ import { useUnsavedChangesGuard } from './useUnsavedChangesGuard'
 import { RevisionsDrawer, type RevisionItem } from './RevisionsDrawer'
 import { SectionInspector } from './SectionInspector'
 import { SectionPicker } from './SectionPicker'
+import { resolveSectionLabels } from '../public/blocks'
 
 type Translate = ReturnType<typeof useT>
 
@@ -81,6 +82,7 @@ class PreviewBoundary extends React.Component<{ fallback: React.ReactNode; child
  */
 export function PageBuilder({ pageId }: { pageId: string }) {
   const t = useT()
+  const sectionLabels = React.useMemo(() => resolveSectionLabels(t), [t])
   const permissions = useStorefrontPermissions()
   const canEdit = permissions.canManagePages
   const canPublish = permissions.canPublishPages
@@ -731,6 +733,7 @@ export function PageBuilder({ pageId }: { pageId: string }) {
                         home: t('storefront.public.home', '{store} home', { store: brand.name }),
                         signIn: t('storefront.public.signIn', 'Sign in'),
                         unavailable: t('storefront.builder.previewUnavailable', 'Preview unavailable for this section. Open it to fix the highlighted fields.'),
+                        sections: sectionLabels,
                       }}
                     />
                   </React.Suspense>
@@ -743,6 +746,7 @@ export function PageBuilder({ pageId }: { pageId: string }) {
 
       <SectionPicker open={pickerOpen} onOpenChange={setPickerOpen} onPick={addSection} />
       <SectionInspector
+        pageId={pageId}
         section={selectedSection}
         position={selectedIndex}
         open={inspectorOpen}

@@ -95,6 +95,4 @@ export function storefrontPublicUrl(slug: string, path = '', env: Record<string,
   return `${getSecurityEmailBaseUrl(undefined, env)}/${slug}${path}`
 }
 
-export function storefrontMediaPath(slug: string, attachmentId: string): string {
-  return `/api/storefront/media/${encodeURIComponent(slug)}/${encodeURIComponent(attachmentId)}`
-}
+export { storefrontMediaPath } from './mediaUrls'

@@ -293,5 +293,107 @@
   "storefront.validation.unknownBlock": "Dieser Abschnittstyp wird nicht unterstützt.",
   "storefront.validation.unknownField": "Dieses Feld ist nicht erlaubt.",
   "storefront.validation.unknownProp": "Diese Einstellung wird für diesen Abschnitt nicht unterstützt.",
-  "storefront.validation.unsafeHref": "Verwenden Sie einen https://-Link oder einen Pfad, der mit / beginnt."
+  "storefront.validation.unsafeHref": "Verwenden Sie einen https://-Link oder einen Pfad, der mit / beginnt.",
+  "storefront": {
+    "public": {
+      "contact": {
+        "address": "Adresse",
+        "phone": "Telefon",
+        "email": "E-Mail",
+        "hours": "Öffnungszeiten"
+      }
+    },
+    "builder": {
+      "fields": {
+        "heroImage": "Bild neben dem Text (optional)",
+        "image": "Bild",
+        "caption": "Bildunterschrift",
+        "imageLink": "Linkadresse (optional)",
+        "width": "Breite",
+        "body": "Text",
+        "imagePosition": "Bildposition",
+        "images": "Bilder",
+        "imageN": "Bild {n}",
+        "quotes": "Zitate",
+        "quoteN": "Zitat {n}",
+        "quote": "Zitat",
+        "author": "Name",
+        "role": "Rolle oder Ort",
+        "questions": "Fragen",
+        "questionN": "Frage {n}",
+        "question": "Frage",
+        "answer": "Antwort",
+        "address": "Adresse",
+        "phone": "Telefon",
+        "email": "E-Mail",
+        "hours": "Öffnungszeiten",
+        "button": "Schaltfläche",
+        "tone": "Stil"
+      },
+      "blocks": {
+        "Image": "Bild",
+        "ImageText": "Bild mit Text",
+        "Gallery": "Galerie",
+        "Testimonials": "Kundenstimmen",
+        "Faq": "Fragen und Antworten",
+        "ContactInfo": "Kontaktdaten",
+        "CallToAction": "Handlungsaufforderung"
+      },
+      "width": {
+        "contained": "Seitenbreite",
+        "full": "Volle Breite"
+      },
+      "position": {
+        "start": "Bild zuerst",
+        "end": "Text zuerst"
+      },
+      "actions": {
+        "addImage": "Bild hinzufügen",
+        "addQuote": "Zitat hinzufügen",
+        "addQuestion": "Frage hinzufügen"
+      },
+      "tone": {
+        "surface": "Dezent",
+        "primary": "Markenfarbe"
+      },
+      "defaults": {
+        "imageTextHeading": "Mit Sorgfalt gemacht",
+        "quote": "Toller Service und schnelle Lieferung.",
+        "quoteAuthor": "Eine zufriedene Kundin",
+        "faqHeading": "Fragen und Antworten",
+        "faqQuestion": "Wie kann ich bezahlen?",
+        "faqAnswer": "Bezahlen Sie bar bei Lieferung oder per Überweisung.",
+        "contactHeading": "Kontakt",
+        "contactHours": "Montag bis Freitag, 9:00–17:00",
+        "ctaHeading": "Bereit zu bestellen?",
+        "ctaLabel": "Kontakt aufnehmen"
+      },
+      "image": {
+        "uploadFailed": "Das Bild konnte nicht hochgeladen werden. Versuchen Sie eine andere Datei.",
+        "uploading": "Wird hochgeladen…",
+        "alt": "Bild beschreiben (Alternativtext)",
+        "hint": "PNG oder JPEG, mindestens 200×200 px, bis 8 MB.",
+        "listHint": "PNG oder JPEG, mindestens 200×200 px, bis 8 MB. {count} von {max} hinzugefügt."
+      },
+      "blockDescriptions": {
+        "Hero": "Großes Einstiegsbanner mit Überschrift, optionaler Unterzeile, einem Aktionslink und optionalem Bild neben dem Text.",
+        "Image": "Ein Bild mit Alternativtext, optionaler Bildunterschrift und optionalem Link; seiten- oder volle Breite.",
+        "ImageText": "Ein Bild neben Überschrift, kurzem Text und optionalem Aktionslink.",
+        "Gallery": "Ein Raster mit 2 bis 12 Bildern mit Alternativtext unter einer optionalen Überschrift.",
+        "Testimonials": "Bis zu sechs Kundenzitate mit Name und optionaler Rolle.",
+        "Faq": "Bis zu zwölf Fragen mit aufklappbaren Antworten.",
+        "ContactInfo": "So erreicht man den Shop: Adresse, Telefon, E-Mail und Öffnungszeiten.",
+        "CallToAction": "Ein kurzes Banner mit Überschrift, optionalem Satz und einer Schaltfläche."
+      }
+    },
+    "validation": {
+      "galleryTooFew": "Fügen Sie mindestens zwei Bilder hinzu.",
+      "referenceNotFound": "Dieses Element ist für diesen Shop nicht verfügbar. Wählen Sie ein anderes oder laden Sie eines hoch.",
+      "imageRequired": "Fügen Sie ein Bild hinzu.",
+      "listTooLong": "Dieser Abschnitt hat zu viele Einträge.",
+      "phoneInvalid": "Verwenden Sie Ziffern, Leerzeichen, +, ( ) oder - (5–40 Zeichen).",
+      "emailInvalid": "Geben Sie eine gültige E-Mail-Adresse ein.",
+      "contactEmpty": "Geben Sie mindestens einen Kontaktweg an."
+    }
+  }
 }

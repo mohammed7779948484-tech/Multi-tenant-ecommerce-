@@ -293,5 +293,107 @@
   "storefront.validation.unknownBlock": "Ten typ sekcji nie jest obsługiwany.",
   "storefront.validation.unknownField": "To pole jest niedozwolone.",
   "storefront.validation.unknownProp": "To ustawienie nie jest obsługiwane w tej sekcji.",
-  "storefront.validation.unsafeHref": "Użyj linku https:// lub ścieżki zaczynającej się od /."
+  "storefront.validation.unsafeHref": "Użyj linku https:// lub ścieżki zaczynającej się od /.",
+  "storefront": {
+    "public": {
+      "contact": {
+        "address": "Adres",
+        "phone": "Telefon",
+        "email": "E-mail",
+        "hours": "Godziny otwarcia"
+      }
+    },
+    "builder": {
+      "fields": {
+        "heroImage": "Obraz obok tekstu (opcjonalnie)",
+        "image": "Obraz",
+        "caption": "Podpis",
+        "imageLink": "Adres linku (opcjonalnie)",
+        "width": "Szerokość",
+        "body": "Tekst",
+        "imagePosition": "Położenie obrazu",
+        "images": "Obrazy",
+        "imageN": "Obraz {n}",
+        "quotes": "Cytaty",
+        "quoteN": "Cytat {n}",
+        "quote": "Cytat",
+        "author": "Imię i nazwisko",
+        "role": "Rola lub miasto",
+        "questions": "Pytania",
+        "questionN": "Pytanie {n}",
+        "question": "Pytanie",
+        "answer": "Odpowiedź",
+        "address": "Adres",
+        "phone": "Telefon",
+        "email": "E-mail",
+        "hours": "Godziny otwarcia",
+        "button": "Przycisk",
+        "tone": "Styl"
+      },
+      "blocks": {
+        "Image": "Obraz",
+        "ImageText": "Obraz z tekstem",
+        "Gallery": "Galeria",
+        "Testimonials": "Opinie klientów",
+        "Faq": "Pytania i odpowiedzi",
+        "ContactInfo": "Dane kontaktowe",
+        "CallToAction": "Wezwanie do działania"
+      },
+      "width": {
+        "contained": "Szerokość strony",
+        "full": "Pełna szerokość"
+      },
+      "position": {
+        "start": "Najpierw obraz",
+        "end": "Najpierw tekst"
+      },
+      "actions": {
+        "addImage": "Dodaj obraz",
+        "addQuote": "Dodaj cytat",
+        "addQuestion": "Dodaj pytanie"
+      },
+      "tone": {
+        "surface": "Stonowany",
+        "primary": "Kolor marki"
+      },
+      "defaults": {
+        "imageTextHeading": "Zrobione z troską",
+        "quote": "Świetna obsługa i szybka dostawa.",
+        "quoteAuthor": "Zadowolona klientka",
+        "faqHeading": "Pytania i odpowiedzi",
+        "faqQuestion": "Jak mogę zapłacić?",
+        "faqAnswer": "Zapłać przy odbiorze lub przelewem.",
+        "contactHeading": "Kontakt",
+        "contactHours": "Od poniedziałku do piątku, 9:00–17:00",
+        "ctaHeading": "Gotowy na zamówienie?",
+        "ctaLabel": "Skontaktuj się"
+      },
+      "image": {
+        "uploadFailed": "Nie udało się przesłać obrazu. Spróbuj innego pliku.",
+        "uploading": "Przesyłanie…",
+        "alt": "Opisz obraz (tekst alternatywny)",
+        "hint": "PNG lub JPEG, co najmniej 200×200 px, do 8 MB.",
+        "listHint": "PNG lub JPEG, co najmniej 200×200 px, do 8 MB. Dodano {count} z {max}."
+      },
+      "blockDescriptions": {
+        "Hero": "Duży baner powitalny z nagłówkiem, opcjonalnym podtytułem, jednym linkiem i opcjonalnym obrazem obok tekstu.",
+        "Image": "Jeden obraz z tekstem alternatywnym, opcjonalnym podpisem i linkiem; szerokość strony lub pełna.",
+        "ImageText": "Obraz obok nagłówka, krótkiego tekstu i opcjonalnego linku.",
+        "Gallery": "Siatka od 2 do 12 obrazów z tekstem alternatywnym pod opcjonalnym nagłówkiem.",
+        "Testimonials": "Do sześciu cytatów klientów z imieniem i opcjonalną rolą.",
+        "Faq": "Do dwunastu pytań z rozwijanymi odpowiedziami.",
+        "ContactInfo": "Jak skontaktować się ze sklepem: adres, telefon, e-mail i godziny otwarcia.",
+        "CallToAction": "Krótki baner z nagłówkiem, opcjonalnym zdaniem i jednym przyciskiem."
+      }
+    },
+    "validation": {
+      "galleryTooFew": "Dodaj co najmniej dwa obrazy.",
+      "referenceNotFound": "Ten element nie jest dostępny dla tego sklepu. Wybierz lub prześlij inny.",
+      "imageRequired": "Dodaj obraz.",
+      "listTooLong": "Ta sekcja ma za dużo elementów.",
+      "phoneInvalid": "Użyj cyfr, spacji, +, ( ) lub - (5–40 znaków).",
+      "emailInvalid": "Podaj poprawny adres e-mail.",
+      "contactEmpty": "Podaj co najmniej jeden sposób kontaktu ze sklepem."
+    }
+  }
 }

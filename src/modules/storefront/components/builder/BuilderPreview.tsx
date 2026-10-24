@@ -7,6 +7,8 @@ import type { ValidatedSection } from '../../lib/blocks/pageSpec'
 import type { ThemeTokens } from '../../lib/theme'
 import { renderSection } from '../public/registry'
 import { StorefrontFrame } from '../public/StorefrontView'
+import type { SectionLabels } from '../public/blocks'
+import { NO_MEDIA, staffMediaResolver, type MediaResolver } from '../../lib/mediaUrls'
 import { builderCatalog } from './catalog'
 import { stableStringify } from './builderSpec'
 
@@ -17,9 +19,9 @@ import { stableStringify } from './builderSpec'
  * half-edited section shows a placeholder instead of breaking the preview.
  */
 
-type PreviewSettings = { basePath: string; unavailableLabel: string }
+type PreviewSettings = { basePath: string; unavailableLabel: string; media: MediaResolver; sectionLabels: SectionLabels | null }
 
-const PreviewSettingsContext = React.createContext<PreviewSettings>({ basePath: '', unavailableLabel: '' })
+const PreviewSettingsContext = React.createContext<PreviewSettings>({ basePath: '', unavailableLabel: '', media: NO_MEDIA, sectionLabels: null })
 const FirstSectionContext = React.createContext(false)
 
 function Unavailable() {
@@ -44,13 +46,17 @@ class SectionBoundary extends React.Component<{ children: React.ReactNode }, { f
 }
 
 function PreviewSection({ type, props }: { type: StorefrontBlockType; props: unknown }) {
-  const { basePath } = React.useContext(PreviewSettingsContext)
+  const { basePath, media, sectionLabels } = React.useContext(PreviewSettingsContext)
   const isFirst = React.useContext(FirstSectionContext)
-  const parsed = STOREFRONT_BLOCKS[type].props.safeParse(props)
-  if (!parsed.success) return <Unavailable />
+  const parsed = (STOREFRONT_BLOCKS[type].props as typeof STOREFRONT_BLOCKS.Hero.props).safeParse(props)
+  if (!parsed.success || !sectionLabels) return <Unavailable />
   const section = { id: 'preview', type, props: parsed.data } as ValidatedSection
   // Keyed by the props, so a section that failed renders again once it is edited.
-  return <SectionBoundary key={stableStringify(parsed.data)}>{renderSection(section, { basePath, isFirst })}</SectionBoundary>
+  return (
+    <SectionBoundary key={stableStringify(parsed.data)}>
+      {renderSection(section, { basePath, isFirst, media, labels: sectionLabels })}
+    </SectionBoundary>
+  )
 }
 
 export const { registry: previewRegistry } = defineRegistry(builderCatalog, {
@@ -66,6 +72,13 @@ export const { registry: previewRegistry } = defineRegistry(builderCatalog, {
     Hero: ({ props }) => <PreviewSection type="Hero" props={props} />,
     RichText: ({ props }) => <PreviewSection type="RichText" props={props} />,
     Features: ({ props }) => <PreviewSection type="Features" props={props} />,
+    Image: ({ props }) => <PreviewSection type="Image" props={props} />,
+    ImageText: ({ props }) => <PreviewSection type="ImageText" props={props} />,
+    Gallery: ({ props }) => <PreviewSection type="Gallery" props={props} />,
+    Testimonials: ({ props }) => <PreviewSection type="Testimonials" props={props} />,
+    Faq: ({ props }) => <PreviewSection type="Faq" props={props} />,
+    ContactInfo: ({ props }) => <PreviewSection type="ContactInfo" props={props} />,
+    CallToAction: ({ props }) => <PreviewSection type="CallToAction" props={props} />,
     Footer: ({ props }) => <PreviewSection type="Footer" props={props} />,
   },
 })
@@ -77,11 +90,14 @@ export type BuilderPreviewProps = {
   basePath: string
   logoSrc: string | null
   tokens: ThemeTokens
-  labels: { home: string; signIn: string; unavailable: string }
+  labels: { home: string; signIn: string; unavailable: string; sections: SectionLabels }
 }
 
 export function BuilderPreview({ spec, siteId, storeName, basePath, logoSrc, tokens, labels }: BuilderPreviewProps) {
-  const settings = React.useMemo(() => ({ basePath, unavailableLabel: labels.unavailable }), [basePath, labels.unavailable])
+  const settings = React.useMemo(
+    () => ({ basePath, unavailableLabel: labels.unavailable, media: staffMediaResolver(), sectionLabels: labels.sections }),
+    [basePath, labels.unavailable, labels.sections],
+  )
   return (
     <PreviewSettingsContext.Provider value={settings}>
       <StorefrontFrame

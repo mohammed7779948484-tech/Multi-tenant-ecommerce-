@@ -113,12 +113,103 @@ export const richTextDocumentSchema = z
 export type RichTextDocument = z.infer<typeof richTextDocumentSchema>
 export type RichTextInline = InlineNode
 
+/**
+ * An image reference: an attachment id (never a URL) plus required alt text.
+ * Which attachments a page may reference is checked against the database on
+ * save, publish and rollback (`lib/blocks/references.ts`), never here.
+ */
+export const imageRefSchema = z
+  .object({
+    attachmentId: z.string().uuid('storefront.validation.imageRequired'),
+    alt: textSchema(200),
+  })
+  .strict()
+
+const ctaSchema = z.object({ label: textSchema(40), href: safeHrefSchema }).strict()
+
+/** Multi-line plain text (line breaks kept, no markup). */
+export function plainTextSchema(max: number) {
+  return z.string().trim().min(1, 'storefront.validation.textRequired').max(max, 'storefront.validation.textTooLong')
+}
+
 export const heroPropsSchema = z
   .object({
     heading: textSchema(120),
     subheading: textSchema(DEFAULT_TEXT_MAX).optional(),
-    cta: z.object({ label: textSchema(40), href: safeHrefSchema }).strict().optional(),
+    cta: ctaSchema.optional(),
     align: z.enum(['start', 'center']).default('center'),
+    image: imageRefSchema.optional(),
+  })
+  .strict()
+
+export const imagePropsSchema = z
+  .object({
+    image: imageRefSchema,
+    caption: textSchema(200).optional(),
+    href: safeHrefSchema.optional(),
+    width: z.enum(['contained', 'full']).default('contained'),
+  })
+  .strict()
+
+export const imageTextPropsSchema = z
+  .object({
+    image: imageRefSchema,
+    heading: textSchema(120),
+    body: plainTextSchema(600).optional(),
+    cta: ctaSchema.optional(),
+    imagePosition: z.enum(['start', 'end']).default('start'),
+  })
+  .strict()
+
+export const galleryPropsSchema = z
+  .object({
+    heading: textSchema(120).optional(),
+    images: z.array(imageRefSchema).min(2, 'storefront.validation.galleryTooFew').max(12, 'storefront.validation.listTooLong'),
+  })
+  .strict()
+
+export const testimonialsPropsSchema = z
+  .object({
+    heading: textSchema(120).optional(),
+    items: z
+      .array(z.object({ quote: plainTextSchema(400), author: textSchema(80), role: textSchema(80).optional() }).strict())
+      .min(1)
+      .max(6, 'storefront.validation.listTooLong'),
+  })
+  .strict()
+
+export const faqPropsSchema = z
+  .object({
+    heading: textSchema(120).optional(),
+    items: z
+      .array(z.object({ question: textSchema(200), answer: plainTextSchema(1000) }).strict())
+      .min(1)
+      .max(12, 'storefront.validation.listTooLong'),
+  })
+  .strict()
+
+export const PHONE_PATTERN = /^\+?[0-9 ()-]{5,40}$/
+
+export const contactInfoPropsSchema = z
+  .object({
+    heading: textSchema(120).optional(),
+    address: plainTextSchema(300).optional(),
+    phone: z.string().trim().regex(PHONE_PATTERN, 'storefront.validation.phoneInvalid').optional(),
+    email: z.string().trim().max(120, 'storefront.validation.textTooLong').email('storefront.validation.emailInvalid').optional(),
+    hours: plainTextSchema(300).optional(),
+  })
+  .strict()
+  .refine((value) => Boolean(value.address || value.phone || value.email || value.hours), {
+    message: 'storefront.validation.contactEmpty',
+    path: ['address'],
+  })
+
+export const callToActionPropsSchema = z
+  .object({
+    heading: textSchema(120),
+    body: textSchema(DEFAULT_TEXT_MAX).optional(),
+    cta: ctaSchema,
+    tone: z.enum(['surface', 'primary']).default('surface'),
   })
   .strict()
 
@@ -150,3 +241,11 @@ export type HeroProps = z.infer<typeof heroPropsSchema>
 export type RichTextProps = z.infer<typeof richTextPropsSchema>
 export type FeaturesProps = z.infer<typeof featuresPropsSchema>
 export type FooterProps = z.infer<typeof footerPropsSchema>
+export type ImageRef = z.infer<typeof imageRefSchema>
+export type ImageProps = z.infer<typeof imagePropsSchema>
+export type ImageTextProps = z.infer<typeof imageTextPropsSchema>
+export type GalleryProps = z.infer<typeof galleryPropsSchema>
+export type TestimonialsProps = z.infer<typeof testimonialsPropsSchema>
+export type FaqProps = z.infer<typeof faqPropsSchema>
+export type ContactInfoProps = z.infer<typeof contactInfoPropsSchema>
+export type CallToActionProps = z.infer<typeof callToActionPropsSchema>

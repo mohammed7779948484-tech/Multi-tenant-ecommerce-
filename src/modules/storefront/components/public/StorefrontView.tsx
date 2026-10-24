@@ -3,6 +3,8 @@ import type { ValidatedSection } from '../../lib/blocks/pageSpec'
 import { buildThemeCssVariables, type ThemeTokens } from '../../lib/theme'
 import { STOREFRONT_STRUCTURAL_CSS } from '../../lib/storefrontCss'
 import { serializeJsonLd } from '../../lib/structuredData'
+import { publicMediaResolver } from '../../lib/mediaUrls'
+import type { SectionLabels } from './blocks'
 import { renderSection } from './registry'
 
 export type StorefrontHeadData = {
@@ -17,6 +19,7 @@ export type StorefrontHeadData = {
 
 export type StorefrontViewProps = {
   siteId: string
+  siteSlug: string
   storeName: string
   basePath: string
   logoSrc: string | null
@@ -25,6 +28,7 @@ export type StorefrontViewProps = {
   head: StorefrontHeadData
   signInHref: string | null
   labels: { signIn: string; home: string }
+  sectionLabels: SectionLabels
 }
 
 /**
@@ -84,12 +88,13 @@ export function StorefrontFrame(props: StorefrontFrameProps) {
 }
 
 export function StorefrontView(props: StorefrontViewProps) {
+  const media = publicMediaResolver(props.siteSlug)
   return (
     <>
       <StorefrontJsonLd data={props.head.jsonLd} />
       <StorefrontFrame {...props}>
         {props.sections.map((section, index) =>
-          renderSection(section, { basePath: props.basePath, isFirst: index === 0 }),
+          renderSection(section, { basePath: props.basePath, isFirst: index === 0, media, labels: props.sectionLabels }),
         )}
       </StorefrontFrame>
     </>

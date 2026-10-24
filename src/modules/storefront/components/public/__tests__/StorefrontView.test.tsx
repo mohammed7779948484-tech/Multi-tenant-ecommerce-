@@ -17,6 +17,7 @@ function render(storeName: string) {
   return renderToStaticMarkup(
     <StorefrontView
       siteId={SITE_ID}
+      siteSlug="acme"
       storeName={storeName}
       basePath="/acme"
       logoSrc={null}
@@ -33,6 +34,7 @@ function render(storeName: string) {
       }}
       signInHref="/acme-org/portal/login"
       labels={{ signIn: 'Sign in', home: 'Home' }}
+      sectionLabels={{ contactAddress: 'Address', contactPhone: 'Phone', contactEmail: 'Email', contactHours: 'Opening hours' }}
     />,
   )
 }

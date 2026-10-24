@@ -1,11 +1,20 @@
 import * as React from 'react'
 import type {
+  CallToActionProps,
+  ContactInfoProps,
+  FaqProps,
   FeaturesProps,
   FooterProps,
+  GalleryProps,
   HeroProps,
+  ImageProps,
+  ImageRef,
+  ImageTextProps,
   RichTextInline,
   RichTextProps,
+  TestimonialsProps,
 } from '../../lib/blocks/schemas'
+import type { MediaResolver } from '../../lib/mediaUrls'
 
 /**
  * SSR-safe block components for public storefront pages. They receive props
@@ -19,6 +28,58 @@ export type BlockRenderContext = {
   basePath: string
   /** True for the first section on the page: only it renders the page `<h1>`. */
   isFirst: boolean
+  media: MediaResolver
+  /** Fixed words sections print (translated by the caller); merchant text never comes from here. */
+  labels: SectionLabels
+}
+
+export type SectionLabels = {
+  contactAddress: string
+  contactPhone: string
+  contactEmail: string
+  contactHours: string
+}
+
+/** Translation keys and English fallbacks of `SectionLabels`, resolved by the public page and the builder. */
+export const SECTION_LABEL_KEYS: Record<keyof SectionLabels, readonly [string, string]> = {
+  contactAddress: ['storefront.public.contact.address', 'Address'],
+  contactPhone: ['storefront.public.contact.phone', 'Phone'],
+  contactEmail: ['storefront.public.contact.email', 'Email'],
+  contactHours: ['storefront.public.contact.hours', 'Opening hours'],
+}
+
+export function resolveSectionLabels(translate: (key: string, fallback: string) => string): SectionLabels {
+  return Object.fromEntries(
+    Object.entries(SECTION_LABEL_KEYS).map(([name, [key, fallback]]) => [name, translate(key, fallback)]),
+  ) as SectionLabels
+}
+
+function StoreImage({
+  image,
+  media,
+  sizes,
+  eager,
+  className,
+}: {
+  image: ImageRef
+  media: MediaResolver
+  sizes: string
+  eager?: boolean
+  className?: string
+}) {
+  return (
+    // Served by the store's media route (scope and visibility re-checked there); next/image would fetch it out of band.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      className={className}
+      src={media.src(image.attachmentId, 960)}
+      srcSet={media.srcSet(image.attachmentId)}
+      sizes={sizes}
+      alt={image.alt}
+      loading={eager ? 'eager' : 'lazy'}
+      decoding="async"
+    />
+  )
 }
 
 /** Resolves a validated href: store-relative paths are joined to the store base path. */
@@ -34,16 +95,206 @@ function linkRel(href: string): string | undefined {
 
 export function HeroBlock({ props, context }: { props: HeroProps; context: BlockRenderContext }) {
   const Heading = context.isFirst ? 'h1' : 'h2'
+  const text = (
+    <div className="sf-hero-inner" data-align={props.image ? 'start' : props.align}>
+      <Heading>{props.heading}</Heading>
+      {props.subheading ? <p>{props.subheading}</p> : null}
+      {props.cta ? (
+        <a className="sf-button" href={resolveStoreHref(props.cta.href, context.basePath)} rel={linkRel(props.cta.href)}>
+          {props.cta.label}
+        </a>
+      ) : null}
+    </div>
+  )
   return (
     <section className="sf-section sf-hero">
-      <div className="sf-container sf-hero-inner" data-align={props.align}>
-        <Heading>{props.heading}</Heading>
-        {props.subheading ? <p>{props.subheading}</p> : null}
-        {props.cta ? (
-          <a className="sf-button" href={resolveStoreHref(props.cta.href, context.basePath)} rel={linkRel(props.cta.href)}>
-            {props.cta.label}
-          </a>
-        ) : null}
+      {props.image ? (
+        <div className="sf-container sf-split">
+          {text}
+          <div className="sf-media">
+            <StoreImage image={props.image} media={context.media} sizes="(min-width: 48rem) 50vw, 100vw" eager={context.isFirst} />
+          </div>
+        </div>
+      ) : (
+        <div className="sf-container">{text}</div>
+      )}
+    </section>
+  )
+}
+
+export function ImageBlock({ props, context }: { props: ImageProps; context: BlockRenderContext }) {
+  const image = (
+    <StoreImage
+      image={props.image}
+      media={context.media}
+      sizes={props.width === 'full' ? '100vw' : '(min-width: 72rem) 72rem, 100vw'}
+      eager={context.isFirst}
+    />
+  )
+  const figure = (
+    <figure className="sf-figure">
+      {props.href ? (
+        <a href={resolveStoreHref(props.href, context.basePath)} rel={linkRel(props.href)}>
+          {image}
+        </a>
+      ) : (
+        image
+      )}
+      {props.caption ? <figcaption>{props.caption}</figcaption> : null}
+    </figure>
+  )
+  return (
+    <section className="sf-section sf-image" data-width={props.width}>
+      {props.width === 'full' ? figure : <div className="sf-container">{figure}</div>}
+    </section>
+  )
+}
+
+export function ImageTextBlock({ props, context }: { props: ImageTextProps; context: BlockRenderContext }) {
+  const Heading = context.isFirst ? 'h1' : 'h2'
+  return (
+    <section className="sf-section">
+      <div className="sf-container sf-split" data-position={props.imagePosition}>
+        <div className="sf-media">
+          <StoreImage image={props.image} media={context.media} sizes="(min-width: 48rem) 50vw, 100vw" eager={context.isFirst} />
+        </div>
+        <div className="sf-split-text">
+          <Heading className="sf-section-title">{props.heading}</Heading>
+          {props.body ? <p className="sf-pre-line">{props.body}</p> : null}
+          {props.cta ? (
+            <a className="sf-button" href={resolveStoreHref(props.cta.href, context.basePath)} rel={linkRel(props.cta.href)}>
+              {props.cta.label}
+            </a>
+          ) : null}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+export function GalleryBlock({ props, context }: { props: GalleryProps; context: BlockRenderContext }) {
+  const Heading = context.isFirst ? 'h1' : 'h2'
+  return (
+    <section className="sf-section">
+      <div className="sf-container">
+        {props.heading ? <Heading className="sf-section-title">{props.heading}</Heading> : null}
+        <ul className="sf-gallery" role="list">
+          {props.images.map((image, index) => (
+            <li key={`${image.attachmentId}-${index}`}>
+              <StoreImage image={image} media={context.media} sizes="(min-width: 48rem) 33vw, 50vw" />
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  )
+}
+
+export function TestimonialsBlock({ props, context }: { props: TestimonialsProps; context: BlockRenderContext }) {
+  const Heading = context.isFirst ? 'h1' : 'h2'
+  return (
+    <section className="sf-section">
+      <div className="sf-container">
+        {props.heading ? <Heading className="sf-section-title">{props.heading}</Heading> : null}
+        <ul className="sf-cards" role="list">
+          {props.items.map((item, index) => (
+            <li key={index} className="sf-card">
+              <figure className="sf-quote">
+                <blockquote className="sf-pre-line">{item.quote}</blockquote>
+                <figcaption>
+                  <strong>{item.author}</strong>
+                  {item.role ? <span>{item.role}</span> : null}
+                </figcaption>
+              </figure>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  )
+}
+
+/** Questions open and close with the browser's own `<details>`: no script, keyboard and screen-reader support built in. */
+export function FaqBlock({ props, context }: { props: FaqProps; context: BlockRenderContext }) {
+  const Heading = context.isFirst ? 'h1' : 'h2'
+  return (
+    <section className="sf-section">
+      <div className="sf-container sf-narrow">
+        {props.heading ? <Heading className="sf-section-title">{props.heading}</Heading> : null}
+        <div className="sf-faq">
+          {props.items.map((item, index) => (
+            <details key={index}>
+              <summary>{item.question}</summary>
+              <p className="sf-pre-line">{item.answer}</p>
+            </details>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/** `tel:`/`mailto:` targets are built here from validated values; merchants never supply those hrefs. */
+export function telHref(phone: string): string {
+  return `tel:${phone.replace(/[^+0-9]/g, '')}`
+}
+
+export function ContactInfoBlock({ props, context }: { props: ContactInfoProps; context: BlockRenderContext }) {
+  const Heading = context.isFirst ? 'h1' : 'h2'
+  const text = context.labels
+  return (
+    <section className="sf-section">
+      <div className="sf-container sf-narrow">
+        {props.heading ? <Heading className="sf-section-title">{props.heading}</Heading> : null}
+        <address className="sf-contact">
+          <dl>
+            {props.address ? (
+              <div>
+                <dt>{text.contactAddress}</dt>
+                <dd className="sf-pre-line">{props.address}</dd>
+              </div>
+            ) : null}
+            {props.phone ? (
+              <div>
+                <dt>{text.contactPhone}</dt>
+                <dd>
+                  <a href={telHref(props.phone)}>{props.phone}</a>
+                </dd>
+              </div>
+            ) : null}
+            {props.email ? (
+              <div>
+                <dt>{text.contactEmail}</dt>
+                <dd>
+                  <a href={`mailto:${props.email}`}>{props.email}</a>
+                </dd>
+              </div>
+            ) : null}
+            {props.hours ? (
+              <div>
+                <dt>{text.contactHours}</dt>
+                <dd className="sf-pre-line">{props.hours}</dd>
+              </div>
+            ) : null}
+          </dl>
+        </address>
+      </div>
+    </section>
+  )
+}
+
+export function CallToActionBlock({ props, context }: { props: CallToActionProps; context: BlockRenderContext }) {
+  const Heading = context.isFirst ? 'h1' : 'h2'
+  return (
+    <section className="sf-section sf-cta" data-tone={props.tone}>
+      <div className="sf-container sf-cta-inner">
+        <div>
+          <Heading className="sf-section-title">{props.heading}</Heading>
+          {props.body ? <p>{props.body}</p> : null}
+        </div>
+        <a className="sf-button" href={resolveStoreHref(props.cta.href, context.basePath)} rel={linkRel(props.cta.href)}>
+          {props.cta.label}
+        </a>
       </div>
     </section>
   )

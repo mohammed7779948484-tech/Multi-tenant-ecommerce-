@@ -25,7 +25,18 @@ export type EditorListField = {
   item: readonly EditorTextField[]
 }
 export type EditorRichTextField = { id: string; kind: 'richtext'; label: Label }
-export type EditorField = EditorTextField | EditorSelectField | EditorLinkField | EditorListField | EditorRichTextField
+/** One image: an upload (stored as an attachment id) plus alt text. */
+export type EditorImageField = { id: string; kind: 'image'; label: Label; required?: boolean }
+/** Several images, each with alt text (Gallery). */
+export type EditorImageListField = { id: string; kind: 'images'; label: Label; itemLabel: Label; addLabel: Label; min: number; max: number }
+export type EditorField =
+  | EditorTextField
+  | EditorSelectField
+  | EditorLinkField
+  | EditorListField
+  | EditorRichTextField
+  | EditorImageField
+  | EditorImageListField
 
 export type BlockEditor = { label: Label; fields: readonly EditorField[] }
 
@@ -42,6 +53,7 @@ export const BLOCK_EDITORS: Record<StorefrontBlockType, BlockEditor> = {
       { id: 'heading', kind: 'text', label: ['storefront.builder.fields.heading', 'Heading'], required: true, maxLength: 120 },
       { id: 'subheading', kind: 'textarea', label: ['storefront.builder.fields.subheading', 'Subheading'], maxLength: 200 },
       { id: 'cta', kind: 'link', label: ['storefront.builder.fields.cta', 'Call to action'] },
+      { id: 'image', kind: 'image', label: ['storefront.builder.fields.heroImage', 'Image beside the text (optional)'] },
       {
         id: 'align',
         kind: 'select',
@@ -50,6 +62,56 @@ export const BLOCK_EDITORS: Record<StorefrontBlockType, BlockEditor> = {
           { value: 'center', label: ['storefront.builder.align.center', 'Centred'] },
           { value: 'start', label: ['storefront.builder.align.start', 'Start'] },
         ],
+      },
+    ],
+  },
+  Image: {
+    label: ['storefront.builder.blocks.Image', 'Image'],
+    fields: [
+      { id: 'image', kind: 'image', label: ['storefront.builder.fields.image', 'Image'], required: true },
+      { id: 'caption', kind: 'text', label: ['storefront.builder.fields.caption', 'Caption'], maxLength: 200 },
+      { id: 'href', kind: 'text', label: ['storefront.builder.fields.imageLink', 'Link address (optional)'], maxLength: 500 },
+      {
+        id: 'width',
+        kind: 'select',
+        label: ['storefront.builder.fields.width', 'Width'],
+        options: [
+          { value: 'contained', label: ['storefront.builder.width.contained', 'Page width'] },
+          { value: 'full', label: ['storefront.builder.width.full', 'Full width'] },
+        ],
+      },
+    ],
+  },
+  ImageText: {
+    label: ['storefront.builder.blocks.ImageText', 'Image with text'],
+    fields: [
+      { id: 'image', kind: 'image', label: ['storefront.builder.fields.image', 'Image'], required: true },
+      { id: 'heading', kind: 'text', label: ['storefront.builder.fields.heading', 'Heading'], required: true, maxLength: 120 },
+      { id: 'body', kind: 'textarea', label: ['storefront.builder.fields.body', 'Text'], maxLength: 600 },
+      { id: 'cta', kind: 'link', label: ['storefront.builder.fields.cta', 'Call to action'] },
+      {
+        id: 'imagePosition',
+        kind: 'select',
+        label: ['storefront.builder.fields.imagePosition', 'Image position'],
+        options: [
+          { value: 'start', label: ['storefront.builder.position.start', 'Image first'] },
+          { value: 'end', label: ['storefront.builder.position.end', 'Text first'] },
+        ],
+      },
+    ],
+  },
+  Gallery: {
+    label: ['storefront.builder.blocks.Gallery', 'Gallery'],
+    fields: [
+      { id: 'heading', kind: 'text', label: ['storefront.builder.fields.heading', 'Heading'], maxLength: 120 },
+      {
+        id: 'images',
+        kind: 'images',
+        label: ['storefront.builder.fields.images', 'Images'],
+        itemLabel: ['storefront.builder.fields.imageN', 'Image {n}'],
+        addLabel: ['storefront.builder.actions.addImage', 'Add image'],
+        min: 2,
+        max: 12,
       },
     ],
   },
@@ -79,6 +141,72 @@ export const BLOCK_EDITORS: Record<StorefrontBlockType, BlockEditor> = {
       },
     ],
   },
+  Testimonials: {
+    label: ['storefront.builder.blocks.Testimonials', 'Testimonials'],
+    fields: [
+      { id: 'heading', kind: 'text', label: ['storefront.builder.fields.heading', 'Heading'], maxLength: 120 },
+      {
+        id: 'items',
+        kind: 'list',
+        label: ['storefront.builder.fields.quotes', 'Quotes'],
+        itemLabel: ['storefront.builder.fields.quoteN', 'Quote {n}'],
+        addLabel: ['storefront.builder.actions.addQuote', 'Add quote'],
+        min: 1,
+        max: 6,
+        item: [
+          { id: 'quote', kind: 'textarea', label: ['storefront.builder.fields.quote', 'Quote'], required: true, maxLength: 400 },
+          { id: 'author', kind: 'text', label: ['storefront.builder.fields.author', 'Name'], required: true, maxLength: 80 },
+          { id: 'role', kind: 'text', label: ['storefront.builder.fields.role', 'Role or city'], maxLength: 80 },
+        ],
+      },
+    ],
+  },
+  Faq: {
+    label: ['storefront.builder.blocks.Faq', 'Questions and answers'],
+    fields: [
+      { id: 'heading', kind: 'text', label: ['storefront.builder.fields.heading', 'Heading'], maxLength: 120 },
+      {
+        id: 'items',
+        kind: 'list',
+        label: ['storefront.builder.fields.questions', 'Questions'],
+        itemLabel: ['storefront.builder.fields.questionN', 'Question {n}'],
+        addLabel: ['storefront.builder.actions.addQuestion', 'Add question'],
+        min: 1,
+        max: 12,
+        item: [
+          { id: 'question', kind: 'text', label: ['storefront.builder.fields.question', 'Question'], required: true, maxLength: 200 },
+          { id: 'answer', kind: 'textarea', label: ['storefront.builder.fields.answer', 'Answer'], required: true, maxLength: 1000 },
+        ],
+      },
+    ],
+  },
+  ContactInfo: {
+    label: ['storefront.builder.blocks.ContactInfo', 'Contact details'],
+    fields: [
+      { id: 'heading', kind: 'text', label: ['storefront.builder.fields.heading', 'Heading'], maxLength: 120 },
+      { id: 'address', kind: 'textarea', label: ['storefront.builder.fields.address', 'Address'], maxLength: 300 },
+      { id: 'phone', kind: 'text', label: ['storefront.builder.fields.phone', 'Phone'], maxLength: 40 },
+      { id: 'email', kind: 'text', label: ['storefront.builder.fields.email', 'Email'], maxLength: 120 },
+      { id: 'hours', kind: 'textarea', label: ['storefront.builder.fields.hours', 'Opening hours'], maxLength: 300 },
+    ],
+  },
+  CallToAction: {
+    label: ['storefront.builder.blocks.CallToAction', 'Call to action'],
+    fields: [
+      { id: 'heading', kind: 'text', label: ['storefront.builder.fields.heading', 'Heading'], required: true, maxLength: 120 },
+      { id: 'body', kind: 'textarea', label: ['storefront.builder.fields.body', 'Text'], maxLength: 200 },
+      { id: 'cta', kind: 'link', label: ['storefront.builder.fields.button', 'Button'] },
+      {
+        id: 'tone',
+        kind: 'select',
+        label: ['storefront.builder.fields.tone', 'Style'],
+        options: [
+          { value: 'surface', label: ['storefront.builder.tone.surface', 'Quiet'] },
+          { value: 'primary', label: ['storefront.builder.tone.primary', 'Brand colour'] },
+        ],
+      },
+    ],
+  },
   Footer: {
     label: ['storefront.builder.blocks.Footer', 'Footer'],
     fields: [
@@ -98,7 +226,14 @@ export const BLOCK_EDITORS: Record<StorefrontBlockType, BlockEditor> = {
 }
 
 export type ListItemValue = Record<string, string>
-export type BlockFormValues = Record<string, string | ListItemValue | ListItemValue[]>
+/** Inspector value of an image field: the attachment id plus alt text (empty strings when unset). */
+export type ImageValue = { attachmentId: string; alt: string }
+export type BlockFormValues = Record<string, string | ListItemValue | ListItemValue[] | ImageValue | ImageValue[]>
+
+function imageValue(raw: unknown): ImageValue {
+  const source = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  return { attachmentId: asString(source.attachmentId), alt: asString(source.alt) }
+}
 
 const asString = (value: unknown): string => (typeof value === 'string' ? value : '')
 
@@ -131,6 +266,12 @@ export function blockPropsToFormValues(type: StorefrontBlockType, props: Record<
         values[field.id] = parsed.success ? serializeRichTextMarkup(parsed.data as RichTextDocument) : ''
         break
       }
+      case 'image':
+        values[field.id] = imageValue(raw)
+        break
+      case 'images':
+        values[field.id] = Array.isArray(raw) ? raw.map(imageValue) : []
+        break
     }
   }
   return values
@@ -189,6 +330,18 @@ export function formValuesToBlockProps(type: StorefrontBlockType, values: Record
         else fieldErrors[field.id] = parsed.issues[0]?.message ?? 'storefront.validation.invalidValue'
         break
       }
+      case 'image': {
+        const image = imageValue(raw)
+        // A required image keeps an empty id so the schema reports "add an image" on this field.
+        if (image.attachmentId || field.required) props[field.id] = { attachmentId: image.attachmentId, alt: image.alt.trim() }
+        break
+      }
+      case 'images': {
+        const images = (Array.isArray(raw) ? raw : []).map(imageValue).filter((image) => image.attachmentId)
+        if (images.length < field.min) fieldErrors[field.id] = 'storefront.validation.galleryTooFew'
+        props[field.id] = images.map((image) => ({ attachmentId: image.attachmentId, alt: image.alt.trim() }))
+        break
+      }
     }
   }
   if (Object.keys(fieldErrors).length) return { ok: false, fieldErrors }
@@ -237,5 +390,46 @@ export function defaultBlockProps(type: StorefrontBlockType, translate: (key: st
       }
     case 'Footer':
       return { links: [] }
+    // Image sections start without an image: the section is listed as an issue until one is uploaded.
+    case 'Image':
+      return { image: { attachmentId: '', alt: '' }, width: 'contained' }
+    case 'ImageText':
+      return {
+        image: { attachmentId: '', alt: '' },
+        heading: translate('storefront.builder.defaults.imageTextHeading', 'Made with care'),
+        imagePosition: 'start',
+      }
+    case 'Gallery':
+      return { images: [] }
+    case 'Testimonials':
+      return {
+        items: [
+          {
+            quote: translate('storefront.builder.defaults.quote', 'Lovely service and quick delivery.'),
+            author: translate('storefront.builder.defaults.quoteAuthor', 'A happy customer'),
+          },
+        ],
+      }
+    case 'Faq':
+      return {
+        heading: translate('storefront.builder.defaults.faqHeading', 'Questions and answers'),
+        items: [
+          {
+            question: translate('storefront.builder.defaults.faqQuestion', 'How do I pay?'),
+            answer: translate('storefront.builder.defaults.faqAnswer', 'Pay cash on delivery or by bank transfer.'),
+          },
+        ],
+      }
+    case 'ContactInfo':
+      return {
+        heading: translate('storefront.builder.defaults.contactHeading', 'Contact us'),
+        hours: translate('storefront.builder.defaults.contactHours', 'Monday to Friday, 9:00–17:00'),
+      }
+    case 'CallToAction':
+      return {
+        heading: translate('storefront.builder.defaults.ctaHeading', 'Ready to order?'),
+        cta: { label: translate('storefront.builder.defaults.ctaLabel', 'Contact us'), href: '/contact' },
+        tone: 'surface',
+      }
   }
 }

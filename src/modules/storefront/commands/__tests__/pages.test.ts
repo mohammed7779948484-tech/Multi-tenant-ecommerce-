@@ -11,6 +11,7 @@ jest.mock('@open-mercato/shared/lib/i18n/server', () => ({
 }))
 
 import type { CommandRuntimeContext } from '@open-mercato/shared/lib/commands'
+import { Attachment } from '@open-mercato/core/modules/attachments/data/entities'
 import { StorefrontPage, StorefrontPageRevision, StorefrontSite } from '../../data/entities'
 import { buildDefaultHomeSpec } from '../../lib/blocks/defaultHome'
 import { pageStatus } from '../../lib/pages'
@@ -33,10 +34,15 @@ function createFakeEm() {
     [StorefrontSite, []],
     [StorefrontPage, []],
     [StorefrontPageRevision, []],
+    [Attachment, []],
   ])
   const counters = { begin: 0, commit: 0, rollback: 0 }
   const matches = (row: Row, where: Row) =>
-    Object.entries(where).every(([key, value]) => (value === null ? row[key] == null : row[key] === value))
+    Object.entries(where).every(([key, value]) => {
+      if (value === null) return row[key] == null
+      if (value && typeof value === 'object' && '$in' in (value as Row)) return (value as { $in: unknown[] }).$in.includes(row[key])
+      return row[key] === value
+    })
   const em = {
     tables,
     counters,
@@ -49,6 +55,9 @@ function createFakeEm() {
         rows = [...rows].sort((a, b) => ((a[key] as number) - (b[key] as number)) * (dir === 'desc' ? -1 : 1))
       }
       return rows[0] ?? null
+    },
+    async find(entity: unknown, where: Row) {
+      return (tables.get(entity) ?? []).filter((row) => matches(row, where))
     },
     async count(entity: unknown, where: Row) {
       return (tables.get(entity) ?? []).filter((row) => matches(row, where)).length
@@ -166,6 +175,45 @@ describe('storefront page commands (TEST-017)', () => {
       ['updated', 'storefront:storefront_page', { id: created.id, tenantId: tenantA, organizationId: orgA }],
       ['deleted', 'storefront:storefront_page', { id: created.id, tenantId: tenantA, organizationId: orgA }],
     ])
+  })
+
+  it('accepts only images uploaded to this store\'s pages, on save, publish and rollback (TEST-017, Phase 3a)', async () => {
+    const created = await createPage(em, ctx)
+    const attachments = em.tables.get(Attachment)!
+    const own = randomUUID()
+    const otherEntity = randomUUID()
+    const foreign = randomUUID()
+    attachments.push(
+      { id: own, tenantId: tenantA, organizationId: orgA, entityId: 'storefront:storefront_page', recordId: created.id, mimeType: 'image/png' },
+      { id: otherEntity, tenantId: tenantA, organizationId: orgA, entityId: 'customers:customer_person', recordId: randomUUID(), mimeType: 'image/png' },
+      { id: foreign, tenantId: tenantB, organizationId: orgB, entityId: 'storefront:storefront_page', recordId: randomUUID(), mimeType: 'image/png' },
+    )
+    const withImage = (attachmentId: string) => ({
+      root: 'page',
+      elements: {
+        page: { type: 'Page', props: {}, children: ['pic'] },
+        pic: { type: 'Image', props: { image: { attachmentId, alt: 'Shop' } }, children: [] },
+      },
+    })
+    for (const id of [otherEntity, foreign, randomUUID()]) {
+      await expect(updatePageCommand.execute({ id: created.id, draftSpec: withImage(id) }, ctx)).rejects.toMatchObject({
+        status: 422,
+        body: { issues: [expect.objectContaining({ path: 'elements.pic.props.image.attachmentId', code: 'unknown_reference' })] },
+      })
+    }
+    await updatePageCommand.execute({ id: created.id, draftSpec: withImage(own) }, ctx)
+    const first = (await publishPageCommand.execute({ id: created.id }, ctx)) as PublishResult
+
+    // The file is removed from the attachments library: publishing again or rolling back to it now fails on that prop.
+    attachments.splice(attachments.findIndex((row) => row.id === own), 1)
+    await updatePageCommand.execute({ id: created.id, title: 'Retitled' }, ctx)
+    await expect(publishPageCommand.execute({ id: created.id }, ctx)).rejects.toMatchObject({ status: 422, body: { issues: [expect.objectContaining({ code: 'unknown_reference' })] } })
+    await updatePageCommand.execute({ id: created.id, draftSpec: buildDefaultHomeSpec({ storeName: 'Store' }) }, ctx)
+    await publishPageCommand.execute({ id: created.id }, ctx)
+    await expect(rollbackPageCommand.execute({ id: created.id, revisionId: first.revisionId }, ctx)).rejects.toMatchObject({
+      status: 422,
+      body: { error: expect.any(String), issues: [expect.objectContaining({ code: 'unknown_reference' })] },
+    })
   })
 
   it('rejects invalid, reserved and taken slugs with a slug field error', async () => {

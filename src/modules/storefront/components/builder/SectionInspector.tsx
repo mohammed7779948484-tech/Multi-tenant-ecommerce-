@@ -21,6 +21,7 @@ import {
   type ListItemValue,
 } from './blockEditors'
 import type { BuilderSection } from './builderSpec'
+import { ImageInput, ImageListInput } from './ImageInputs'
 
 type Translate = ReturnType<typeof useT>
 
@@ -232,7 +233,7 @@ function RichTextInput({ id, value, setValue, disabled, error, name, t }: CrudCu
   )
 }
 
-function toCrudField(field: EditorField, t: Translate): CrudField {
+function toCrudField(field: EditorField, t: Translate, pageId: string): CrudField {
   switch (field.kind) {
     case 'text':
     case 'textarea':
@@ -250,10 +251,28 @@ function toCrudField(field: EditorField, t: Translate): CrudField {
       return { id: field.id, type: 'custom', label: label(t, field.label), component: (props) => <ListInput {...props} field={field} t={t} /> }
     case 'richtext':
       return { id: field.id, type: 'custom', label: label(t, field.label), required: true, component: (props) => <RichTextInput {...props} name={label(t, field.label)} t={t} /> }
+    case 'image':
+      return {
+        id: field.id,
+        type: 'custom',
+        label: label(t, field.label),
+        required: field.required,
+        component: (props) => <ImageInput {...props} pageId={pageId} name={label(t, field.label)} />,
+      }
+    case 'images':
+      return {
+        id: field.id,
+        type: 'custom',
+        label: label(t, field.label),
+        required: true,
+        component: (props) => <ImageListInput {...props} field={field} pageId={pageId} label={(entry, params) => label(t, entry, params)} />,
+      }
   }
 }
 
 export type SectionInspectorProps = {
+  /** The page being edited: uploaded images are recorded on it (spec P3-Q2). */
+  pageId: string
   section: BuilderSection | null
   position: number
   open: boolean
@@ -267,10 +286,10 @@ export type SectionInspectorProps = {
  * section id (a fresh mount per section, so edits never leak between them).
  * Apply writes into the in-memory draft only; Save draft persists it.
  */
-export function SectionInspector({ section, position, open, readOnly, onOpenChange, onApply }: SectionInspectorProps) {
+export function SectionInspector({ pageId, section, position, open, readOnly, onOpenChange, onApply }: SectionInspectorProps) {
   const t = useT()
   const editor = section ? BLOCK_EDITORS[section.type] : null
-  const fields = React.useMemo(() => (editor ? editor.fields.map((field) => toCrudField(field, t)) : []), [editor, t])
+  const fields = React.useMemo(() => (editor ? editor.fields.map((field) => toCrudField(field, t, pageId)) : []), [editor, t, pageId])
   const groups = React.useMemo<CrudFormGroup[]>(() => [{ id: 'section', fields: fields.map((field) => field.id) }], [fields])
   const initialValues = React.useMemo(() => (section ? blockPropsToFormValues(section.type, section.props) : {}), [section])
 
@@ -309,7 +328,7 @@ export function SectionInspector({ section, position, open, readOnly, onOpenChan
                       const editorField = editor.fields.find((candidate) => candidate.id === field)
                       if (!where || !editorField) return message
                       const parts: string[] = []
-                      if (editorField.kind === 'list' && where.index !== undefined) parts.push(label(t, editorField.itemLabel, { n: where.index + 1 }))
+                      if ((editorField.kind === 'list' || editorField.kind === 'images') && where.index !== undefined) parts.push(label(t, editorField.itemLabel, { n: where.index + 1 }))
                       const subFields = editorField.kind === 'list' ? editorField.item : editorField.kind === 'link' ? LINK_FIELDS : []
                       const sub = subFields.find((candidate) => candidate.id === where.subField)
                       if (sub) parts.push(label(t, sub.label))

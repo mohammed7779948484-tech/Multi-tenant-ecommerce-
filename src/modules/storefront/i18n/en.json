@@ -293,5 +293,107 @@
   "storefront.validation.unknownBlock": "This section type is not supported.",
   "storefront.validation.unknownField": "This field is not allowed.",
   "storefront.validation.unknownProp": "This setting is not supported for this section.",
-  "storefront.validation.unsafeHref": "Use an https:// link or a path that starts with /."
+  "storefront.validation.unsafeHref": "Use an https:// link or a path that starts with /.",
+  "storefront": {
+    "public": {
+      "contact": {
+        "address": "Address",
+        "phone": "Phone",
+        "email": "Email",
+        "hours": "Opening hours"
+      }
+    },
+    "builder": {
+      "fields": {
+        "heroImage": "Image beside the text (optional)",
+        "image": "Image",
+        "caption": "Caption",
+        "imageLink": "Link address (optional)",
+        "width": "Width",
+        "body": "Text",
+        "imagePosition": "Image position",
+        "images": "Images",
+        "imageN": "Image {n}",
+        "quotes": "Quotes",
+        "quoteN": "Quote {n}",
+        "quote": "Quote",
+        "author": "Name",
+        "role": "Role or city",
+        "questions": "Questions",
+        "questionN": "Question {n}",
+        "question": "Question",
+        "answer": "Answer",
+        "address": "Address",
+        "phone": "Phone",
+        "email": "Email",
+        "hours": "Opening hours",
+        "button": "Button",
+        "tone": "Style"
+      },
+      "blocks": {
+        "Image": "Image",
+        "ImageText": "Image with text",
+        "Gallery": "Gallery",
+        "Testimonials": "Testimonials",
+        "Faq": "Questions and answers",
+        "ContactInfo": "Contact details",
+        "CallToAction": "Call to action"
+      },
+      "width": {
+        "contained": "Page width",
+        "full": "Full width"
+      },
+      "position": {
+        "start": "Image first",
+        "end": "Text first"
+      },
+      "actions": {
+        "addImage": "Add image",
+        "addQuote": "Add quote",
+        "addQuestion": "Add question"
+      },
+      "tone": {
+        "surface": "Quiet",
+        "primary": "Brand colour"
+      },
+      "defaults": {
+        "imageTextHeading": "Made with care",
+        "quote": "Lovely service and quick delivery.",
+        "quoteAuthor": "A happy customer",
+        "faqHeading": "Questions and answers",
+        "faqQuestion": "How do I pay?",
+        "faqAnswer": "Pay cash on delivery or by bank transfer.",
+        "contactHeading": "Contact us",
+        "contactHours": "Monday to Friday, 9:00–17:00",
+        "ctaHeading": "Ready to order?",
+        "ctaLabel": "Contact us"
+      },
+      "image": {
+        "uploadFailed": "The image could not be uploaded. Try another file.",
+        "uploading": "Uploading…",
+        "alt": "Describe the image (alt text)",
+        "hint": "PNG or JPEG, at least 200×200 px, up to 8 MB.",
+        "listHint": "PNG or JPEG, at least 200×200 px, up to 8 MB. {count} of {max} added."
+      },
+      "blockDescriptions": {
+        "Hero": "Large introductory banner with a heading, optional subheading, one call-to-action link and an optional image beside the text.",
+        "Image": "One image with alt text, an optional caption and an optional link; page or full width.",
+        "ImageText": "An image next to a heading, a short text and an optional call-to-action link.",
+        "Gallery": "A grid of 2 to 12 images, each with alt text, under an optional heading.",
+        "Testimonials": "Up to six customer quotes, each with a name and an optional role.",
+        "Faq": "Up to twelve questions with answers that open and close.",
+        "ContactInfo": "How to reach the store: address, phone, email and opening hours.",
+        "CallToAction": "A short banner with a heading, an optional sentence and one button."
+      }
+    },
+    "validation": {
+      "galleryTooFew": "Add at least two images.",
+      "referenceNotFound": "This item is not available to this store. Choose or upload another one.",
+      "imageRequired": "Add an image.",
+      "listTooLong": "This section has too many items.",
+      "phoneInvalid": "Use digits, spaces, +, ( ) or - (5–40 characters).",
+      "emailInvalid": "Enter a valid email address.",
+      "contactEmpty": "Fill in at least one way to reach the store."
+    }
+  }
 }

@@ -21,7 +21,8 @@ import {
 } from '../data/validators'
 import { emitStorefrontEvent, type StorefrontEventId } from '../events'
 import { buildStarterPageSpec } from '../lib/blocks/starterPage'
-import { validatePageSpec, type PageSpecIssue } from '../lib/blocks/pageSpec'
+import { validatePageSpec, type PageSpecIssue, type ValidatedSection } from '../lib/blocks/pageSpec'
+import { checkSectionReferences } from '../lib/blocks/references'
 import {
   conflictError,
   ensureCommandScope,
@@ -112,6 +113,17 @@ async function specIssuesError(issues: PageSpecIssue[], summaryKey = 'storefront
   }))
   const error = translate(summaryKey, 'The page has problems to fix before it can be saved.')
   return new CrudHttpError(422, { error, fieldErrors: { draftSpec: translated[0]?.message ?? error }, issues: translated })
+}
+
+/** Section references (images, later products and categories) must belong to this store; 422 with paths otherwise. */
+async function assertSectionReferences(
+  ctx: CommandRuntimeContext,
+  scope: Scope,
+  sections: ValidatedSection[],
+  summaryKey?: string,
+): Promise<void> {
+  const issues = await checkSectionReferences(forkEm(ctx), scope, sections)
+  if (issues.length) throw await specIssuesError(issues, summaryKey)
 }
 
 async function slugError(issue: 'slugInvalid' | 'slugReserved' | 'slugTaken' | 'slugFrozen'): Promise<CrudHttpError> {
@@ -309,6 +321,7 @@ const updatePageCommand: CommandHandler<Record<string, unknown>, PageSnapshot> =
     if (input.draftSpec !== undefined) {
       const validation = validatePageSpec(input.draftSpec)
       if (!validation.ok) throw await specIssuesError(validation.issues)
+      await assertSectionReferences(ctx, scope, validation.sections)
       draftSpec = validation.spec as unknown as Record<string, unknown>
     }
     if (input.slug !== undefined) {
@@ -571,6 +584,7 @@ const publishPageCommand: CommandHandler<Record<string, unknown>, PublishResult>
           if (!source) throw await unprocessable('storefront.errors.nothingToPublish', 'There are no saved changes to publish.')
           const validation = validatePageSpec(source)
           if (!validation.ok) throw await specIssuesError(validation.issues)
+          await assertSectionReferences(ctx, scope, validation.sections)
           const spec = validation.spec as unknown as Record<string, unknown>
           const revisionNo = await nextRevisionNo(em, page.id)
           revision = em.create(StorefrontPageRevision, {
@@ -655,6 +669,7 @@ const rollbackPageCommand: CommandHandler<Record<string, unknown>, PublishResult
           }
           const validation = validatePageSpec(target.spec)
           if (!validation.ok) throw await specIssuesError(validation.issues, 'storefront.errors.revisionInvalid')
+          await assertSectionReferences(ctx, scope, validation.sections, 'storefront.errors.revisionInvalid')
           revision = em.create(StorefrontPageRevision, {
             id: randomUUID(),
             tenantId: page.tenantId,

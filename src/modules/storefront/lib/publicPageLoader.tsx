@@ -5,6 +5,7 @@ import type { EntityManager } from '@mikro-orm/postgresql'
 import { createRequestContainer } from '@open-mercato/shared/lib/di/container'
 import { resolveTranslations } from '@open-mercato/shared/lib/i18n/server'
 import { createLogger } from '@open-mercato/shared/lib/logger'
+import { resolveSectionLabels } from '../components/public/blocks'
 import { StorefrontUnavailable, StorefrontView, type StorefrontViewProps } from '../components/public/StorefrontView'
 import { validatePageSpec } from './blocks/pageSpec'
 import { pagePublicPath } from './pages'
@@ -80,6 +81,7 @@ export const loadStorefrontPage = cache(async (rawSiteSlug: string, rawPageSlug:
     kind: 'ok',
     view: {
       siteId: site.id,
+      siteSlug: site.slug,
       storeName: site.name,
       basePath: `/${site.slug}`,
       logoSrc: logoPath,
@@ -99,6 +101,7 @@ export const loadStorefrontPage = cache(async (rawSiteSlug: string, rawPageSlug:
         signIn: translate('storefront.public.signIn', 'Sign in'),
         home: translate('storefront.public.home', '{store} home', { store: site.name }),
       },
+      sectionLabels: resolveSectionLabels(translate),
     },
   }
 })

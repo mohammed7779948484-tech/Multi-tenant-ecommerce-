@@ -978,8 +978,8 @@ Source doc: .ai/specs/2026-10-22-storefront-builder.md
 |---|---|---|---|---|---|
 | Phase 1 — Brand foundation and published home page | done | none | AC-001…AC-005 | `yarn generate && yarn typecheck && yarn test` + two-tenant checks | two fresh tenants, wizard, public page, isolation |
 | Phase 2 — Page authoring | done | Phase 1 (verified) | AC-004 (save/publish), AC-005, AC-006, AC-007, AC-010 | `yarn generate && yarn typecheck && yarn test` + `TC-STOREFRONT-002` + two-tenant checks | builder round trip; drafts never public; no json-render on public routes; isolation; AC-010 rules; UI states |
-| Phase 3a — Media and content sections | pending | Phase 2 (verified; corrected 2026-10-23) | AC-008 | `yarn typecheck && yarn jest src/modules/storefront` + `TC-STOREFRONT-005` (media/content) | Phase 3a exit gate |
-| Phase 3b — Commerce sections and public catalog | pending | Phase 3a | AC-012 | + `TC-STOREFRONT-005` (commerce) + two-tenant check | Phase 3b exit gate |
+| Phase 3a — Media and content sections | verified (2026-10-24) | Phase 2 (verified; corrected 2026-10-23) | AC-008 | `yarn typecheck && yarn jest src/modules/storefront` + `TC-STOREFRONT-005` (media/content) | Phase 3a exit gate |
+| Phase 3b — Commerce sections and public catalog | in_progress | Phase 3a | AC-012 | + `TC-STOREFRONT-005` (commerce) + two-tenant check | Phase 3b exit gate |
 | Phase 3c — Store templates | pending | Phase 3b | AC-011 | + `TC-STOREFRONT-006` | Phase 3c exit gate |
 | Phase 4 — SEO and indexability | pending | Phase 2 | AC-009 | — | — |
 
@@ -1029,6 +1029,15 @@ Source doc: .ai/specs/2026-10-22-storefront-builder.md
 - **Scope:** Phase 3; AC-008, AC-011; module `storefront`; call sites: page commands, `/api/storefront/{preview-data,templates}`, the media route, `/{siteSlug}/{products,collections}/…`, the builder and the pages list.
 - **Non-goals:** AI generation (follow-up spec), cart/checkout, SEO additions (Phase 4), navigation menus.
 - **Risks:** catalog read shapes (prices, category tree); image resizing; preview data latency.
+
+- [x] 3a media and content sections:
+  - **Blocks and rendering:** `lib/blocks/{schemas,catalog}.ts` add Image, ImageText, Gallery, Testimonials, Faq, ContactInfo, CallToAction and the Hero image; `components/public/{blocks,registry,StorefrontView}.tsx` render them server-side; `lib/storefrontCss.ts`; `lib/mediaUrls.ts` (public and staff resolvers, `srcset` at fixed widths).
+  - **Builder:** `components/builder/{blockEditors.ts,ImageInputs.tsx,SectionInspector.tsx,BuilderPreview.tsx,PageBuilder.tsx}` add image and image-list fields, uploads recorded on the page, translated section labels and preview media.
+  - **References and media route:** `lib/blocks/references.ts` (image references limited to this store's page uploads, checked in `commands/pages.ts` on save, publish and rollback); `lib/publicMedia.ts` and `api/media/[siteSlug]/[attachmentId]/route.ts` (logo or published page image, decided before the cache or storage read; magic bytes, `limitInputPixels`, `?w=` resizing with `sharp`, never upscaled, GIFs as uploaded).
+  - **Dependency and i18n:** `sharp@0.35.5`; 74 i18n keys × 5 locales.
+  - **Tests:** TEST-020 `lib/blocks/__tests__/sections.test.ts`; `jsonRenderAssumptions.test.ts`; TEST-015 extended (`adapter.test.tsx`); TEST-017 extended (references on save, publish and rollback; fails with the check disabled); TEST-013a `TC-STOREFRONT-005` (all eight sections render publicly, the resized image is 640 px and smaller, never upscaled, 404 for draft-only, unreferenced and other-entity images and an unsupported width, 422 on save and rollback).
+  - **Commands:** `yarn jest src/modules/storefront src/modules/payment_policy` passed (139); `npx playwright test src/modules/storefront/__integration__` passed (15, including TC-004: no json-render on public pages); `yarn typecheck`, `yarn lint`, `yarn ds:check`, `yarn generate`, `yarn build` passed.
+  - **Browser check:** builder in light and dark themes, picker → inspector upload → alt text → apply → preview.
 
 ## Changelog
 

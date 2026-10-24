@@ -19788,7 +19788,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"sharp@npm:^0.35.3, sharp@npm:^0.35.4":
+"sharp@npm:0.35.5, sharp@npm:^0.35.3, sharp@npm:^0.35.4":
   version: 0.35.5
   resolution: "sharp@npm:0.35.5"
   dependencies:
@@ -20651,6 +20651,7 @@ __metadata:
     resend: "npm:^6.24.0"
     sanitize-html: "npm:^2.17.5"
     semver: "npm:^7.8.5"
+    sharp: "npm:0.35.5"
     svix: "npm:^1.96.1"
     tailwind-merge: "npm:^3.6.0"
     tailwindcss: "npm:^4.3.2"
