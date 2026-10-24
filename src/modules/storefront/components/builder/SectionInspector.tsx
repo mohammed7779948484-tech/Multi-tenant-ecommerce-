@@ -21,6 +21,7 @@ import {
   type ListItemValue,
 } from './blockEditors'
 import type { BuilderSection } from './builderSpec'
+import { CategoriesInput, ProductSourceInput } from './CatalogPickers'
 import { ImageInput, ImageListInput } from './ImageInputs'
 
 type Translate = ReturnType<typeof useT>
@@ -267,6 +268,14 @@ function toCrudField(field: EditorField, t: Translate, pageId: string): CrudFiel
         required: true,
         component: (props) => <ImageListInput {...props} field={field} pageId={pageId} label={(entry, params) => label(t, entry, params)} />,
       }
+    case 'productSource':
+      return { id: field.id, type: 'custom', label: label(t, field.label), required: true, component: (props) => <ProductSourceInput {...props} /> }
+    case 'categories':
+      return { id: field.id, type: 'custom', label: label(t, field.label), required: true, component: (props) => <CategoriesInput {...props} /> }
+    case 'number':
+      return { id: field.id, type: 'number', label: label(t, field.label) }
+    case 'checkbox':
+      return { id: field.id, type: 'checkbox', label: label(t, field.label) }
   }
 }
 

@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
+import type { ComponentType } from 'react'
 import Link from 'next/link'
 import { findRouteManifestMatch, getFrontendRouteManifests, registerFrontendRouteManifests } from '@open-mercato/shared/modules/registry'
 import { frontendRoutes } from '@/.mercato/generated/frontend-routes.generated'
@@ -18,7 +19,8 @@ import { frontendMiddlewareEntries } from '@/.mercato/generated/frontend-middlew
 
 registerFrontendRouteManifests(frontendRoutes)
 
-type FrontendParams = { params: Promise<{ slug: string[] }> }
+type SearchParams = Record<string, string | string[] | undefined>
+type FrontendParams = { params: Promise<{ slug: string[] }>; searchParams?: Promise<SearchParams> }
 
 async function ensureServerBootstrap() {
   const { bootstrap } = await import('@/bootstrap')
@@ -40,7 +42,7 @@ async function renderAccessDenied() {
   )
 }
 
-export async function generateMetadata({ params }: FrontendParams): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: FrontendParams): Promise<Metadata> {
   const p = await params
   const pathname = '/' + (p.slug?.join('/') ?? '')
   const match = findRouteManifestMatch(getFrontendRouteManifests(), pathname)
@@ -54,10 +56,10 @@ export async function generateMetadata({ params }: FrontendParams): Promise<Meta
   // before the auth gates in the page below.
   if (!match.route.requireAuth && !match.route.requireCustomerAuth) {
     const Component = (await match.route.load()) as {
-      generateMetadata?: (input: { params: Record<string, string | string[]> }) => Promise<Metadata>
+      generateMetadata?: (input: { params: Record<string, string | string[]>; searchParams: SearchParams }) => Promise<Metadata>
     }
     if (typeof Component.generateMetadata === 'function') {
-      return Component.generateMetadata({ params: match.params })
+      return Component.generateMetadata({ params: match.params, searchParams: (await searchParams) ?? {} })
     }
   }
 
@@ -67,7 +69,7 @@ export async function generateMetadata({ params }: FrontendParams): Promise<Meta
   })
 }
 
-export default async function SiteCatchAll({ params }: FrontendParams) {
+export default async function SiteCatchAll({ params, searchParams }: FrontendParams) {
   const p = await params
   const pathname = '/' + (p.slug?.join('/') ?? '')
   const match = findRouteManifestMatch(getFrontendRouteManifests(), pathname)
@@ -152,5 +154,11 @@ export default async function SiteCatchAll({ params }: FrontendParams) {
   })
   if (middlewareRedirect) redirect(middlewareRedirect)
   const Component = await match.route.load()
+  // Suqna divergence (docs/UPSTREAM_DIVERGENCES.md section 6): public pages also
+  // receive the query string (the storefront collection page reads `?page=`).
+  if (!match.route.requireAuth) {
+    const PublicComponent = Component as ComponentType<{ params: Record<string, string | string[]>; searchParams: SearchParams }>
+    return <PublicComponent params={match.params} searchParams={(await searchParams) ?? {}} />
+  }
   return <Component params={match.params} />
 }

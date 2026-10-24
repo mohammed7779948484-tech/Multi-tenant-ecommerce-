@@ -10,11 +10,14 @@ import type {
   ImageProps,
   ImageRef,
   ImageTextProps,
+  ProductGridProps,
+  CollectionListProps,
   RichTextInline,
   RichTextProps,
   TestimonialsProps,
 } from '../../lib/blocks/schemas'
 import type { MediaResolver } from '../../lib/mediaUrls'
+import type { CategoryCard, ProductCard, SectionData } from '../../lib/sectionDataTypes'
 
 /**
  * SSR-safe block components for public storefront pages. They receive props
@@ -31,6 +34,8 @@ export type BlockRenderContext = {
   media: MediaResolver
   /** Fixed words sections print (translated by the caller); merchant text never comes from here. */
   labels: SectionLabels
+  /** Store data a commerce section shows (products, categories), resolved on the server or for the preview. */
+  data?: SectionData
 }
 
 export type SectionLabels = {
@@ -38,6 +43,8 @@ export type SectionLabels = {
   contactPhone: string
   contactEmail: string
   contactHours: string
+  productsEmpty: string
+  categoriesEmpty: string
 }
 
 /** Translation keys and English fallbacks of `SectionLabels`, resolved by the public page and the builder. */
@@ -46,6 +53,8 @@ export const SECTION_LABEL_KEYS: Record<keyof SectionLabels, readonly [string, s
   contactPhone: ['storefront.public.contact.phone', 'Phone'],
   contactEmail: ['storefront.public.contact.email', 'Email'],
   contactHours: ['storefront.public.contact.hours', 'Opening hours'],
+  productsEmpty: ['storefront.public.productsEmpty', 'New products are on their way.'],
+  categoriesEmpty: ['storefront.public.categoriesEmpty', 'Collections are on their way.'],
 }
 
 export function resolveSectionLabels(translate: (key: string, fallback: string) => string): SectionLabels {
@@ -397,5 +406,80 @@ export function FooterBlock({ props, context }: { props: FooterProps; context: B
         ) : null}
       </div>
     </footer>
+  )
+}
+
+export function ProductCardItem({ product, media, showPrice }: { product: ProductCard; media: MediaResolver; showPrice: boolean }) {
+  return (
+    <li className="sf-product">
+      <a href={product.href} className="sf-product-link">
+        {product.image ? (
+          <StoreImage image={product.image} media={media} sizes="(min-width: 48rem) 25vw, 50vw" className="sf-product-image" />
+        ) : (
+          <span className="sf-product-image sf-placeholder" aria-hidden="true" />
+        )}
+        <span className="sf-product-title">{product.title}</span>
+      </a>
+      {product.subtitle ? <span className="sf-product-subtitle">{product.subtitle}</span> : null}
+      {showPrice && product.price ? <span className="sf-price">{product.price}</span> : null}
+    </li>
+  )
+}
+
+export function ProductGridBlock({ props, context }: { props: ProductGridProps; context: BlockRenderContext }) {
+  const Heading = context.isFirst ? 'h1' : 'h2'
+  const products = context.data?.products ?? []
+  return (
+    <section className="sf-section">
+      <div className="sf-container">
+        {props.heading ? <Heading className="sf-section-title">{props.heading}</Heading> : null}
+        {products.length ? (
+          <ul className="sf-products" role="list">
+            {products.map((product) => (
+              <ProductCardItem key={product.id} product={product} media={context.media} showPrice={props.showPrice} />
+            ))}
+          </ul>
+        ) : (
+          <p className="sf-empty">{context.labels.productsEmpty}</p>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function CategoryCardItem({ category, media }: { category: CategoryCard; media: MediaResolver }) {
+  return (
+    <li className="sf-card sf-collection">
+      <a href={category.href} className="sf-product-link">
+        {category.image ? (
+          <StoreImage image={category.image} media={media} sizes="(min-width: 48rem) 33vw, 100vw" className="sf-product-image" />
+        ) : (
+          <span className="sf-product-image sf-placeholder" aria-hidden="true" />
+        )}
+        <span className="sf-product-title">{category.name}</span>
+      </a>
+      {category.description ? <p className="sf-product-subtitle">{category.description}</p> : null}
+    </li>
+  )
+}
+
+export function CollectionListBlock({ props, context }: { props: CollectionListProps; context: BlockRenderContext }) {
+  const Heading = context.isFirst ? 'h1' : 'h2'
+  const categories = context.data?.categories ?? []
+  return (
+    <section className="sf-section">
+      <div className="sf-container">
+        {props.heading ? <Heading className="sf-section-title">{props.heading}</Heading> : null}
+        {categories.length ? (
+          <ul className="sf-cards" role="list">
+            {categories.map((category) => (
+              <CategoryCardItem key={category.id} category={category} media={context.media} />
+            ))}
+          </ul>
+        ) : (
+          <p className="sf-empty">{context.labels.categoriesEmpty}</p>
+        )}
+      </div>
+    </section>
   )
 }

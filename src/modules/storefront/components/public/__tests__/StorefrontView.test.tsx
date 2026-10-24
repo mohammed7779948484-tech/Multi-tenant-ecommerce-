@@ -34,7 +34,14 @@ function render(storeName: string) {
       }}
       signInHref="/acme-org/portal/login"
       labels={{ signIn: 'Sign in', home: 'Home' }}
-      sectionLabels={{ contactAddress: 'Address', contactPhone: 'Phone', contactEmail: 'Email', contactHours: 'Opening hours' }}
+      sectionLabels={{
+        contactAddress: 'Address',
+        contactPhone: 'Phone',
+        contactEmail: 'Email',
+        contactHours: 'Opening hours',
+        productsEmpty: 'Products soon',
+        categoriesEmpty: 'Collections soon',
+      }}
     />,
   )
 }

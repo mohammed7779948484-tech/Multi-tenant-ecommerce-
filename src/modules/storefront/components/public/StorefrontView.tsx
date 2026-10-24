@@ -5,6 +5,7 @@ import { STOREFRONT_STRUCTURAL_CSS } from '../../lib/storefrontCss'
 import { serializeJsonLd } from '../../lib/structuredData'
 import { publicMediaResolver } from '../../lib/mediaUrls'
 import type { SectionLabels } from './blocks'
+import type { SectionData } from '../../lib/sectionDataTypes'
 import { renderSection } from './registry'
 
 export type StorefrontHeadData = {
@@ -29,6 +30,8 @@ export type StorefrontViewProps = {
   signInHref: string | null
   labels: { signIn: string; home: string }
   sectionLabels: SectionLabels
+  /** Store data for commerce sections, keyed by section id. */
+  sectionData?: Record<string, SectionData>
 }
 
 /**
@@ -94,7 +97,13 @@ export function StorefrontView(props: StorefrontViewProps) {
       <StorefrontJsonLd data={props.head.jsonLd} />
       <StorefrontFrame {...props}>
         {props.sections.map((section, index) =>
-          renderSection(section, { basePath: props.basePath, isFirst: index === 0, media, labels: props.sectionLabels }),
+          renderSection(section, {
+            basePath: props.basePath,
+            isFirst: index === 0,
+            media,
+            labels: props.sectionLabels,
+            data: props.sectionData?.[section.id],
+          }),
         )}
       </StorefrontFrame>
     </>

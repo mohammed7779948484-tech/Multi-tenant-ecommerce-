@@ -301,7 +301,13 @@
         "phone": "전화",
         "email": "이메일",
         "hours": "영업시간"
-      }
+      },
+      "productsEmpty": "새 상품이 곧 준비됩니다.",
+      "categoriesEmpty": "컬렉션이 곧 준비됩니다.",
+      "backTo": "{name}(으)로 돌아가기",
+      "pagination": "페이지",
+      "previous": "이전",
+      "next": "다음"
     },
     "builder": {
       "fields": {
@@ -328,7 +334,11 @@
         "email": "이메일",
         "hours": "영업시간",
         "button": "버튼",
-        "tone": "스타일"
+        "tone": "스타일",
+        "productSource": "표시할 상품",
+        "limit": "표시 개수 (1–12)",
+        "showPrice": "가격 표시",
+        "categories": "카테고리"
       },
       "blocks": {
         "Image": "이미지",
@@ -337,7 +347,9 @@
         "Testimonials": "고객 후기",
         "Faq": "자주 묻는 질문",
         "ContactInfo": "연락처 정보",
-        "CallToAction": "행동 유도"
+        "CallToAction": "행동 유도",
+        "ProductGrid": "상품",
+        "CollectionList": "컬렉션"
       },
       "width": {
         "contained": "페이지 너비",
@@ -366,7 +378,9 @@
         "contactHeading": "문의하기",
         "contactHours": "월요일~금요일, 9:00–17:00",
         "ctaHeading": "주문할 준비가 되셨나요?",
-        "ctaLabel": "문의하기"
+        "ctaLabel": "문의하기",
+        "productsHeading": "우리 상품",
+        "collectionsHeading": "카테고리별 쇼핑"
       },
       "image": {
         "uploadFailed": "이미지를 업로드하지 못했습니다. 다른 파일을 사용해 보세요.",
@@ -384,6 +398,26 @@
         "Faq": "펼치고 접을 수 있는 답변이 있는 질문을 최대 12개 표시합니다.",
         "ContactInfo": "스토어 연락 방법: 주소, 전화, 이메일, 영업시간.",
         "CallToAction": "제목, 선택적 문장, 버튼 하나로 된 짧은 배너입니다."
+      },
+      "catalog": {
+        "forbidden": "상품과 카테고리를 선택하려면 카탈로그 접근 권한이 필요합니다.",
+        "loadFailed": "카탈로그를 불러오지 못했습니다. 다시 시도하세요.",
+        "searchCategories": "카테고리 검색…",
+        "searchProducts": "상품 검색…",
+        "noCategories": "카테고리가 없습니다. 먼저 카탈로그에 카테고리를 추가하세요."
+      },
+      "productSource": {
+        "category": "카테고리에서",
+        "products": "상품 선택",
+        "categoryHint": "이 카테고리와 하위 카테고리의 활성 상품이 카탈로그 순서대로 표시됩니다.",
+        "productsHint": "최대 {max}개 상품이 이 순서로 표시됩니다. 비활성 상품은 건너뜁니다."
+      },
+      "collections": {
+        "hint": "최대 {max}개 카테고리가 이 순서로 표시됩니다. 비활성 카테고리는 건너뜁니다."
+      },
+      "preview": {
+        "catalogForbidden": "상품은 공개 상점의 이 위치에 표시됩니다. 미리 보려면 카탈로그 접근 권한이 필요합니다.",
+        "catalogFailed": "미리보기용 상품을 불러오지 못했습니다. 초안은 안전합니다."
       }
     },
     "validation": {
@@ -393,7 +427,15 @@
       "listTooLong": "이 섹션의 항목이 너무 많습니다.",
       "phoneInvalid": "숫자, 공백, +, ( ), - 만 사용하세요(5–40자).",
       "emailInvalid": "올바른 이메일 주소를 입력하세요.",
-      "contactEmpty": "스토어 연락 방법을 하나 이상 입력하세요."
+      "contactEmpty": "스토어 연락 방법을 하나 이상 입력하세요.",
+      "numberRange": "1에서 12 사이의 정수를 입력하세요.",
+      "categoryRequired": "카테고리를 선택하세요.",
+      "productsRequired": "상품을 하나 이상 선택하세요.",
+      "categoriesRequired": "카테고리를 하나 이상 선택하세요.",
+      "duplicateItems": "각 항목은 한 번만 선택할 수 있습니다."
+    },
+    "errors": {
+      "previewDataInvalid": "섹션은 최대 {max}개까지, 각각 id, 유형, 속성을 포함해 보내세요."
     }
   }
 }

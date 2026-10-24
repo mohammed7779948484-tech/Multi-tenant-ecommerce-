@@ -301,7 +301,13 @@
         "phone": "Telefon",
         "email": "E-mail",
         "hours": "Godziny otwarcia"
-      }
+      },
+      "productsEmpty": "Nowe produkty są w drodze.",
+      "categoriesEmpty": "Kolekcje są w drodze.",
+      "backTo": "Wróć do: {name}",
+      "pagination": "Strony",
+      "previous": "Poprzednia",
+      "next": "Następna"
     },
     "builder": {
       "fields": {
@@ -328,7 +334,11 @@
         "email": "E-mail",
         "hours": "Godziny otwarcia",
         "button": "Przycisk",
-        "tone": "Styl"
+        "tone": "Styl",
+        "productSource": "Wyświetlane produkty",
+        "limit": "Ile pokazać (1–12)",
+        "showPrice": "Pokaż ceny",
+        "categories": "Kategorie"
       },
       "blocks": {
         "Image": "Obraz",
@@ -337,7 +347,9 @@
         "Testimonials": "Opinie klientów",
         "Faq": "Pytania i odpowiedzi",
         "ContactInfo": "Dane kontaktowe",
-        "CallToAction": "Wezwanie do działania"
+        "CallToAction": "Wezwanie do działania",
+        "ProductGrid": "Produkty",
+        "CollectionList": "Kolekcje"
       },
       "width": {
         "contained": "Szerokość strony",
@@ -366,7 +378,9 @@
         "contactHeading": "Kontakt",
         "contactHours": "Od poniedziałku do piątku, 9:00–17:00",
         "ctaHeading": "Gotowy na zamówienie?",
-        "ctaLabel": "Skontaktuj się"
+        "ctaLabel": "Skontaktuj się",
+        "productsHeading": "Nasze produkty",
+        "collectionsHeading": "Kupuj według kategorii"
       },
       "image": {
         "uploadFailed": "Nie udało się przesłać obrazu. Spróbuj innego pliku.",
@@ -384,6 +398,26 @@
         "Faq": "Do dwunastu pytań z rozwijanymi odpowiedziami.",
         "ContactInfo": "Jak skontaktować się ze sklepem: adres, telefon, e-mail i godziny otwarcia.",
         "CallToAction": "Krótki baner z nagłówkiem, opcjonalnym zdaniem i jednym przyciskiem."
+      },
+      "catalog": {
+        "forbidden": "Aby wybrać produkty i kategorie, potrzebujesz dostępu do katalogu.",
+        "loadFailed": "Nie udało się wczytać katalogu. Spróbuj ponownie.",
+        "searchCategories": "Szukaj kategorii…",
+        "searchProducts": "Szukaj produktów…",
+        "noCategories": "Nie znaleziono kategorii. Najpierw dodaj kategorie w katalogu."
+      },
+      "productSource": {
+        "category": "Z kategorii",
+        "products": "Wybierz produkty",
+        "categoryHint": "Wyświetlane są aktywne produkty z tej kategorii i jej podkategorii, w kolejności z katalogu.",
+        "productsHint": "Do {max} produktów, w tej kolejności. Nieaktywne produkty są pomijane."
+      },
+      "collections": {
+        "hint": "Do {max} kategorii, w tej kolejności. Nieaktywne kategorie są pomijane."
+      },
+      "preview": {
+        "catalogForbidden": "Produkty pojawią się tu w opublikowanym sklepie. Aby zobaczyć je w podglądzie, potrzebujesz dostępu do katalogu.",
+        "catalogFailed": "Nie udało się wczytać produktów do podglądu. Twój szkic jest bezpieczny."
       }
     },
     "validation": {
@@ -393,7 +427,15 @@
       "listTooLong": "Ta sekcja ma za dużo elementów.",
       "phoneInvalid": "Użyj cyfr, spacji, +, ( ) lub - (5–40 znaków).",
       "emailInvalid": "Podaj poprawny adres e-mail.",
-      "contactEmpty": "Podaj co najmniej jeden sposób kontaktu ze sklepem."
+      "contactEmpty": "Podaj co najmniej jeden sposób kontaktu ze sklepem.",
+      "numberRange": "Wpisz liczbę całkowitą od 1 do 12.",
+      "categoryRequired": "Wybierz kategorię.",
+      "productsRequired": "Wybierz co najmniej jeden produkt.",
+      "categoriesRequired": "Wybierz co najmniej jedną kategorię.",
+      "duplicateItems": "Każdy element można wybrać tylko raz."
+    },
+    "errors": {
+      "previewDataInvalid": "Wyślij do {max} sekcji, każdą z identyfikatorem, typem i właściwościami."
     }
   }
 }

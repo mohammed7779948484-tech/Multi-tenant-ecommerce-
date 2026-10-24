@@ -76,11 +76,14 @@ Mercato (`yarn up '@open-mercato/*'`, `yarn mercato agentic:init --update-harnes
 - **What:** in the catch-all's `generateMetadata`, a matched route that requires neither staff
   nor customer auth may supply its own metadata: when the loaded page component has a static
   `generateMetadata({ params })`, its result is returned instead of the route's static title.
-  Every other route behaves exactly as before. About 15 lines, marked with a comment.
+  Every other route behaves exactly as before. Public routes (no `requireAuth`) also receive the
+  query string as a `searchParams` prop and in their `generateMetadata` input; the storefront
+  collection page reads `?page=` from it. About 25 lines, marked with comments.
 - **Why:** the template only emits `page.meta.ts` titles, so a public page cannot set a
   per-record `<title>`, description, canonical URL or Open Graph tags. Rendering those tags from
   the page body would duplicate the root layout's default title and description. The storefront
-  page (`src/modules/storefront/frontend/[siteSlug]/page.tsx`) is the only user today.
+  pages (`src/modules/storefront/frontend/[siteSlug]/**/page.tsx`: home, page, product,
+  collection) are the only users today. The template's catch-all passes no query string at all.
 - **Safety:** the hook is skipped for any route with `requireAuth` or `requireCustomerAuth`,
   because `generateMetadata` runs before the auth gates in the page function.
 - **On upgrade, review:** if the template's catch-all gains its own metadata hook, switch the

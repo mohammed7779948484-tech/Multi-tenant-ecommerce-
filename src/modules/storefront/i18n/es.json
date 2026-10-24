@@ -301,7 +301,13 @@
         "phone": "Teléfono",
         "email": "Correo electrónico",
         "hours": "Horario"
-      }
+      },
+      "productsEmpty": "Pronto habrá nuevos productos.",
+      "categoriesEmpty": "Pronto habrá colecciones.",
+      "backTo": "Volver a {name}",
+      "pagination": "Páginas",
+      "previous": "Anterior",
+      "next": "Siguiente"
     },
     "builder": {
       "fields": {
@@ -328,7 +334,11 @@
         "email": "Correo electrónico",
         "hours": "Horario",
         "button": "Botón",
-        "tone": "Estilo"
+        "tone": "Estilo",
+        "productSource": "Productos que se muestran",
+        "limit": "Cuántos mostrar (1–12)",
+        "showPrice": "Mostrar precios",
+        "categories": "Categorías"
       },
       "blocks": {
         "Image": "Imagen",
@@ -337,7 +347,9 @@
         "Testimonials": "Opiniones",
         "Faq": "Preguntas y respuestas",
         "ContactInfo": "Datos de contacto",
-        "CallToAction": "Llamada a la acción"
+        "CallToAction": "Llamada a la acción",
+        "ProductGrid": "Productos",
+        "CollectionList": "Colecciones"
       },
       "width": {
         "contained": "Ancho de página",
@@ -366,7 +378,9 @@
         "contactHeading": "Contacto",
         "contactHours": "De lunes a viernes, 9:00–17:00",
         "ctaHeading": "¿Listo para pedir?",
-        "ctaLabel": "Contáctanos"
+        "ctaLabel": "Contáctanos",
+        "productsHeading": "Nuestros productos",
+        "collectionsHeading": "Comprar por categoría"
       },
       "image": {
         "uploadFailed": "No se pudo subir la imagen. Prueba con otro archivo.",
@@ -384,6 +398,26 @@
         "Faq": "Hasta doce preguntas con respuestas desplegables.",
         "ContactInfo": "Cómo contactar con la tienda: dirección, teléfono, correo y horario.",
         "CallToAction": "Un banner breve con título, una frase opcional y un botón."
+      },
+      "catalog": {
+        "forbidden": "Necesitas acceso al catálogo para elegir productos y categorías.",
+        "loadFailed": "No se pudo cargar el catálogo. Inténtalo de nuevo.",
+        "searchCategories": "Buscar categorías…",
+        "searchProducts": "Buscar productos…",
+        "noCategories": "No se encontraron categorías. Primero añade categorías en el catálogo."
+      },
+      "productSource": {
+        "category": "De una categoría",
+        "products": "Elegir productos",
+        "categoryHint": "Se muestran los productos activos de esta categoría y sus subcategorías, en el orden del catálogo.",
+        "productsHint": "Hasta {max} productos, en este orden. Los productos inactivos se omiten."
+      },
+      "collections": {
+        "hint": "Hasta {max} categorías, en este orden. Las categorías inactivas se omiten."
+      },
+      "preview": {
+        "catalogForbidden": "Los productos aparecen aquí en la tienda publicada. Necesitas acceso al catálogo para verlos en la vista previa.",
+        "catalogFailed": "No se pudieron cargar los productos para la vista previa. Tu borrador está a salvo."
       }
     },
     "validation": {
@@ -393,7 +427,15 @@
       "listTooLong": "Esta sección tiene demasiados elementos.",
       "phoneInvalid": "Usa dígitos, espacios, +, ( ) o - (5–40 caracteres).",
       "emailInvalid": "Introduce un correo electrónico válido.",
-      "contactEmpty": "Indica al menos una forma de contactar con la tienda."
+      "contactEmpty": "Indica al menos una forma de contactar con la tienda.",
+      "numberRange": "Introduce un número entero del 1 al 12.",
+      "categoryRequired": "Elige una categoría.",
+      "productsRequired": "Elige al menos un producto.",
+      "categoriesRequired": "Elige al menos una categoría.",
+      "duplicateItems": "Cada elemento solo puede elegirse una vez."
+    },
+    "errors": {
+      "previewDataInvalid": "Envía hasta {max} secciones, cada una con id, tipo y propiedades."
     }
   }
 }

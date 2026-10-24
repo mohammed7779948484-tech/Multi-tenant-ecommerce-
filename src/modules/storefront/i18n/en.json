@@ -301,7 +301,13 @@
         "phone": "Phone",
         "email": "Email",
         "hours": "Opening hours"
-      }
+      },
+      "productsEmpty": "New products are on their way.",
+      "categoriesEmpty": "Collections are on their way.",
+      "backTo": "Back to {name}",
+      "pagination": "Pages",
+      "previous": "Previous",
+      "next": "Next"
     },
     "builder": {
       "fields": {
@@ -328,7 +334,11 @@
         "email": "Email",
         "hours": "Opening hours",
         "button": "Button",
-        "tone": "Style"
+        "tone": "Style",
+        "productSource": "Products to show",
+        "limit": "How many to show (1–12)",
+        "showPrice": "Show prices",
+        "categories": "Categories"
       },
       "blocks": {
         "Image": "Image",
@@ -337,7 +347,9 @@
         "Testimonials": "Testimonials",
         "Faq": "Questions and answers",
         "ContactInfo": "Contact details",
-        "CallToAction": "Call to action"
+        "CallToAction": "Call to action",
+        "ProductGrid": "Products",
+        "CollectionList": "Collections"
       },
       "width": {
         "contained": "Page width",
@@ -366,7 +378,9 @@
         "contactHeading": "Contact us",
         "contactHours": "Monday to Friday, 9:00–17:00",
         "ctaHeading": "Ready to order?",
-        "ctaLabel": "Contact us"
+        "ctaLabel": "Contact us",
+        "productsHeading": "Our products",
+        "collectionsHeading": "Shop by category"
       },
       "image": {
         "uploadFailed": "The image could not be uploaded. Try another file.",
@@ -384,6 +398,26 @@
         "Faq": "Up to twelve questions with answers that open and close.",
         "ContactInfo": "How to reach the store: address, phone, email and opening hours.",
         "CallToAction": "A short banner with a heading, an optional sentence and one button."
+      },
+      "catalog": {
+        "forbidden": "You need access to the catalog to choose products and categories.",
+        "loadFailed": "The catalog could not be loaded. Try again.",
+        "searchCategories": "Search categories…",
+        "searchProducts": "Search products…",
+        "noCategories": "No categories found. Add categories in the catalog first."
+      },
+      "productSource": {
+        "category": "From a category",
+        "products": "Choose products",
+        "categoryHint": "Active products in this category and its sub-categories are shown, in catalog order.",
+        "productsHint": "Up to {max} products, shown in this order. Inactive products are skipped."
+      },
+      "collections": {
+        "hint": "Up to {max} categories, shown in this order. Inactive categories are skipped."
+      },
+      "preview": {
+        "catalogForbidden": "Products show here on the live store. You need access to the catalog to preview them.",
+        "catalogFailed": "Products could not be loaded for the preview. Your draft is safe."
       }
     },
     "validation": {
@@ -393,7 +427,15 @@
       "listTooLong": "This section has too many items.",
       "phoneInvalid": "Use digits, spaces, +, ( ) or - (5–40 characters).",
       "emailInvalid": "Enter a valid email address.",
-      "contactEmpty": "Fill in at least one way to reach the store."
+      "contactEmpty": "Fill in at least one way to reach the store.",
+      "numberRange": "Enter a whole number from 1 to 12.",
+      "categoryRequired": "Choose a category.",
+      "productsRequired": "Choose at least one product.",
+      "categoriesRequired": "Choose at least one category.",
+      "duplicateItems": "Each item can be chosen only once."
+    },
+    "errors": {
+      "previewDataInvalid": "Send up to {max} sections, each with an id, a type and props."
     }
   }
 }

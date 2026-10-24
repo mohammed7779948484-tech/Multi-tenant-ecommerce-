@@ -1,5 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql'
 import { Attachment } from '@open-mercato/core/modules/attachments/data/entities'
+import { CatalogProduct, CatalogProductCategory } from '@open-mercato/core/modules/catalog/data/entities'
 import { StorefrontPage } from '../../data/entities'
 import { isStorefrontImageMimeType } from '../media'
 import type { PageSpecIssue, ValidatedSection } from './pageSpec'
@@ -33,6 +34,18 @@ export function collectSectionReferences(sections: ValidatedSection[]): SpecRefe
         break
       case 'Gallery':
         section.props.images.forEach((entry, index) => image(section, entry.attachmentId, 'images', index))
+        break
+      case 'ProductGrid':
+        if (section.props.source.kind === 'category') {
+          references.push({ kind: 'category', id: section.props.source.categoryId, path: propsPath(section, 'source', 'categoryId') })
+        } else {
+          section.props.source.productIds.forEach((id, index) =>
+            references.push({ kind: 'product', id, path: propsPath(section, 'source', 'productIds', index) }),
+          )
+        }
+        break
+      case 'CollectionList':
+        section.props.categoryIds.forEach((id, index) => references.push({ kind: 'category', id, path: propsPath(section, 'categoryIds', index) }))
         break
       default:
         break
@@ -80,6 +93,20 @@ export async function checkSectionReferences(
         .map((attachment) => attachment.id),
     )
     for (const reference of imageRefs) if (!allowed.has(reference.id)) issues.push(unknownReference(reference.path))
+  }
+
+  // Products and categories: rows of this organization. Soft-deleted or inactive rows still pass
+  // (they are skipped when the page renders), so deleting a product never blocks a re-publish or rollback.
+  for (const [kind, entity] of [
+    ['product', CatalogProduct],
+    ['category', CatalogProductCategory],
+  ] as const) {
+    const refs = references.filter((reference) => reference.kind === kind)
+    if (!refs.length) continue
+    const ids = [...new Set(refs.map((reference) => reference.id))]
+    const rows = await em.find(entity as typeof CatalogProduct, { id: { $in: ids }, tenantId: scope.tenantId, organizationId: scope.organizationId }, { fields: ['id'] })
+    const found = new Set(rows.map((row) => row.id))
+    for (const reference of refs) if (!found.has(reference.id)) issues.push(unknownReference(reference.path))
   }
   return issues
 }

@@ -29,6 +29,7 @@ import { RevisionsDrawer, type RevisionItem } from './RevisionsDrawer'
 import { SectionInspector } from './SectionInspector'
 import { SectionPicker } from './SectionPicker'
 import { resolveSectionLabels } from '../public/blocks'
+import { usePreviewSectionData } from './usePreviewSectionData'
 
 type Translate = ReturnType<typeof useT>
 
@@ -168,6 +169,16 @@ export function PageBuilder({ pageId }: { pageId: string }) {
   }, [pageId, reloadKey, t])
 
   const spec = React.useMemo(() => draftToSpec(draft), [draft])
+  const previewData = usePreviewSectionData(draft.sections)
+  // Without catalog access (403) or when loading fails, commerce sections say why instead of looking empty.
+  const previewSectionLabels = React.useMemo(() => {
+    if (!previewData.problem) return sectionLabels
+    const message =
+      previewData.problem === 'forbidden'
+        ? t('storefront.builder.preview.catalogForbidden', 'Products show here on the live store. You need access to the catalog to preview them.')
+        : t('storefront.builder.preview.catalogFailed', 'Products could not be loaded for the preview. Your draft is safe.')
+    return { ...sectionLabels, productsEmpty: message, categoriesEmpty: message }
+  }, [previewData.problem, sectionLabels, t])
   const dirty = loadState === 'ready' && stableStringify(spec) !== savedSnapshot
   // Validator messages are translation keys; anything else (a raw schema default) gets the generic message.
   const clientIssues = React.useMemo(() => {
@@ -733,8 +744,9 @@ export function PageBuilder({ pageId }: { pageId: string }) {
                         home: t('storefront.public.home', '{store} home', { store: brand.name }),
                         signIn: t('storefront.public.signIn', 'Sign in'),
                         unavailable: t('storefront.builder.previewUnavailable', 'Preview unavailable for this section. Open it to fix the highlighted fields.'),
-                        sections: sectionLabels,
+                        sections: previewSectionLabels,
                       }}
+                      sectionData={previewData.data}
                     />
                   </React.Suspense>
                 </PreviewBoundary>

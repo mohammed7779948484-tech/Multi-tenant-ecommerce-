@@ -11,6 +11,8 @@ import type { SectionLabels } from '../public/blocks'
 import { NO_MEDIA, staffMediaResolver, type MediaResolver } from '../../lib/mediaUrls'
 import { builderCatalog } from './catalog'
 import { stableStringify } from './builderSpec'
+import type { SectionData } from '../../lib/sectionDataTypes'
+import { previewDataKey } from './usePreviewSectionData'
 
 /**
  * Live preview of the in-memory draft (spec P2-Q8): json-render renders the
@@ -19,9 +21,22 @@ import { stableStringify } from './builderSpec'
  * half-edited section shows a placeholder instead of breaking the preview.
  */
 
-type PreviewSettings = { basePath: string; unavailableLabel: string; media: MediaResolver; sectionLabels: SectionLabels | null }
+type PreviewSettings = {
+  basePath: string
+  unavailableLabel: string
+  media: MediaResolver
+  sectionLabels: SectionLabels | null
+  /** Commerce data from `/api/storefront/preview-data`, keyed by `previewDataKey`. */
+  sectionData: ReadonlyMap<string, SectionData>
+}
 
-const PreviewSettingsContext = React.createContext<PreviewSettings>({ basePath: '', unavailableLabel: '', media: NO_MEDIA, sectionLabels: null })
+const PreviewSettingsContext = React.createContext<PreviewSettings>({
+  basePath: '',
+  unavailableLabel: '',
+  media: NO_MEDIA,
+  sectionLabels: null,
+  sectionData: new Map(),
+})
 const FirstSectionContext = React.createContext(false)
 
 function Unavailable() {
@@ -46,15 +61,17 @@ class SectionBoundary extends React.Component<{ children: React.ReactNode }, { f
 }
 
 function PreviewSection({ type, props }: { type: StorefrontBlockType; props: unknown }) {
-  const { basePath, media, sectionLabels } = React.useContext(PreviewSettingsContext)
+  const { basePath, media, sectionLabels, sectionData } = React.useContext(PreviewSettingsContext)
   const isFirst = React.useContext(FirstSectionContext)
   const parsed = (STOREFRONT_BLOCKS[type].props as typeof STOREFRONT_BLOCKS.Hero.props).safeParse(props)
   if (!parsed.success || !sectionLabels) return <Unavailable />
   const section = { id: 'preview', type, props: parsed.data } as ValidatedSection
+  const dataKey = type === 'ProductGrid' || type === 'CollectionList' ? previewDataKey(type, parsed.data) : null
+  const data = dataKey ? sectionData.get(dataKey) : undefined
   // Keyed by the props, so a section that failed renders again once it is edited.
   return (
     <SectionBoundary key={stableStringify(parsed.data)}>
-      {renderSection(section, { basePath, isFirst, media, labels: sectionLabels })}
+      {renderSection(section, { basePath, isFirst, media, labels: sectionLabels, data })}
     </SectionBoundary>
   )
 }
@@ -75,6 +92,8 @@ export const { registry: previewRegistry } = defineRegistry(builderCatalog, {
     Image: ({ props }) => <PreviewSection type="Image" props={props} />,
     ImageText: ({ props }) => <PreviewSection type="ImageText" props={props} />,
     Gallery: ({ props }) => <PreviewSection type="Gallery" props={props} />,
+    ProductGrid: ({ props }) => <PreviewSection type="ProductGrid" props={props} />,
+    CollectionList: ({ props }) => <PreviewSection type="CollectionList" props={props} />,
     Testimonials: ({ props }) => <PreviewSection type="Testimonials" props={props} />,
     Faq: ({ props }) => <PreviewSection type="Faq" props={props} />,
     ContactInfo: ({ props }) => <PreviewSection type="ContactInfo" props={props} />,
@@ -91,12 +110,15 @@ export type BuilderPreviewProps = {
   logoSrc: string | null
   tokens: ThemeTokens
   labels: { home: string; signIn: string; unavailable: string; sections: SectionLabels }
+  sectionData?: ReadonlyMap<string, SectionData>
 }
 
-export function BuilderPreview({ spec, siteId, storeName, basePath, logoSrc, tokens, labels }: BuilderPreviewProps) {
+const NO_SECTION_DATA: ReadonlyMap<string, SectionData> = new Map()
+
+export function BuilderPreview({ spec, siteId, storeName, basePath, logoSrc, tokens, labels, sectionData = NO_SECTION_DATA }: BuilderPreviewProps) {
   const settings = React.useMemo(
-    () => ({ basePath, unavailableLabel: labels.unavailable, media: staffMediaResolver(), sectionLabels: labels.sections }),
-    [basePath, labels.unavailable, labels.sections],
+    () => ({ basePath, unavailableLabel: labels.unavailable, media: staffMediaResolver(), sectionLabels: labels.sections, sectionData }),
+    [basePath, labels.unavailable, labels.sections, sectionData],
   )
   return (
     <PreviewSettingsContext.Provider value={settings}>

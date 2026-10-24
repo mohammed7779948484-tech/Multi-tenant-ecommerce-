@@ -1,6 +1,7 @@
 import type { z } from 'zod'
 import {
   callToActionPropsSchema,
+  collectionListPropsSchema,
   contactInfoPropsSchema,
   faqPropsSchema,
   featuresPropsSchema,
@@ -9,6 +10,7 @@ import {
   heroPropsSchema,
   imagePropsSchema,
   imageTextPropsSchema,
+  productGridPropsSchema,
   richTextPropsSchema,
   testimonialsPropsSchema,
 } from './schemas'
@@ -45,6 +47,14 @@ export const STOREFRONT_BLOCKS = {
   Gallery: {
     props: galleryPropsSchema,
     description: 'A grid of 2 to 12 images, each with alt text, under an optional heading.',
+  },
+  ProductGrid: {
+    props: productGridPropsSchema,
+    description: 'A grid of the store\'s products with images and prices: every product of one category, or up to 12 picked products.',
+  },
+  CollectionList: {
+    props: collectionListPropsSchema,
+    description: 'Cards linking to up to 12 product categories, each with its description and a cover image.',
   },
   Testimonials: {
     props: testimonialsPropsSchema,

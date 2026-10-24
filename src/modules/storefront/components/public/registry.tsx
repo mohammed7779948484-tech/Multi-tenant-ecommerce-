@@ -3,6 +3,7 @@ import type { ValidatedSection } from '../../lib/blocks/pageSpec'
 import type { StorefrontBlockType } from '../../lib/blocks/catalog'
 import {
   CallToActionBlock,
+  CollectionListBlock,
   ContactInfoBlock,
   FaqBlock,
   FeaturesBlock,
@@ -11,6 +12,7 @@ import {
   HeroBlock,
   ImageBlock,
   ImageTextBlock,
+  ProductGridBlock,
   RichTextBlock,
   TestimonialsBlock,
   type BlockRenderContext,
@@ -27,6 +29,8 @@ const BLOCK_COMPONENTS = {
   Image: ImageBlock,
   ImageText: ImageTextBlock,
   Gallery: GalleryBlock,
+  ProductGrid: ProductGridBlock,
+  CollectionList: CollectionListBlock,
   Testimonials: TestimonialsBlock,
   Faq: FaqBlock,
   ContactInfo: ContactInfoBlock,
@@ -48,6 +52,10 @@ export function renderSection(section: ValidatedSection, context: BlockRenderCon
       return <BLOCK_COMPONENTS.ImageText key={section.id} props={section.props} context={context} />
     case 'Gallery':
       return <BLOCK_COMPONENTS.Gallery key={section.id} props={section.props} context={context} />
+    case 'ProductGrid':
+      return <BLOCK_COMPONENTS.ProductGrid key={section.id} props={section.props} context={context} />
+    case 'CollectionList':
+      return <BLOCK_COMPONENTS.CollectionList key={section.id} props={section.props} context={context} />
     case 'Testimonials':
       return <BLOCK_COMPONENTS.Testimonials key={section.id} props={section.props} context={context} />
     case 'Faq':

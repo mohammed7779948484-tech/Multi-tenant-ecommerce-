@@ -8,6 +8,7 @@ import { createLogger } from '@open-mercato/shared/lib/logger'
 import { resolveSectionLabels } from '../components/public/blocks'
 import { StorefrontUnavailable, StorefrontView, type StorefrontViewProps } from '../components/public/StorefrontView'
 import { validatePageSpec } from './blocks/pageSpec'
+import { loadSectionData, storeCatalogLinks } from './catalogData'
 import { pagePublicPath } from './pages'
 import { buildStorefrontMetadata, buildUnavailableMetadata } from './publicMetadata'
 import { HOME_PAGE_SLUG, resolvePublicStorefrontPage, storefrontMediaPath, storefrontPublicUrl } from './publicSite'
@@ -68,6 +69,10 @@ export const loadStorefrontPage = cache(async (rawSiteSlug: string, rawPageSlug:
     }
   }
 
+  const sectionData = await loadSectionData({ em, container }, { tenantId: site.tenantId, organizationId: site.organizationId }, validation.sections, {
+    links: storeCatalogLinks(`/${site.slug}`),
+    locale: site.defaultLocale || 'en',
+  })
   const storeUrl = storefrontPublicUrl(site.slug)
   const canonicalUrl = storefrontPublicUrl(site.slug, isHome ? '' : `/${page.slug}`)
   const logoPath = site.logoAttachmentId ? storefrontMediaPath(site.slug, site.logoAttachmentId) : null
@@ -102,6 +107,7 @@ export const loadStorefrontPage = cache(async (rawSiteSlug: string, rawPageSlug:
         home: translate('storefront.public.home', '{store} home', { store: site.name }),
       },
       sectionLabels: resolveSectionLabels(translate),
+      sectionData,
     },
   }
 })

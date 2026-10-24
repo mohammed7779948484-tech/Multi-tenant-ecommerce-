@@ -29,8 +29,18 @@ export type EditorRichTextField = { id: string; kind: 'richtext'; label: Label }
 export type EditorImageField = { id: string; kind: 'image'; label: Label; required?: boolean }
 /** Several images, each with alt text (Gallery). */
 export type EditorImageListField = { id: string; kind: 'images'; label: Label; itemLabel: Label; addLabel: Label; min: number; max: number }
+/** ProductGrid source: a category, or hand-picked products. */
+export type EditorProductSourceField = { id: string; kind: 'productSource'; label: Label }
+/** CollectionList categories, in order. */
+export type EditorCategoriesField = { id: string; kind: 'categories'; label: Label }
+export type EditorNumberField = { id: string; kind: 'number'; label: Label; min: number; max: number }
+export type EditorCheckboxField = { id: string; kind: 'checkbox'; label: Label; defaultValue: boolean }
 export type EditorField =
   | EditorTextField
+  | EditorProductSourceField
+  | EditorCategoriesField
+  | EditorNumberField
+  | EditorCheckboxField
   | EditorSelectField
   | EditorLinkField
   | EditorListField
@@ -113,6 +123,22 @@ export const BLOCK_EDITORS: Record<StorefrontBlockType, BlockEditor> = {
         min: 2,
         max: 12,
       },
+    ],
+  },
+  ProductGrid: {
+    label: ['storefront.builder.blocks.ProductGrid', 'Products'],
+    fields: [
+      { id: 'heading', kind: 'text', label: ['storefront.builder.fields.heading', 'Heading'], maxLength: 120 },
+      { id: 'source', kind: 'productSource', label: ['storefront.builder.fields.productSource', 'Products to show'] },
+      { id: 'limit', kind: 'number', label: ['storefront.builder.fields.limit', 'How many to show (1–12)'], min: 1, max: 12 },
+      { id: 'showPrice', kind: 'checkbox', label: ['storefront.builder.fields.showPrice', 'Show prices'], defaultValue: true },
+    ],
+  },
+  CollectionList: {
+    label: ['storefront.builder.blocks.CollectionList', 'Collections'],
+    fields: [
+      { id: 'heading', kind: 'text', label: ['storefront.builder.fields.heading', 'Heading'], maxLength: 120 },
+      { id: 'categoryIds', kind: 'categories', label: ['storefront.builder.fields.categories', 'Categories'] },
     ],
   },
   RichText: {
@@ -228,7 +254,24 @@ export const BLOCK_EDITORS: Record<StorefrontBlockType, BlockEditor> = {
 export type ListItemValue = Record<string, string>
 /** Inspector value of an image field: the attachment id plus alt text (empty strings when unset). */
 export type ImageValue = { attachmentId: string; alt: string }
-export type BlockFormValues = Record<string, string | ListItemValue | ListItemValue[] | ImageValue | ImageValue[]>
+/** Inspector value of a ProductGrid source; both id fields are kept so switching kind does not lose a choice. */
+export type ProductSourceValue = { kind: 'category' | 'products'; categoryId: string; productIds: string[] }
+export type BlockFormValues = Record<
+  string,
+  string | number | boolean | string[] | ListItemValue | ListItemValue[] | ImageValue | ImageValue[] | ProductSourceValue
+>
+
+const asIds = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0) : []
+
+export function productSourceValue(raw: unknown): ProductSourceValue {
+  const source = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  return {
+    kind: source.kind === 'products' ? 'products' : 'category',
+    categoryId: typeof source.categoryId === 'string' ? source.categoryId : '',
+    productIds: asIds(source.productIds),
+  }
+}
 
 function imageValue(raw: unknown): ImageValue {
   const source = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
@@ -271,6 +314,18 @@ export function blockPropsToFormValues(type: StorefrontBlockType, props: Record<
         break
       case 'images':
         values[field.id] = Array.isArray(raw) ? raw.map(imageValue) : []
+        break
+      case 'productSource':
+        values[field.id] = productSourceValue(raw)
+        break
+      case 'categories':
+        values[field.id] = asIds(raw)
+        break
+      case 'number':
+        if (typeof raw === 'number') values[field.id] = raw
+        break
+      case 'checkbox':
+        values[field.id] = typeof raw === 'boolean' ? raw : field.defaultValue
         break
     }
   }
@@ -342,6 +397,28 @@ export function formValuesToBlockProps(type: StorefrontBlockType, values: Record
         props[field.id] = images.map((image) => ({ attachmentId: image.attachmentId, alt: image.alt.trim() }))
         break
       }
+      case 'productSource': {
+        // Only the chosen kind's ids are stored; an empty choice keeps '' / [] so the schema names it.
+        const source = productSourceValue(raw)
+        props[field.id] = source.kind === 'products' ? { kind: 'products', productIds: source.productIds } : { kind: 'category', categoryId: source.categoryId }
+        break
+      }
+      case 'categories':
+        props[field.id] = asIds(raw)
+        break
+      case 'number': {
+        // Empty keeps the schema default; anything else must be a whole number in range.
+        const text = typeof raw === 'number' ? String(raw) : asString(raw).trim()
+        if (text) {
+          const parsed = Number(text)
+          if (Number.isInteger(parsed) && parsed >= field.min && parsed <= field.max) props[field.id] = parsed
+          else fieldErrors[field.id] = 'storefront.validation.numberRange'
+        }
+        break
+      }
+      case 'checkbox':
+        props[field.id] = typeof raw === 'boolean' ? raw : field.defaultValue
+        break
     }
   }
   if (Object.keys(fieldErrors).length) return { ok: false, fieldErrors }
@@ -431,5 +508,15 @@ export function defaultBlockProps(type: StorefrontBlockType, translate: (key: st
         cta: { label: translate('storefront.builder.defaults.ctaLabel', 'Contact us'), href: '/contact' },
         tone: 'surface',
       }
+    // Catalog sections start without a choice: listed as an issue until a category or products are picked.
+    case 'ProductGrid':
+      return {
+        heading: translate('storefront.builder.defaults.productsHeading', 'Our products'),
+        source: { kind: 'category', categoryId: '' },
+        limit: 8,
+        showPrice: true,
+      }
+    case 'CollectionList':
+      return { heading: translate('storefront.builder.defaults.collectionsHeading', 'Shop by category'), categoryIds: [] }
   }
 }

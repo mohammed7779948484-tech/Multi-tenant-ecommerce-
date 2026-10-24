@@ -1,33 +1,20 @@
 import type { EntityManager } from '@mikro-orm/postgresql'
 import { Attachment } from '@open-mercato/core/modules/attachments/data/entities'
 import { StorefrontPage, type StorefrontSite } from '../data/entities'
-import { validatePageSpec, type ValidatedSection } from './blocks/pageSpec'
 import { collectSectionReferences, PAGE_ATTACHMENT_ENTITY_ID } from './blocks/references'
+import { PRODUCT_ENTITY_ID } from './catalogData'
 import { isStorefrontImageMimeType } from './media'
+import { isProductPublic } from './publicCatalog'
+import { loadPublishedSections } from './publishedSections'
 
 /**
  * Which images a live store may serve anonymously (spec "Reference rules"):
- * its logo, and page images referenced by one of its published pages. Product
- * images join in Phase 3b. Everything is pinned to the site's tenant and
+ * its logo, page images referenced by one of its published pages, and images of
+ * products a published section shows (spec Q12). Everything is pinned to the site's tenant and
  * organization; drafts never make an image public.
  */
 
 type SiteScope = Pick<StorefrontSite, 'id' | 'tenantId' | 'organizationId' | 'logoAttachmentId'>
-
-/** Sections of every live (published, not deleted) page of the store; invalid specs contribute nothing. */
-export async function loadPublishedSections(em: EntityManager, site: SiteScope): Promise<ValidatedSection[]> {
-  const pages = await em.find(
-    StorefrontPage,
-    { siteId: site.id, tenantId: site.tenantId, organizationId: site.organizationId, deletedAt: null, publishedSpec: { $ne: null } },
-    { fields: ['id', 'publishedSpec'] },
-  )
-  const sections: ValidatedSection[] = []
-  for (const page of pages) {
-    const validation = validatePageSpec(page.publishedSpec)
-    if (validation.ok) sections.push(...validation.sections)
-  }
-  return sections
-}
 
 export async function publishedImageIds(em: EntityManager, site: SiteScope): Promise<Set<string>> {
   const sections = await loadPublishedSections(em, site)
@@ -51,6 +38,9 @@ export async function resolvePublicStoreImage(em: EntityManager, site: SiteScope
     )
     if (!page) return null
     return (await publishedImageIds(em, site)).has(attachmentId) ? attachment : null
+  }
+  if (attachment.entityId === PRODUCT_ENTITY_ID) {
+    return (await isProductPublic(em, site, attachment.recordId)) ? attachment : null
   }
   return null
 }

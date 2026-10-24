@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@jest/globals'
 import { Attachment } from '@open-mercato/core/modules/attachments/data/entities'
+import { CatalogProduct, CatalogProductCategory } from '@open-mercato/core/modules/catalog/data/entities'
 import { StorefrontPage } from '../../../data/entities'
 import { STOREFRONT_BLOCKS } from '../catalog'
 import { validatePageSpec, type ValidatedSection } from '../pageSpec'
@@ -14,6 +15,9 @@ const ORG = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const OTHER_TENANT = '22222222-2222-4222-8222-222222222222'
 const PAGE = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 const OTHER_PAGE = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+const PRODUCT = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+const PRODUCT2 = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+const CATEGORY = '12121212-1212-4121-8121-121212121212'
 
 const parse = (type: keyof typeof STOREFRONT_BLOCKS, props: unknown) => STOREFRONT_BLOCKS[type].props.safeParse(props)
 const firstMessage = (result: { success: boolean; error?: { issues: Array<{ message: string }> } }) => result.error?.issues[0]?.message
@@ -132,5 +136,77 @@ describe('image references', () => {
     const em = fakeEm(new Map())
     expect(await checkSectionReferences(em as never, scope, sections.filter((section) => section.type === 'RichText'))).toEqual([])
     expect(em.queries).toEqual([])
+  })
+})
+
+describe('Phase 3b commerce section schemas', () => {
+  it('takes either a category or 1–12 distinct products, with defaults for count and prices', () => {
+    const byCategory = parse('ProductGrid', { source: { kind: 'category', categoryId: CATEGORY } })
+    expect(byCategory.success && byCategory.data).toEqual({ source: { kind: 'category', categoryId: CATEGORY }, limit: 8, showPrice: true })
+    expect(firstMessage(parse('ProductGrid', { source: { kind: 'category', categoryId: '' } }))).toBe('storefront.validation.categoryRequired')
+    expect(firstMessage(parse('ProductGrid', { source: { kind: 'products', productIds: [] } }))).toBe('storefront.validation.productsRequired')
+    expect(firstMessage(parse('ProductGrid', { source: { kind: 'products', productIds: [PRODUCT, PRODUCT] } }))).toBe('storefront.validation.duplicateItems')
+    expect(parse('ProductGrid', { source: { kind: 'products', productIds: Array.from({ length: 13 }, () => PRODUCT) } }).success).toBe(false)
+    expect(parse('ProductGrid', { source: { kind: 'category', categoryId: CATEGORY }, limit: 13 }).success).toBe(false)
+    // Mixing both kinds, or a product query instead of ids, never passes.
+    expect(parse('ProductGrid', { source: { kind: 'category', categoryId: CATEGORY, productIds: [PRODUCT] } }).success).toBe(false)
+    expect(parse('ProductGrid', { source: { kind: 'query', where: { tenantId: OTHER_TENANT } } }).success).toBe(false)
+  })
+
+  it('takes 1–12 distinct categories for a collection list', () => {
+    expect(parse('CollectionList', { categoryIds: [CATEGORY] }).success).toBe(true)
+    expect(firstMessage(parse('CollectionList', { categoryIds: [] }))).toBe('storefront.validation.categoriesRequired')
+    expect(firstMessage(parse('CollectionList', { categoryIds: [CATEGORY, CATEGORY] }))).toBe('storefront.validation.duplicateItems')
+  })
+})
+
+describe('catalog references', () => {
+  const sections = sectionsOf({
+    picked: { type: 'ProductGrid', props: { source: { kind: 'products', productIds: [PRODUCT, PRODUCT2] } } },
+    'by-category': { type: 'ProductGrid', props: { source: { kind: 'category', categoryId: CATEGORY } } },
+    collections: { type: 'CollectionList', props: { categoryIds: [CATEGORY] } },
+  })
+  type Row = Record<string, unknown>
+  const fakeEm = (tables: Map<unknown, Row[]>) => ({
+    async find(entity: unknown, where: Row) {
+      const ids = (where.id as { $in: unknown[] }).$in
+      return (tables.get(entity) ?? []).filter((row) => ids.includes(row.id) && row.tenantId === where.tenantId && row.organizationId === where.organizationId)
+    },
+  })
+  const scope = { tenantId: TENANT, organizationId: ORG }
+  const own = (id: string, extra: Row = {}) => ({ id, tenantId: TENANT, organizationId: ORG, ...extra })
+
+  it('collects product and category ids with their issue paths', () => {
+    expect(collectSectionReferences(sections)).toEqual([
+      { kind: 'product', id: PRODUCT, path: 'elements.picked.props.source.productIds.0' },
+      { kind: 'product', id: PRODUCT2, path: 'elements.picked.props.source.productIds.1' },
+      { kind: 'category', id: CATEGORY, path: 'elements.by-category.props.source.categoryId' },
+      { kind: 'category', id: CATEGORY, path: 'elements.collections.props.categoryIds.0' },
+    ])
+  })
+
+  it('accepts this organization\'s rows, including inactive or deleted ones', async () => {
+    const em = fakeEm(
+      new Map<unknown, Row[]>([
+        [CatalogProduct, [own(PRODUCT), own(PRODUCT2, { isActive: false, deletedAt: new Date() })]],
+        [CatalogProductCategory, [own(CATEGORY)]],
+      ]),
+    )
+    expect(await checkSectionReferences(em as never, scope, sections)).toEqual([])
+  })
+
+  it('refuses another tenant\'s or organization\'s product and category with the same issue as an unknown id', async () => {
+    const em = fakeEm(
+      new Map<unknown, Row[]>([
+        [CatalogProduct, [own(PRODUCT), { id: PRODUCT2, tenantId: OTHER_TENANT, organizationId: ORG }]],
+        [CatalogProductCategory, [{ id: CATEGORY, tenantId: TENANT, organizationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' }]],
+      ]),
+    )
+    const issue = (path: string) => ({ path, code: 'unknown_reference', message: 'storefront.validation.referenceNotFound' })
+    expect(await checkSectionReferences(em as never, scope, sections)).toEqual([
+      issue('elements.picked.props.source.productIds.1'),
+      issue('elements.by-category.props.source.categoryId'),
+      issue('elements.collections.props.categoryIds.0'),
+    ])
   })
 })

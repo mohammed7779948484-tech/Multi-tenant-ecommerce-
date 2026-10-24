@@ -8,13 +8,24 @@ import { DEFAULT_THEME_TOKENS } from '../../../lib/theme'
 import { BLOCK_EDITORS, LINK_FIELDS, blockPropsToFormValues, defaultBlockProps, formValuesToBlockProps } from '../blockEditors'
 import { PAGE_ROOT_PROPS_SCHEMA, builderCatalog } from '../catalog'
 import { BuilderPreview } from '../BuilderPreview'
+import { previewDataKey } from '../usePreviewSectionData'
 
 /** TEST-015: the json-render adapter and the editor-field map stay in parity with the block catalog. */
 
 const SITE_ID = '3f2b2a52-6a5b-4f8a-9c11-2f3e4d5c6b7a'
 const IMG_A = '7c9e6679-7425-40de-944b-e07fc1f90ae7'
 const IMG_B = '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d'
-const SECTION_LABELS = { contactAddress: 'Address', contactPhone: 'Phone', contactEmail: 'Email', contactHours: 'Opening hours' }
+const PRODUCT_A = '1b4e28ba-2fa1-41d2-883f-0016d3cca427'
+const PRODUCT_B = '6ec0bd7f-11c0-43da-975e-2a8ad9ebae0b'
+const CATEGORY_A = 'a8098c1a-f86e-41da-8ee5-2b3c4d5e6f70'
+const SECTION_LABELS = {
+  contactAddress: 'Address',
+  contactPhone: 'Phone',
+  contactEmail: 'Email',
+  contactHours: 'Opening hours',
+  productsEmpty: 'Products soon',
+  categoriesEmpty: 'Collections soon',
+}
 const identity = (_key: string, fallback: string) => fallback
 
 type ObjectSchema = z.ZodObject<Record<string, z.ZodTypeAny>>
@@ -57,6 +68,8 @@ const SAMPLE_PROPS: Record<StorefrontBlockType, Record<string, unknown>> = {
   Faq: { heading: 'FAQ', items: [{ question: 'Do you deliver?', answer: 'Yes, cash on delivery.' }] },
   ContactInfo: { heading: 'Visit', address: '1 Main St\nTown', phone: '+48 600 100 200', email: 'hello@example.com', hours: 'Daily 8–18' },
   CallToAction: { heading: 'Questions?', body: 'We answer within a day.', cta: { label: 'Contact', href: '/contact' }, tone: 'primary' },
+  ProductGrid: { heading: 'Picked for you', source: { kind: 'products', productIds: [PRODUCT_A, PRODUCT_B] }, limit: 4, showPrice: false },
+  CollectionList: { heading: 'Shop by category', categoryIds: [CATEGORY_A] },
 }
 
 describe('builder catalog (json-render adapter)', () => {
@@ -123,8 +136,8 @@ describe('editor-field map', () => {
     })
   })
 
-  it('starts every new section with valid props, except that image sections wait for an upload', () => {
-    const needsImage: Record<string, string> = { Image: 'image', ImageText: 'image', Gallery: 'images' }
+  it('starts every new section with valid props, except that image and catalog sections wait for a choice', () => {
+    const needsImage: Record<string, string> = { Image: 'image', ImageText: 'image', Gallery: 'images', ProductGrid: 'source', CollectionList: 'categoryIds' }
     for (const type of STOREFRONT_BLOCK_TYPES) {
       const parsed = STOREFRONT_BLOCKS[type].props.safeParse(defaultBlockProps(type, identity))
       if (needsImage[type]) {
@@ -154,6 +167,38 @@ describe('editor-field map', () => {
     expect(formValuesToBlockProps('Hero', { heading: 'Hi', image: { attachmentId: '', alt: '' }, align: 'center' })).toEqual({
       ok: true,
       props: { heading: 'Hi', align: 'center' },
+    })
+  })
+})
+
+describe('catalog editor fields', () => {
+  it('stores only the chosen product source and keeps the other choice in the form', () => {
+    const values = blockPropsToFormValues('ProductGrid', { source: { kind: 'category', categoryId: CATEGORY_A } })
+    expect(values.source).toEqual({ kind: 'category', categoryId: CATEGORY_A, productIds: [] })
+    expect(values.showPrice).toBe(true)
+    const switched = { ...values, source: { kind: 'products', categoryId: CATEGORY_A, productIds: [PRODUCT_A] } }
+    expect(formValuesToBlockProps('ProductGrid', switched)).toEqual({
+      ok: true,
+      props: { source: { kind: 'products', productIds: [PRODUCT_A] }, limit: 8, showPrice: true },
+    })
+  })
+
+  it('names the missing category, products and categories, and rejects an out-of-range count', () => {
+    expect(formValuesToBlockProps('ProductGrid', { source: { kind: 'category', categoryId: '', productIds: [] } })).toMatchObject({
+      ok: false,
+      fieldErrors: { source: 'storefront.validation.categoryRequired' },
+    })
+    expect(formValuesToBlockProps('ProductGrid', { source: { kind: 'products', categoryId: '', productIds: [] } })).toMatchObject({
+      ok: false,
+      fieldErrors: { source: 'storefront.validation.productsRequired' },
+    })
+    expect(formValuesToBlockProps('ProductGrid', { source: { kind: 'category', categoryId: CATEGORY_A }, limit: '13' })).toEqual({
+      ok: false,
+      fieldErrors: { limit: 'storefront.validation.numberRange' },
+    })
+    expect(formValuesToBlockProps('CollectionList', { categoryIds: [] })).toMatchObject({
+      ok: false,
+      fieldErrors: { categoryIds: 'storefront.validation.categoriesRequired' },
     })
   })
 })
@@ -197,6 +242,46 @@ describe('preview registry', () => {
     expect(html).not.toContain('Preview unavailable')
     // Only the first section renders the page heading.
     expect(html.match(/<h1>/g)).toHaveLength(1)
+  })
+
+  it('renders commerce sections from preview data keyed by their props, and the empty text without it', () => {
+    const spec = {
+      root: 'page',
+      elements: {
+        page: { type: 'Page', props: {}, children: ['grid', 'collections'] },
+        grid: { type: 'ProductGrid', props: SAMPLE_PROPS.ProductGrid, children: [] },
+        collections: { type: 'CollectionList', props: SAMPLE_PROPS.CollectionList, children: [] },
+      },
+    }
+    const sectionData = new Map([
+      [
+        previewDataKey('ProductGrid', SAMPLE_PROPS.ProductGrid)!,
+        {
+          products: [
+            { id: PRODUCT_A, title: 'House blend', subtitle: null, href: '/acme/products/house-blend', image: { attachmentId: IMG_A, alt: 'House blend' }, price: '€12.00' },
+          ],
+        },
+      ],
+    ])
+    const props = {
+      spec,
+      siteId: SITE_ID,
+      storeName: 'Acme',
+      basePath: '/acme',
+      logoSrc: null,
+      tokens: DEFAULT_THEME_TOKENS,
+      labels: { home: 'Acme home', signIn: 'Sign in', unavailable: 'Preview unavailable', sections: SECTION_LABELS },
+    }
+    const html = renderToStaticMarkup(<BuilderPreview {...props} sectionData={sectionData} />)
+    expect(html).toContain('House blend')
+    expect(html).toContain('href="/acme/products/house-blend"')
+    expect(html).toContain(`/api/attachments/image/${IMG_A}?width=`)
+    // showPrice: false hides the price even when the data has one.
+    expect(html).not.toContain('€12.00')
+    expect(html).toContain('Collections soon')
+    const empty = renderToStaticMarkup(<BuilderPreview {...props} />)
+    expect(empty).toContain('Products soon')
+    expect(empty).not.toContain('Preview unavailable')
   })
 
   it('shows a placeholder for a section whose props do not validate', () => {

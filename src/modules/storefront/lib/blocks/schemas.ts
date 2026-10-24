@@ -237,6 +237,43 @@ export const footerPropsSchema = z
   })
   .strict()
 
+const uniqueIds = (ids: string[]) => new Set(ids).size === ids.length
+
+/** Products shown by a grid: every product of one category (and its subcategories), or up to 12 picked ones. */
+export const productGridPropsSchema = z
+  .object({
+    heading: textSchema(120).optional(),
+    source: z.discriminatedUnion('kind', [
+      z.object({ kind: z.literal('category'), categoryId: z.string().uuid('storefront.validation.categoryRequired') }).strict(),
+      z
+        .object({
+          kind: z.literal('products'),
+          productIds: z
+            .array(z.string().uuid('storefront.validation.productsRequired'))
+            .min(1, 'storefront.validation.productsRequired')
+            .max(12, 'storefront.validation.listTooLong')
+            .refine(uniqueIds, 'storefront.validation.duplicateItems'),
+        })
+        .strict(),
+    ]),
+    limit: z.number().int().min(1).max(12).default(8),
+    showPrice: z.boolean().default(true),
+  })
+  .strict()
+
+export const collectionListPropsSchema = z
+  .object({
+    heading: textSchema(120).optional(),
+    categoryIds: z
+      .array(z.string().uuid('storefront.validation.categoriesRequired'))
+      .min(1, 'storefront.validation.categoriesRequired')
+      .max(12, 'storefront.validation.listTooLong')
+      .refine(uniqueIds, 'storefront.validation.duplicateItems'),
+  })
+  .strict()
+
+export type ProductGridProps = z.infer<typeof productGridPropsSchema>
+export type CollectionListProps = z.infer<typeof collectionListPropsSchema>
 export type HeroProps = z.infer<typeof heroPropsSchema>
 export type RichTextProps = z.infer<typeof richTextPropsSchema>
 export type FeaturesProps = z.infer<typeof featuresPropsSchema>
