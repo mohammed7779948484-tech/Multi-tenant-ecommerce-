@@ -35,7 +35,8 @@ export const STOREFRONT_STRUCTURAL_CSS = [
   '.sf-footer{background:var(--sf-color-surface);color:var(--sf-color-muted-text);font-size:0.9375rem}',
   '.sf-footer-inner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--sf-space)}',
   '.sf-footer ul{list-style:none;display:flex;flex-wrap:wrap;gap:var(--sf-space);margin:0;padding:0}',
-  '.sf-root img{display:block;max-width:100%;height:auto}',
+  // :where() keeps this base rule at element specificity, so class rules such as .sf-logo win.
+  ':where(.sf-root) img{display:block;max-width:100%;height:auto}',
   '.sf-narrow{max-width:48rem}',
   '.sf-pre-line{white-space:pre-line}',
   '.sf-split{display:grid;gap:calc(var(--sf-space) * 2);align-items:center}',

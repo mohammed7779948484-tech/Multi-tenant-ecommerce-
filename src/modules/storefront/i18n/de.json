@@ -329,7 +329,7 @@
   "storefront.builder.fields.button": "Schaltfläche",
   "storefront.builder.fields.tone": "Stil",
   "storefront.builder.fields.productSource": "Angezeigte Produkte",
-  "storefront.builder.fields.limit": "Anzahl (1–12)",
+  "storefront.builder.fields.limit": "Anzahl aus einer Kategorie (1–12)",
   "storefront.builder.fields.showPrice": "Preise anzeigen",
   "storefront.builder.fields.categories": "Kategorien",
   "storefront.builder.blocks.Image": "Bild",
@@ -461,5 +461,6 @@
   "storefront.templates.copy.faqDeliveryA": "Wir bestätigen den Liefertermin, wenn wir Ihre Bestellung annehmen.",
   "storefront.templates.copy.faqReturnQ": "Kann ich ein Produkt zurückgeben?",
   "storefront.templates.copy.faqReturnA": "Kontaktieren Sie uns, und wir finden gemeinsam eine Lösung.",
-  "storefront.audit.templateApply": "Shopvorlage anwenden"
+  "storefront.audit.templateApply": "Shopvorlage anwenden",
+  "storefront.errors.undoPageChanged": "Die Seite wurde inzwischen geändert, daher kann diese Änderung nicht rückgängig gemacht werden."
 }

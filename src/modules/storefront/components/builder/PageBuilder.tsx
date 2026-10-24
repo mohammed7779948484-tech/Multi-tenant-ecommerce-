@@ -114,6 +114,13 @@ export function PageBuilder({ pageId }: { pageId: string }) {
   // After the first load, reloads (after a restore) refresh in place instead of
   // replacing the builder with a loading state.
   const hasLoadedRef = React.useRef(false)
+  // Resolves when the in-place reload after a restore has finished (or failed), so the
+  // builder stays busy until the restored draft is on screen.
+  const reloadDoneRef = React.useRef<(() => void) | null>(null)
+  const settleReload = React.useCallback(() => {
+    reloadDoneRef.current?.()
+    reloadDoneRef.current = null
+  }, [])
 
   React.useEffect(() => {
     let cancelled = false
@@ -135,6 +142,7 @@ export function PageBuilder({ pageId }: { pageId: string }) {
         const page = list?.items?.[0]
         if (!page) {
           setLoadState('not-found')
+          settleReload()
           return
         }
         const next = specToDraft(page.draftSpec ?? page.publishedSpec)
@@ -147,9 +155,11 @@ export function PageBuilder({ pageId }: { pageId: string }) {
         setSelectedId((current) => (current && next.sections.some((section) => section.id === current) ? current : next.sections[0]?.id ?? null))
         hasLoadedRef.current = true
         setLoadState('ready')
+        settleReload()
       })
       .catch((error: unknown) => {
         if (cancelled) return
+        settleReload()
         const message = error instanceof Error && error.message ? error.message : t('storefront.builder.errors.load', 'The page could not be loaded.')
         if (background) {
           // Keep the builder on screen; the user can reload the page.
@@ -166,7 +176,7 @@ export function PageBuilder({ pageId }: { pageId: string }) {
     return () => {
       cancelled = true
     }
-  }, [pageId, reloadKey, t])
+  }, [pageId, reloadKey, settleReload, t])
 
   const spec = React.useMemo(() => draftToSpec(draft), [draft])
   const previewData = usePreviewSectionData(draft.sections)
@@ -435,8 +445,12 @@ export function PageBuilder({ pageId }: { pageId: string }) {
         'success',
       )
       setRevisionsVersion((current) => current + 1)
-      // The draft, title and description were reset on the server; refresh them in place.
-      setReloadKey((current) => current + 1)
+      // The draft, title and description were reset on the server; refresh them in place and
+      // stay busy until that reload lands, so an edit made meanwhile cannot be overwritten by it.
+      await new Promise<void>((resolve) => {
+        reloadDoneRef.current = resolve
+        setReloadKey((current) => current + 1)
+      })
     } catch (error) {
       if ((error as HttpError).status === 409) return
       flash(describeError(error, t('storefront.builder.errors.restore', 'The revision could not be restored.')), 'error')

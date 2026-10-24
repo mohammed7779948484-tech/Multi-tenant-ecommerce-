@@ -130,7 +130,7 @@ export const BLOCK_EDITORS: Record<StorefrontBlockType, BlockEditor> = {
     fields: [
       { id: 'heading', kind: 'text', label: ['storefront.builder.fields.heading', 'Heading'], maxLength: 120 },
       { id: 'source', kind: 'productSource', label: ['storefront.builder.fields.productSource', 'Products to show'] },
-      { id: 'limit', kind: 'number', label: ['storefront.builder.fields.limit', 'How many to show (1–12)'], min: 1, max: 12 },
+      { id: 'limit', kind: 'number', label: ['storefront.builder.fields.limit', 'How many to show from a category (1–12)'], min: 1, max: 12 },
       { id: 'showPrice', kind: 'checkbox', label: ['storefront.builder.fields.showPrice', 'Show prices'], defaultValue: true },
     ],
   },

@@ -400,7 +400,9 @@ const updatePageCommand: CommandHandler<Record<string, unknown>, PageSnapshot> =
     }
   },
   async undo({ logEntry, ctx }) {
-    const before = extractUndoPayload<UndoPayload<PageSnapshot>>(logEntry)?.before
+    const payload = extractUndoPayload<UndoPayload<PageSnapshot>>(logEntry)
+    const before = payload?.before
+    const after = payload?.after
     if (!before?.id) throw new Error('[internal] Missing snapshot for storefront page update undo')
     const scope = await ensureCommandScope(ctx)
     if (before.tenantId !== scope.tenantId || before.organizationId !== scope.organizationId) {
@@ -413,6 +415,13 @@ const updatePageCommand: CommandHandler<Record<string, unknown>, PageSnapshot> =
       [
         async () => {
           page = await loadPage(em, before.id, scope, true)
+          // A later edit (someone else's, or one the banner no longer offers) must not be
+          // overwritten. A clean later publish or rollback is fine: it leaves no unpublished draft.
+          const versionChanged = Boolean(after?.updatedAt) && (page.updatedAt?.toISOString() ?? null) !== after?.updatedAt
+          const publicationChanged = (page.publishedRevisionId ?? null) !== (after?.publishedRevisionId ?? null)
+          if (versionChanged && (!publicationChanged || page.draftUpdatedAt)) {
+            throw await conflictError('storefront.errors.undoPageChanged', 'The page changed since, so this change cannot be undone.')
+          }
           // A published page's address is frozen; undo never moves a live URL.
           if (before.slug !== page.slug) {
             if (page.publishedRevisionId) {

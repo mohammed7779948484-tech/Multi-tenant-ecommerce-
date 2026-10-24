@@ -28,7 +28,12 @@ const querySchema = z
     ids: z
       .string()
       .optional()
-      .refine((value) => value === undefined || parseCommaSeparatedList(value).every((id) => UUID.safeParse(id).success), {
+      .refine((value) => {
+        if (value === undefined || !value.trim()) return true
+        // `?ids=,` has no usable entry: also refused, instead of reaching SQL as `IN ()`.
+        const ids = parseCommaSeparatedList(value)
+        return ids.length > 0 && ids.every((id) => UUID.safeParse(id).success)
+      }, {
         message: 'ids must be a comma-separated list of UUIDs',
       }),
     page: z.coerce.number().min(1).default(1),

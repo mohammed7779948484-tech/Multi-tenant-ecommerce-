@@ -342,6 +342,19 @@ describe('storefront page commands (TEST-017)', () => {
     await expect(publishPageCommand.execute({ id: created.id }, ctx)).resolves.toMatchObject({ revisionNo: 3 })
   })
 
+  it('refuses to undo a draft save once someone saved the draft again (409), and changes nothing', async () => {
+    const created = await createPage(em, ctx)
+    const page = pages(em).find((p) => p.id === created.id)!
+    const prepared = await updatePageCommand.prepare!({ id: created.id, title: 'Mine' }, ctx)
+    const mine = (await updatePageCommand.execute({ id: created.id, title: 'Mine' }, ctx)) as PageSnapshot
+    const log = await updatePageCommand.buildLog!({ input: {}, result: mine, snapshots: { before: prepared?.before }, ctx } as never)
+    // Another editor saves later (a different user's log, so the banner still offers mine).
+    await updatePageCommand.execute({ id: created.id, title: 'Theirs' }, ctxFor(em, tenantA, orgA))
+    page.updatedAt = new Date(page.updatedAt!.getTime() + 1000)
+    await expect(updatePageCommand.undo!({ input: {}, ctx, logEntry: { commandPayload: log?.payload } as never })).rejects.toMatchObject({ status: 409 })
+    expect(page.title).toBe('Theirs')
+  })
+
   it("answers 404 for another tenant's pages and revisions and changes nothing", async () => {
     const { home: foreignHome } = seedSite(em, tenantB, orgB)
     const foreignRevision = revisions(em, foreignHome.id)[0]!

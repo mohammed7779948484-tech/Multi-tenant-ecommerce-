@@ -180,6 +180,9 @@ test.describe('TC-STOREFRONT-002: page authoring and publishing', () => {
     createdPageIds.push(id)
     expect((await apiRequest(request, 'GET', '/api/storefront/pages?ids=abc', { token })).status()).toBe(400)
     expect((await apiRequest(request, 'GET', `/api/storefront/pages?ids=abc,${id}`, { token })).status()).toBe(400)
+    // A list with no usable entry is refused too (it used to reach SQL as `IN ()` and answer 500).
+    expect((await apiRequest(request, 'GET', '/api/storefront/pages?ids=,', { token })).status()).toBe(400)
+    expect((await apiRequest(request, 'GET', '/api/storefront/pages?ids=%20,%20', { token })).status()).toBe(400)
     const valid = await apiRequest(request, 'GET', `/api/storefront/pages?ids=${id},00000000-0000-4000-8000-000000000000`, { token })
     expect(valid.status()).toBe(200)
     expect((await readJsonSafe<{ items: Array<{ id: string }> }>(valid))!.items.map((item) => item.id)).toEqual([id])

@@ -20,7 +20,8 @@ reviews:
     - "!.ai/guides/modules/**"
     - "!.ai/guides/reference-modules/**"
     - "!.ai/guides/*.json"
-    - "!docs/**"
+    # docs: DECISIONS.md and UPSTREAM_DIVERGENCES.md are review context (path instructions cite them).
+    - "!docs/LOCAL_EMAIL.md"
     - "!yarn.lock"
   path_instructions:
     - path: "src/modules/storefront/**"

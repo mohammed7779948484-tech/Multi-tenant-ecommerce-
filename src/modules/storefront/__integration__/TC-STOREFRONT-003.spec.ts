@@ -100,8 +100,10 @@ test.describe('TC-STOREFRONT-003: page builder UI', () => {
     const confirm = page.getByRole('alertdialog')
     await expect(confirm).toContainText(`Visit ${RUN}`)
     await confirm.getByRole('button', { name: 'Delete' }).click()
+    // The row also vanishes while the list reloads, so wait for the delete itself to finish.
+    await expect(page.getByText('Page deleted.')).toBeVisible()
     await expect(row).toHaveCount(0)
-    expect(await getPage(request, createdId)).toBeNull()
+    await expect.poll(() => getPage(request, createdId)).toBeNull()
 
     // A row loaded before someone else edited the page cannot be deleted.
     const stale = await createPage(request, `tc3-stale-${RUN}`, `Stale ${RUN}`)
@@ -201,8 +203,22 @@ test.describe('TC-STOREFRONT-003: page builder UI', () => {
     await revisionOne.getByRole('button', { name: 'Restore' }).click()
     const warning = page.getByRole('alertdialog')
     await expect(warning).toContainText('replaces your current draft')
+    // Hold the in-place reload after the restore: the builder must stay locked until it lands.
+    let releaseReload: () => void = () => undefined
+    const reloadHeld = new Promise<void>((resolve) => {
+      releaseReload = resolve
+    })
+    const isReload = (url: URL) => url.pathname === '/api/storefront/pages' && url.searchParams.get('id') === created.id
+    await page.route(isReload, async (route) => {
+      await reloadHeld
+      await route.continue()
+    })
     await warning.getByRole('button', { name: 'Restore' }).click()
     await expect(page.getByText('Revision 1 restored and published as revision 3', { exact: false })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Add section' }).first()).toBeDisabled()
+    releaseReload()
+    await expect(page.getByRole('button', { name: 'Add section' }).first()).toBeEnabled()
+    await page.unroute(isReload)
     const live3 = await publicHtml(request, `/${siteSlug}/${slug}`)
     expect(live3.html).toContain('<strong>roastery</strong>')
     expect(live3.html).not.toContain('Unpublished draft')

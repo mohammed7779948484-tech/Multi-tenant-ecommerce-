@@ -12,6 +12,7 @@ import { StorefrontTheme } from '../data/entities'
 import {
   allProductImages,
   clampCollectionPage,
+  collectionPagePath,
   loadActiveProducts,
   productCards,
   productIdsInCategories,
@@ -156,12 +157,17 @@ export const loadCollectionPage = cache(async (rawSiteSlug: string, rawKey: stri
   const slice = activeIds.slice((page - 1) * COLLECTION_PAGE_SIZE, page * COLLECTION_PAGE_SIZE)
   const links = storeCatalogLinks(frame.basePath)
   const products = await productCards({ em, container }, scope, slice, { links, locale: site.defaultLocale || 'en', withPrices: true })
-  const pageHref = (target: number) => (target === 1 ? canonicalPath : `${canonicalPath}?page=${target}`)
+  const pageHref = (target: number) => `/${site.slug}${collectionPagePath(canonicalKey, target)}`
   return {
     kind: 'ok',
     view: {
       ...frame,
-      head: store.head(`${category.name} · ${site.name}`, plainExcerpt(category.description), `/collections/${encodeURIComponent(canonicalKey)}`),
+      // Each page of a collection is its own canonical URL, so products past page 1 stay indexable.
+      head: store.head(
+        `${category.name} · ${site.name}`,
+        plainExcerpt(category.description),
+        collectionPagePath(canonicalKey, page),
+      ),
       category: { name: category.name, description: category.description ?? null },
       products,
       emptyLabel: translate('storefront.public.productsEmpty', 'New products are on their way.'),

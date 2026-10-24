@@ -458,7 +458,7 @@ Phase 3 adds no table and no column. Sections live in the page spec JSON (`draft
 | Image | `image { attachmentId, alt }`, `caption?` ≤ 200, `href?` safe href, `width` `contained`\|`full` (default `contained`) | image URL |
 | ImageText | `image`, `heading` ≤ 120, `body?` ≤ 600 (plain text, line breaks kept), `cta? { label ≤ 40, href }`, `imagePosition` `start`\|`end` | image URL |
 | Gallery | `heading?` ≤ 120, `images` 2–12 × `{ attachmentId, alt }` | image URLs |
-| ProductGrid | `heading?` ≤ 120, `source`: `{ kind: 'category', categoryId }` or `{ kind: 'products', productIds: 1–12 unique }`, `limit` 1–12 (default 8), `showPrice` (default true) | visible products: title, URL, cover image, formatted price |
+| ProductGrid | `heading?` ≤ 120, `source`: `{ kind: 'category', categoryId }` or `{ kind: 'products', productIds: 1–12 unique }`, `limit` 1–12 (default 8; caps the category source only, picked products are all shown), `showPrice` (default true) | visible products: title, URL, cover image, formatted price |
 | CollectionList | `heading?` ≤ 120, `categoryIds` 1–12 unique | categories: name, description, URL, cover image (first visible product's) |
 | Testimonials | `heading?`, `items` 1–6 × `{ quote ≤ 400, author ≤ 80, role? ≤ 80 }` | — |
 | Faq | `heading?`, `items` 1–12 × `{ question ≤ 200, answer ≤ 1000 }` | — (native `<details>`) |
@@ -503,7 +503,7 @@ The route checks these rules **before** reading the thumbnail cache or storage. 
 
 | Method / command | Path / ID | Auth and feature gate | Input | Success response / event | Errors and concurrency | Requirement IDs |
 |---|---|---|---|---|---|---|
-| `GET` | `/api/storefront/pages` (`makeCrudRoute` list; no `indexer` — pages are not part of global search, and indexing would copy the 64 KB draft JSONB into the query index; `status` maps to explicit column predicates) | auth + `storefront.view` | `page`, `pageSize ≤ 100`, `search` (title/slug), `status` (`draft\|published\|changed`), `id`/`ids` | `{ items: [{ id, slug, title, seoDescription, status, isHome, publicPath, publishedAt, publishedRevisionNo, draftUpdatedAt, updatedAt }], total, page, pageSize, totalPages }`; single-record requests (`id`) add `draftSpec` and `publishedSpec` | 401, 403 | REQ-006 |
+| `GET` | `/api/storefront/pages` (`makeCrudRoute` list with `indexer: PAGE_INDEXER` (`storefront:storefront_page`); page commands refresh the page's index entry after every write, because after any reindex the list `search` reads search tokens (*corrected 2026-10-24*, decision J13); `status` maps to explicit column predicates) | auth + `storefront.view` | `page`, `pageSize ≤ 100`, `search` (title/slug), `status` (`draft\|published\|changed`), `id`/`ids` (each `ids` entry a UUID, at least one) | `{ items: [{ id, slug, title, seoDescription, status, isHome, publicPath, publishedAt, publishedRevisionNo, draftUpdatedAt, updatedAt }], total, page, pageSize, totalPages }`; single-record requests (`id`) add `draftSpec` and `publishedSpec` | 400 malformed `ids`, 401, 403 | REQ-006 |
 | `POST` / command `storefront.pages.create` | `/api/storefront/pages` | auth + `storefront.pages.manage`; mutation guards (factory) | `{ title (1–70), slug, seoDescription? (≤160) }` | `{ id }`; the page starts with a starter draft (one Hero whose heading is the title, one Footer); event `storefront.page.created` `{ id, tenantId, organizationId, siteId }` | 422 `fieldErrors.slug` (invalid/reserved/taken), 422 `storefront.errors.pageLimit`; cap checked under a `SELECT … FOR UPDATE` on the site row; undo soft-deletes the page | REQ-006 |
 | `PUT` / command `storefront.pages.update` | `/api/storefront/pages` | auth + `storefront.pages.manage`; mutation guards | `{ id, title?, slug?, seoDescription?, draftSpec? }` + lock header | `{ ok: true, updatedAt }`; a change to `draftSpec`, `title` or `seoDescription` sets `draft_updated_at`; event `storefront.page.updated` `{ id, tenantId, organizationId, siteId }` | 422 spec issues (`validatePageSpec`: unknown block/prop, unsafe href, > 64 KB, > 40 sections…), 422 `slugFrozen` after first publish, 422 home slug change, 409, 404; version re-checked under the page row lock; undo restores the previous title, SEO description and draft, and the previous slug only while the page has never been published (otherwise 409 `storefront.errors.undoSlugFrozen`) | REQ-004, REQ-006 |
 | `DELETE` / command `storefront.pages.delete` | `/api/storefront/pages?id=` | auth + `storefront.pages.manage`; mutation guards | `id` + lock header | `{ ok: true }`; soft delete; revisions kept; event `storefront.page.deleted` `{ id, tenantId, organizationId, siteId }` | 422 `storefront.errors.homeNotDeletable`, 409, 404; undo restores the page under the site row lock, re-checking the 30-page cap (422 `pageLimit`) and slug uniqueness (409 `storefront.errors.undoSlugTaken`) | REQ-006 |
@@ -697,7 +697,7 @@ The fresh-context review (2026-10-23) found that the three parts ship independen
   - i18n.
 - **Tests:** TEST-021 (`TC-STOREFRONT-006`, command and undo), TEST-022 (UI).
 - **Acceptance:** AC-011. **Exit gate:**
-  - A freshly signed-up tenant applies a template; it adds categories, products and images and publishes the drafted pages.
+  - A freshly signed-up tenant first adds catalog data (categories, products, images), then applies a template, which only writes drafts, and then publishes those drafts separately. *(Wording corrected 2026-10-24: applying a template never creates catalog data or publishes.)*
   - The store shows its own data.
   - Undo works, and after a later edit undo refuses with 409.
   - The new admin UI works with the keyboard, at narrow width, and in light and dark themes.
@@ -885,7 +885,7 @@ The Phase 2 contracts were written in a second `om-spec-writing --autonomous` pa
 - **Medium — list/document props in the inspector; client-safe preview components.** Resolved by P2-Q14 and TEST-015.
 - **Medium — entity-id and site-slug contradictions.** Resolved: generated ids are the frozen surface; no site-slug edit in Phases 1–2.
 - **Medium — untested behaviour and missing AC ids.** Resolved: TEST-011/018 cases added, AC ids named in the phase and the status table.
-- **Medium — event payloads, revisions errors, strict schemas, query index.** Resolved: payloads, 401/403, strict request schemas, no `indexer`.
+- **Medium — event payloads, revisions errors, strict schemas, query index.** Resolved: payloads, 401/403, strict request schemas, no `indexer` (*superseded 2026-10-23: J13 adds the indexer*).
 - **Medium — rollback replacing unpublished work.** Kept with a warning in the confirmation and marked ⚠ for owner confirmation (P2-Q4).
 - **Medium — revision growth.** Recorded as a risk (P2-Q11).
 - **Low items.** Stale text and the Phase 4 overlap corrected.

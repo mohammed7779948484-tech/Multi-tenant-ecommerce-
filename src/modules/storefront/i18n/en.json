@@ -329,7 +329,7 @@
   "storefront.builder.fields.button": "Button",
   "storefront.builder.fields.tone": "Style",
   "storefront.builder.fields.productSource": "Products to show",
-  "storefront.builder.fields.limit": "How many to show (1–12)",
+  "storefront.builder.fields.limit": "How many to show from a category (1–12)",
   "storefront.builder.fields.showPrice": "Show prices",
   "storefront.builder.fields.categories": "Categories",
   "storefront.builder.blocks.Image": "Image",
@@ -461,5 +461,6 @@
   "storefront.templates.copy.faqDeliveryA": "We confirm the delivery time when we accept your order.",
   "storefront.templates.copy.faqReturnQ": "Can I return a product?",
   "storefront.templates.copy.faqReturnA": "Contact us and we will find a solution together.",
-  "storefront.audit.templateApply": "Apply store template"
+  "storefront.audit.templateApply": "Apply store template",
+  "storefront.errors.undoPageChanged": "The page changed since, so this change cannot be undone."
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals'
-import { anonymousPricingContext, clampCollectionPage, formatPrice, storeCatalogLinks } from '../catalogData'
+import { anonymousPricingContext, clampCollectionPage, collectionPagePath, formatPrice, productGridLimit, storeCatalogLinks } from '../catalogData'
 
 describe('TEST-020 store catalog helpers', () => {
   it('formats the gross price, else the net price, in the store locale', () => {
@@ -39,6 +39,17 @@ describe('TEST-020 store catalog helpers', () => {
     expect(links.product({ id: 'p1', handle: null })).toBe('/acme/products/p1')
     expect(links.category({ id: 'c1', slug: 'beans' })).toBe('/acme/collections/beans')
     expect(storeCatalogLinks('').category({ id: 'c1' })).toBe('/collections/c1')
+  })
+
+  it('caps a category grid by its limit but shows every picked product', () => {
+    const ids = Array.from({ length: 12 }, (_, n) => `00000000-0000-4000-8000-0000000000${String(n).padStart(2, '0')}`)
+    expect(productGridLimit({ source: { kind: 'category', categoryId: ids[0]! }, limit: 8 })).toBe(8)
+    expect(productGridLimit({ source: { kind: 'products', productIds: ids }, limit: 8 })).toBeUndefined()
+  })
+
+  it('gives every collection page after the first its own path (used for links and the canonical URL)', () => {
+    expect(collectionPagePath('beans', 1)).toBe('/collections/beans')
+    expect(collectionPagePath('beans', 3)).toBe('/collections/beans?page=3')
   })
 
   it('clamps collection pages to the nearest valid page', () => {

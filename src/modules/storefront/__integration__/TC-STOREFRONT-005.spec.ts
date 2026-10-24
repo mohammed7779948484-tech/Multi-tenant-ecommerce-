@@ -291,6 +291,10 @@ test.describe('TC-STOREFRONT-005b: commerce sections and catalog pages', () => {
     expect(html).toContain(`Product b ${RUN}`)
     expect(html).not.toContain(`Product off ${RUN}`)
     expect((await request.get(`/${siteSlug}/collections/${handle('coffee')}?page=99`)).status()).toBe(200)
+    // Page 1's canonical URL carries no page number (one page here, so ?page=99 clamps to 1).
+    expect(await (await request.get(`/${siteSlug}/collections/${handle('coffee')}?page=99`)).text()).toMatch(
+      new RegExp(`<link rel="canonical" href="[^"]*/collections/${handle('coffee')}"`),
+    )
     expect((await request.get(`/${siteSlug}/collections/${handle('coffee')}?page=abc`)).status()).toBe(200)
     const byId = await request.get(`/${siteSlug}/collections/${ids.parent}`, { maxRedirects: 0 })
     expect(byId.status()).toBe(308)

@@ -125,6 +125,18 @@ test.describe('TC-STOREFRONT-001: storefront brand and public page', () => {
     }))
     expect(colors.brand).toBe(colors.text)
     expect(colors.brand).not.toBe('rgb(42, 111, 78)')
+
+    // A tall logo keeps the header's 2.5rem logo height (the base image rule must not override it).
+    const logoHeight = await browserPage.locator('.sf-brand').evaluate(async (brandLink) => {
+      const img = document.createElement('img')
+      img.className = 'sf-logo'
+      img.alt = ''
+      img.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="400"/>')
+      brandLink.prepend(img)
+      await img.decode().catch(() => undefined)
+      return img.getBoundingClientRect().height
+    })
+    expect(logoHeight).toBe(40)
   })
 
   test('an employee can read the brand but not change it', async ({ request }) => {

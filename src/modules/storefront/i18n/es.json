@@ -329,7 +329,7 @@
   "storefront.builder.fields.button": "Botón",
   "storefront.builder.fields.tone": "Estilo",
   "storefront.builder.fields.productSource": "Productos que se muestran",
-  "storefront.builder.fields.limit": "Cuántos mostrar (1–12)",
+  "storefront.builder.fields.limit": "Cuántos mostrar de una categoría (1–12)",
   "storefront.builder.fields.showPrice": "Mostrar precios",
   "storefront.builder.fields.categories": "Categorías",
   "storefront.builder.blocks.Image": "Imagen",
@@ -461,5 +461,6 @@
   "storefront.templates.copy.faqDeliveryA": "Confirmamos el plazo de entrega cuando aceptamos tu pedido.",
   "storefront.templates.copy.faqReturnQ": "¿Puedo devolver un producto?",
   "storefront.templates.copy.faqReturnA": "Contáctanos y encontraremos una solución juntos.",
-  "storefront.audit.templateApply": "Aplicar plantilla de tienda"
+  "storefront.audit.templateApply": "Aplicar plantilla de tienda",
+  "storefront.errors.undoPageChanged": "La página cambió desde entonces, así que este cambio no se puede deshacer."
 }

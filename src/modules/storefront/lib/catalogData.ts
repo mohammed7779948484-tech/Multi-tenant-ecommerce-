@@ -13,7 +13,7 @@ import { buildPriceRowFilter, type PriceRow } from '@open-mercato/core/modules/c
 import { findWithDecryption } from '@open-mercato/shared/lib/encryption/find'
 import { createLogger } from '@open-mercato/shared/lib/logger'
 import type { ValidatedSection } from './blocks/pageSpec'
-import type { ImageRef } from './blocks/schemas'
+import type { ImageRef, ProductGridProps } from './blocks/schemas'
 import { isStorefrontImageMimeType } from './media'
 import type { CategoryCard, ProductCard, SectionData } from './sectionDataTypes'
 
@@ -46,6 +46,16 @@ export type CatalogLinks = {
 export function clampCollectionPage(raw: string | null, pageCount: number): number {
   const requested = raw && /^\d+$/.test(raw.trim()) ? Number.parseInt(raw, 10) : 1
   return Math.min(Math.max(requested, 1), Math.max(pageCount, 1))
+}
+
+/** How many cards a ProductGrid shows: `limit` caps a category's products; picked products are all shown (1–12). */
+export function productGridLimit(props: Pick<ProductGridProps, 'source' | 'limit'>): number | undefined {
+  return props.source.kind === 'category' ? props.limit : undefined
+}
+
+/** Store-relative path of one page of a collection; page 1 has no page number (it is the canonical first page). */
+export function collectionPagePath(categoryKey: string, page: number): string {
+  return `/collections/${encodeURIComponent(categoryKey)}${page > 1 ? `?page=${page}` : ''}`
 }
 
 export function storeCatalogLinks(basePath: string): CatalogLinks {
@@ -259,7 +269,8 @@ export async function loadSectionData(
   for (const section of sections) {
     try {
       if (section.type === 'ProductGrid') {
-        const { source, limit, showPrice } = section.props
+        const { source, showPrice } = section.props
+        const limit = productGridLimit(section.props)
         let ids: string[] = []
         if (source.kind === 'products') {
           ids = source.productIds

@@ -32,7 +32,10 @@ function asImage(value: unknown): ImageValue {
 /** The field's current value, read when an upload finishes (the merchant may have typed meanwhile). */
 function useLatest<T>(value: T) {
   const ref = React.useRef(value)
-  ref.current = value
+  // Updated after commit (render may be replayed or discarded); uploads finish later than that.
+  React.useEffect(() => {
+    ref.current = value
+  })
   return ref
 }
 

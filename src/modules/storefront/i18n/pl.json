@@ -329,7 +329,7 @@
   "storefront.builder.fields.button": "Przycisk",
   "storefront.builder.fields.tone": "Styl",
   "storefront.builder.fields.productSource": "Wyświetlane produkty",
-  "storefront.builder.fields.limit": "Ile pokazać (1–12)",
+  "storefront.builder.fields.limit": "Ile pokazać z kategorii (1–12)",
   "storefront.builder.fields.showPrice": "Pokaż ceny",
   "storefront.builder.fields.categories": "Kategorie",
   "storefront.builder.blocks.Image": "Obraz",
@@ -461,5 +461,6 @@
   "storefront.templates.copy.faqDeliveryA": "Termin dostawy potwierdzamy przy przyjęciu zamówienia.",
   "storefront.templates.copy.faqReturnQ": "Czy mogę zwrócić produkt?",
   "storefront.templates.copy.faqReturnA": "Skontaktuj się z nami, a razem znajdziemy rozwiązanie.",
-  "storefront.audit.templateApply": "Zastosuj szablon sklepu"
+  "storefront.audit.templateApply": "Zastosuj szablon sklepu",
+  "storefront.errors.undoPageChanged": "Strona została od tego czasu zmieniona, więc nie można cofnąć tej zmiany."
 }
