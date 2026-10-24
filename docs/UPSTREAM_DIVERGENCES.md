@@ -59,6 +59,11 @@ Mercato (`yarn up '@open-mercato/*'`, `yarn mercato agentic:init --update-harnes
   directories survive (verified).
 - **On upgrade, review:** after `yarn install-skills`, confirm
   `ls .claude/skills/json-render-*/SKILL.md` still lists five files.
+- **Known doc error (2026-10-23):** `json-render-next/SKILL.md` shows
+  `export const { Page, … } = createNextApp(...)`. `@json-render/next` 0.21.1 and 0.21.2 return
+  only `{ getPageData, generateMetadata, generateStaticParams }`. The vendored file is left
+  unedited (it is refreshed from upstream); check `node_modules/@json-render/*/dist` before
+  using any json-render API.
 
 ## 5. `tsconfig.json`
 
@@ -66,11 +71,56 @@ Mercato (`yarn up '@open-mercato/*'`, `yarn mercato agentic:init --update-harnes
   adds on every start.
 - **On upgrade, review:** keep whatever `next dev` writes.
 
-## 6. Harness title
+## 6. `src/app/(frontend)/[...slug]/page.tsx` — page-provided metadata
+
+- **What:** in the catch-all's `generateMetadata`, a matched route that requires neither staff
+  nor customer auth may supply its own metadata: when the loaded page component has a static
+  `generateMetadata({ params })`, its result is returned instead of the route's static title.
+  Every other route behaves exactly as before. Public routes (no `requireAuth`) also receive the
+  query string as a `searchParams` prop and in their `generateMetadata` input; the storefront
+  collection page reads `?page=` from it. About 25 lines, marked with comments.
+- **Why:** the template only emits `page.meta.ts` titles, so a public page cannot set a
+  per-record `<title>`, description, canonical URL or Open Graph tags. Rendering those tags from
+  the page body would duplicate the root layout's default title and description. The storefront
+  pages (`src/modules/storefront/frontend/[siteSlug]/**/page.tsx`: home, page, product,
+  collection) are the only users today. The template's catch-all passes no query string at all.
+- **Safety:** the hook is skipped for any route with `requireAuth` or `requireCustomerAuth`,
+  because `generateMetadata` runs before the auth gates in the page function.
+- **On upgrade, review:** if the template's catch-all gains its own metadata hook, switch the
+  storefront page to it and drop this change; otherwise re-apply the block to the new file and
+  check that `/{siteSlug}` still renders exactly one `<title>` and one canonical link
+  (`TC-STOREFRONT-001` asserts both).
+
+## 7. `jest.config.cjs` — integration specs excluded
+
+- **What:** `/__integration__/` added to `testPathIgnorePatterns`.
+- **Why:** the file's own header says Playwright integration specs are excluded from Jest, but
+  the pattern was missing, so the first `src/modules/*/__integration__/*.spec.ts` broke `yarn test`.
+- **On upgrade, review:** drop the change if the template adds the pattern itself.
+
+## 8. `.ds-check-ignore` — one storefront entry
+
+- **What:** an `inline-style` exemption for the theme swatches in
+  `src/modules/storefront/components/StorefrontOverview.tsx`.
+- **Why:** each swatch shows the merchant's own validated `#rrggbb` token as data; no design
+  token can express it.
+
+## 9. Harness title
 
 - `AGENTS.md` and `.ai/specs/README.md` titles show `Multi-tenant-ecommerce-` because
   `agentic:init` derives the project name from the directory. Left as generated on purpose: a
   hand edit would mark the files user-modified and block future `--update-harness` refreshes.
+
+## 10. Upstream bugs worked around in app code (Open Mercato 0.9.0)
+
+- **CRUD `?ids=` with no valid UUID → SQL `IN ()` (500).** `mergeIdFilter` turns an
+  all-invalid list into `id: { $in: [] }`, which the hybrid query engine renders as `in ()`.
+  The storefront pages route rejects malformed ids with 400 before the factory runs
+  (DECISIONS J14). Other CRUD routes of the app inherit the bug; worth reporting upstream.
+- **Reindexing switches list search to search tokens.** Once an entity type has tokens for a
+  tenant, `$ilike` filters are answered from the token index, so a module that writes rows
+  without queuing index refreshes loses them from search after any reindex. The storefront
+  page commands queue refreshes (DECISIONS J13).
 
 ## Not divergences
 

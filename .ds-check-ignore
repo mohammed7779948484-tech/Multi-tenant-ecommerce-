@@ -1212,6 +1212,12 @@
       "rule": "hardcoded-palette",
       "match": "text-blue-500/70",
       "reason": "Existing scaffold styling retained as a bounded migration baseline."
+    },
+    {
+      "file": "src/modules/storefront/components/StorefrontOverview.tsx",
+      "rule": "inline-style",
+      "match": "style",
+      "reason": "Theme swatch shows the merchant's own validated #rrggbb token as data; it is not an admin design colour and no token can express it."
     }
   ]
 }

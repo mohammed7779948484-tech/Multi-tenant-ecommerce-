@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+reviews:
+  profile: assertive
+  request_changes_workflow: false
+  auto_review:
+    enabled: true
+    drafts: true
+  path_filters:
+    - "!.agents/**"
+    - "!.claude/**"
+    # .ai: keep the specs, the review checklist and the hand-written guides (contracts,
+    # architecture, backend UI) reviewable; skip generated facts and harness tooling.
+    - "!.ai/agentic.config.json"
+    - "!.ai/harness/**"
+    - "!.ai/skills/**"
+    - "!.ai/lessons/**"
+    - "!.ai/qa/**"
+    - "!.ai/trackers/**"
+    - "!.ai/guides/modules/**"
+    - "!.ai/guides/reference-modules/**"
+    - "!.ai/guides/*.json"
+    # docs: DECISIONS.md and UPSTREAM_DIVERGENCES.md are review context (path instructions cite them).
+    - "!docs/LOCAL_EMAIL.md"
+    - "!yarn.lock"
+  path_instructions:
+    - path: "src/modules/storefront/**"
+      instructions: |
+        Enforce tenant isolation: derive trusted tenant_id and organization_id from
+        authenticated scope, or from the resolved site row on public routes.
+        Every dependent query must stay pinned to that scope; foreign IDs must
+        behave identically to random IDs. Never render merchant HTML, CSS,
+        className, style, scripts or arbitrary attributes. Validate saved,
+        published and rendered specs using the canonical strict block schemas.
+        Buyer-facing routes and client components must never import a client spec
+        renderer (@json-render/react, @json-render/next), directly or transitively;
+        @json-render/core is allowed in server code only (docs/DECISIONS.md S1/S2).
+        Section references (attachment, product, category ids) must be checked against
+        the caller's organization on save/publish/rollback; products and images are
+        public only while a published section shows them.
+        Check publish/rollback/undo ordering, row-lock rechecks, slug freeze,
+        immutable revisions and the 30-page cap.
+    - path: "src/app/**"
+      instructions: |
+        Public routes must never import a client spec renderer (@json-render/react,
+        @json-render/next), directly or transitively, or preload a heavy admin editor chunk. Check metadata uniqueness,
+        published-revision-only reads, no-store behavior and fail-closed rendering.
