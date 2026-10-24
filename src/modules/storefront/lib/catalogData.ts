@@ -276,14 +276,18 @@ export async function loadSectionData(
       } else if (section.type === 'CollectionList') {
         const categories = await loadActiveCategories(deps.em, scope, section.props.categoryIds)
         const ordered = section.props.categoryIds.map((id) => categories.get(id)).filter((category): category is CatalogProductCategory => Boolean(category))
-        const byCategory = await productIdsInCategories(deps.em, scope, ordered.map((category) => category.id))
-        // Cover candidates: the first few products of each category, not the whole category.
-        const firstIds = ordered.map((category) => (byCategory.get(category.id) ?? []).slice(0, 20)).flat()
-        const products = await loadActiveProducts(deps.em, scope, firstIds)
+        // A cover comes from the category or its active sub-categories (products often sit only in the leaves).
+        const trees = new Map(ordered.map((category) => [category.id, withDescendants(category)]))
+        const activeTree = await loadActiveCategories(deps.em, scope, [...new Set([...trees.values()].flat())])
+        const byCategory = await productIdsInCategories(deps.em, scope, [...activeTree.keys()])
+        const candidatesOf = (categoryId: string) =>
+          [...new Set((trees.get(categoryId) ?? []).filter((id) => activeTree.has(id)).flatMap((id) => byCategory.get(id) ?? []))].slice(0, 20)
+        // Cover candidates: the first few products of each tree, not the whole tree.
+        const products = await loadActiveProducts(deps.em, scope, [...new Set(ordered.flatMap((category) => candidatesOf(category.id)))])
         const covers = await productImages(deps.em, scope, [...products.values()])
         data[section.id] = {
           categories: ordered.map((category) => {
-            const coverProduct = (byCategory.get(category.id) ?? []).find((id) => products.has(id) && covers.has(id))
+            const coverProduct = candidatesOf(category.id).find((id) => products.has(id) && covers.has(id))
             return {
               id: category.id,
               name: category.name,

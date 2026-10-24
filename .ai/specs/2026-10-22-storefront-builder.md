@@ -1,7 +1,7 @@
 # Storefront Builder
 
 **Date**: 2026-10-22
-**Status**: Phases 1–2 implemented and verified (2026-10-22). Phase 3 (3a/3b/3c) revised on 2026-10-23 with owner answers Q11–Q14, reviewed, and **Ready for implementation**. Phase 4 pending.
+**Status**: Phases 1–2 implemented and verified (2026-10-22). Phase 3 (3a/3b/3c) revised on 2026-10-23 with owner answers Q11–Q14 and implemented and verified on 2026-10-24 (ledger in Implementation Status). Phase 4 pending.
 
 > Authored with `om-spec-writing --autonomous` (skeleton → resolved assumptions → research → design → breakdown → review). Every autonomous default is recorded in **Resolved assumptions** and in the **Open Questions** table so the product owner can override it before a dependent phase starts.
 
@@ -823,9 +823,9 @@ The reference module is source-present and unregistered; nothing above is behavi
 - [x] **AC-006** — Publish creates an immutable, numbered revision from the saved draft; rollback appends a copy of an earlier revision and resets the draft to it; drafts are never public; a page is served at `/{siteSlug}/{pageSlug}` only while published.
 - [x] **AC-007** — In the builder a merchant adds (from the json-render catalog), edits, reorders and removes sections with a live preview, by pointer and by keyboard; edits round-trip through draft save and publish; public routes ship no `@json-render/*` code.
 - [x] **AC-010** — Page slugs follow the grammar, are unique per site, avoid reserved words and freeze after the first publish; a store holds at most 30 pages; the home page cannot be deleted.
-- [ ] **AC-008** — Media and content sections render the store's own page images. A page may reference only images uploaded to this store's pages; foreign, other-entity and never-existing image ids are rejected on save, publish and rollback. An image is public only while a published page references it. Buyer pages still ship no client spec renderer.
-- [ ] **AC-012** — Commerce sections render only the store's own active products, categories and prices. Products and categories are public, with their own pages, only while a published section shows them. Foreign product and category ids are rejected on save, publish and rollback. A failing catalog or price read degrades one section, never the page.
-- [ ] **AC-011** — From the pages list a merchant applies a store template that drafts complete pages filled with the store's own data, never publishes them, skips existing pages and can be undone from the last-operation banner (refused with a conflict once any of those pages changed).
+- [x] **AC-008** — Media and content sections render the store's own page images. A page may reference only images uploaded to this store's pages; foreign, other-entity and never-existing image ids are rejected on save, publish and rollback. An image is public only while a published page references it. Buyer pages still ship no client spec renderer.
+- [x] **AC-012** — Commerce sections render only the store's own active products, categories and prices. Products and categories are public, with their own pages, only while a published section shows them. Foreign product and category ids are rejected on save, publish and rollback. A failing catalog or price read degrades one section, never the page.
+- [x] **AC-011** — From the pages list a merchant applies a store template that drafts complete pages filled with the store's own data, never publishes them, skips existing pages and can be undone from the last-operation banner (refused with a conflict once any of those pages changed).
 - [ ] **AC-009** — Each store exposes per-page SEO, a sitemap of published pages and a robots policy; publishing refreshes them.
 - [ ] Every listed backend surface matches its recorded Open Mercato reference and uses the canonical shell/components, shared API helpers, semantic tokens, and complete loading, empty, error, conflict, keyboard, accessibility, responsive, light-mode, and dark-mode states.
 - [ ] Every affected API and UI path has self-contained integration coverage and the configured validation gate passes.
@@ -980,7 +980,7 @@ Source doc: .ai/specs/2026-10-22-storefront-builder.md
 | Phase 2 — Page authoring | done | Phase 1 (verified) | AC-004 (save/publish), AC-005, AC-006, AC-007, AC-010 | `yarn generate && yarn typecheck && yarn test` + `TC-STOREFRONT-002` + two-tenant checks | builder round trip; drafts never public; no json-render on public routes; isolation; AC-010 rules; UI states |
 | Phase 3a — Media and content sections | verified (2026-10-24) | Phase 2 (verified; corrected 2026-10-23) | AC-008 | `yarn typecheck && yarn jest src/modules/storefront` + `TC-STOREFRONT-005` (media/content) | Phase 3a exit gate |
 | Phase 3b — Commerce sections and public catalog | verified (2026-10-24) | Phase 3a | AC-012 | + `TC-STOREFRONT-005` (commerce) + two-tenant check | Phase 3b exit gate |
-| Phase 3c — Store templates | pending | Phase 3b | AC-011 | + `TC-STOREFRONT-006` | Phase 3c exit gate |
+| Phase 3c — Store templates | verified (2026-10-24) | Phase 3b | AC-011 | + `TC-STOREFRONT-006` | Phase 3c exit gate |
 | Phase 4 — SEO and indexability | pending | Phase 2 | AC-009 | — | — |
 
 ### Phase 1 progress
@@ -1051,6 +1051,17 @@ Source doc: .ai/specs/2026-10-22-storefront-builder.md
   - **Commands:** `yarn test` 18 suites / 153 tests; `npx playwright test src/modules/storefront/__integration__` 21 passed (TC-001…005); `yarn typecheck`, `yarn lint` (0 errors; 8 warnings in template files), `yarn ds:check`, `yarn i18n:check-hardcoded` (no storefront hits), `yarn generate`, `yarn build` passed.
   - **Browser check:** Products section in the builder (category list, selection, preview shows the product with its image) in light and dark admin themes; product page at desktop and phone width.
 
+- [x] 3c store templates:
+  - **Templates:** `lib/templates.ts` (Classic shop: home, About, Questions, Contact; Simple showcase: home, Contact), filled from `lib/templateData.ts` (store name, description, up to four active top-level categories; a contact call to action replaces the product sections when there are none). Copy in the admin's language, 61 keys × 5 locales.
+  - **Command:** `commands/templates.ts` `storefront.templates.apply` — every generated spec passes `validatePageSpec` and the reference check first; one transaction under the site row lock; home draft guarded by the home page version; taken slugs skipped; 30-page cap; nothing published; event `storefront.template.applied` after commit. Undo restores the home draft, title, SEO description and `draft_updated_at` and soft-deletes the created pages, or refuses with 409 `undoTemplateChanged` when any written page changed.
+  - **Routes:** `GET /api/storefront/templates`, `POST /api/storefront/templates/{id}/apply` (mutation guards, strict empty body, `x-om-operation` for the undo banner, `openApi`).
+  - **UI:** `components/pages/TemplateDialog.tsx` on the pages list (`Dialog`, `RadioField`, `useConfirmDialog`, `useGuardedMutation` with the home version; loading, error, conflict; hidden without `storefront.pages.manage`; keyboard: Tab into the list, arrows and Space, Cmd/Ctrl+Enter, Escape). The dialog closes before the replace-draft confirmation and reopens on Cancel (decision K9).
+  - **Fixes found while verifying:** confirmation confirmed unseen by the same Cmd/Ctrl+Enter, and unusable inside the modal dialog (K9); alt text typed during an upload overwritten when it finished (K10, `ImageInputs.tsx`); collection covers from the whole category tree (K4); locale files normalized to flat keys (K11). Each is covered by a test that fails without it (`TC-STOREFRONT-006`, `TC-STOREFRONT-005` part b).
+  - **Tests:** TEST-021 — `commands/__tests__/templates.test.ts` (8 cases; the stale-version and changed-page 409 guards mutation-checked) and `lib/__tests__/templates.test.ts` (9 cases). TEST-022 — `TC-STOREFRONT-006` (API apply, skip, 409/404/422, undo through the audit undo endpoint, undo refused after an edit; browser: template dialog by keyboard, warning, Escape back to the dialog, apply, Undo from the banner, Image section by upload with alt text typed during the upload, Products section by picking a category, preview shows the product, publish, public page shows image and product, product page 200, pages list and dialog at 390 px in the dark theme). TEST-023 — fresh signups: B's template never references A's categories, A's pages unchanged, A cannot undo B's apply (7/7, with the 3b checks 17/17).
+  - **Exit gate:** a freshly signed-up tenant applied Classic shop and published the four pages; the live home shows its own categories and product cards with images; About, Questions and Contact answer 200 (10/10). Undo and the 409 after an edit are covered above.
+  - **Commands:** `yarn generate`, `yarn typecheck`, `yarn lint` (0 errors), `yarn ds:check`, `yarn test` (20 suites, 170 tests), `yarn i18n:check-hardcoded` (no storefront hits), `yarn build` passed; `npx playwright test src/modules/storefront/__integration__` 24 passed (TC-001…006; TC-004 is TEST-012).
+  - **Review:** `om-code-review` with `.ai/review-checklist.md`: approve; minors recorded (template category names for a caller without catalog view, accepted in `docs/DECISIONS.md`; the 409 integration case leaves the test store's home with a template draft).
+
 ## Changelog
 
 | Date | Change |
@@ -1064,3 +1075,4 @@ Source doc: .ai/specs/2026-10-22-storefront-builder.md
 | 2026-10-22 | Phase 2 implemented, reviewed (`om-code-review`, findings fixed) and verified on a production build; AC-004/006/007/010 met; implementation decisions J1–J12 in `docs/DECISIONS.md` |
 | 2026-10-23 | Revision: json-render claims verified against the packages (two of the four inherited claims wrong, one documentation error confirmed, json-render catalog validation found not to check props); S1/S2 replaced (owner Q11); Phase 3 redefined as the assembled store (sections + store data + templates; Q12–Q14); REQ-008 rewritten, REQ-010/AC-011 added, TEST-013 detailed, TEST-020…023 added; Phase 2 corrections from the CodeRabbit review and the page search index |
 | 2026-10-24 | Phases 3a and 3b implemented and verified (ledger above); price wording corrected to the platform pricing path (no "From" label); collection page cap of 1,000 assignments recorded |
+| 2026-10-24 | Phase 3c implemented, reviewed and verified; AC-008, AC-011 and AC-012 met; implementation decisions K1–K12 in `docs/DECISIONS.md` |

@@ -22,6 +22,7 @@ import { useT } from '@open-mercato/shared/lib/i18n/context'
 import { formatDateTime } from '@open-mercato/shared/lib/time'
 import { MAX_PAGES_PER_SITE, type PageListItem, type PageStatus } from '../../lib/pages'
 import { useStorefrontPermissions } from '../useStorefrontPermissions'
+import { TemplateDialog } from './TemplateDialog'
 import {
   PAGE_CREATE_HREF,
   PAGE_ENTITY_ID,
@@ -184,19 +185,22 @@ export function PagesTable() {
 
   const actions = canManagePages ? (
     <div className="flex flex-col items-end gap-1">
-      {capReached ? (
-        <Button type="button" disabled aria-describedby="storefront-pages-cap-hint">
-          <Plus className="size-4" aria-hidden="true" />
-          {t('storefront.pages.actions.create', 'New page')}
-        </Button>
-      ) : (
-        <Button asChild>
-          <Link href={PAGE_CREATE_HREF}>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <TemplateDialog onApplied={reload} />
+        {capReached ? (
+          <Button type="button" disabled aria-describedby="storefront-pages-cap-hint">
             <Plus className="size-4" aria-hidden="true" />
             {t('storefront.pages.actions.create', 'New page')}
-          </Link>
-        </Button>
-      )}
+          </Button>
+        ) : (
+          <Button asChild>
+            <Link href={PAGE_CREATE_HREF}>
+              <Plus className="size-4" aria-hidden="true" />
+              {t('storefront.pages.actions.create', 'New page')}
+            </Link>
+          </Button>
+        )}
+      </div>
       {capReached ? (
         <span id="storefront-pages-cap-hint" className="text-xs text-muted-foreground">
           {t('storefront.pages.capReached', 'A store can have up to {max} pages. Delete one to add another.', { max: MAX_PAGES_PER_SITE })}

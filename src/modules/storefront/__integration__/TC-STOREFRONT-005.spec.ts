@@ -257,6 +257,9 @@ test.describe('TC-STOREFRONT-005b: commerce sections and catalog pages', () => {
     // The collection card links by slug and uses a product image as its cover.
     expect(html).toContain(`href="/${siteSlug}/collections/${handle('coffee')}"`)
     expect(html).toContain(`Coffee ${RUN}`)
+    // Its cover comes from the sub-category's product: the parent has no product with an image.
+    const collectionCard = html.slice(html.indexOf('sf-collection'), html.indexOf('</li>', html.indexOf('sf-collection')))
+    expect(collectionCard).toContain(`/api/storefront/media/${siteSlug}/${images.a}`)
   })
 
   test('product pages: visible products only, canonical by handle', async ({ request }) => {

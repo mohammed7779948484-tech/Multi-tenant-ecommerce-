@@ -76,7 +76,7 @@ export type PublishResult = {
 
 const iso = (value: Date | null | undefined): string | null => (value ? value.toISOString() : null)
 
-function serializePage(page: StorefrontPage): PageSnapshot {
+export function serializePage(page: StorefrontPage): PageSnapshot {
   return {
     id: page.id,
     tenantId: page.tenantId,
@@ -93,17 +93,17 @@ function serializePage(page: StorefrontPage): PageSnapshot {
   }
 }
 
-function forkEm(ctx: CommandRuntimeContext): EntityManager {
+export function forkEm(ctx: CommandRuntimeContext): EntityManager {
   return (ctx.container.resolve('em') as EntityManager).fork()
 }
 
-function isUniqueViolation(error: unknown): boolean {
+export function isUniqueViolation(error: unknown): boolean {
   const candidate = error as { code?: unknown; name?: unknown } | null
   return candidate?.code === '23505' || candidate?.name === 'UniqueConstraintViolationException'
 }
 
 /** 422 carrying every spec issue with a translated message plus a summary on the `draftSpec` field. */
-async function specIssuesError(issues: PageSpecIssue[], summaryKey = 'storefront.errors.specIssues'): Promise<CrudHttpError> {
+export async function specIssuesError(issues: PageSpecIssue[], summaryKey = 'storefront.errors.specIssues'): Promise<CrudHttpError> {
   const { translate } = await resolveTranslations()
   const translated = issues.slice(0, 50).map((issue) => ({
     ...issue,
@@ -136,7 +136,7 @@ async function slugError(issue: 'slugInvalid' | 'slugReserved' | 'slugTaken' | '
   return unprocessable(`storefront.validation.${issue}`, fallbacks[issue], 'slug')
 }
 
-async function loadSiteForUpdate(em: EntityManager, scope: Scope): Promise<StorefrontSite> {
+export async function loadSiteForUpdate(em: EntityManager, scope: Scope): Promise<StorefrontSite> {
   const site = await em.findOne(StorefrontSite, { ...scope, deletedAt: null }, { lockMode: LockMode.PESSIMISTIC_WRITE })
   if (!site) throw await storefrontNotFound()
   return site
@@ -152,7 +152,7 @@ async function loadPage(em: EntityManager, id: string, scope: Scope, lock = fals
   return page
 }
 
-function enforcePageLock(page: StorefrontPage, ctx: CommandRuntimeContext): void {
+export function enforcePageLock(page: StorefrontPage, ctx: CommandRuntimeContext): void {
   enforceCommandOptimisticLock({
     resourceKind: PAGE_RESOURCE_KIND,
     resourceId: page.id,
@@ -176,7 +176,7 @@ export const PAGE_INDEXER = { entityType: 'storefront:storefront_page' } as cons
  * the list search reads search tokens; without this refresh, pages created or
  * renamed afterwards would be missing from the search.
  */
-async function emitPageEvent(ctx: CommandRuntimeContext, id: StorefrontEventId, payload: Record<string, unknown> & Scope): Promise<void> {
+export async function emitPageEvent(ctx: CommandRuntimeContext, id: StorefrontEventId, payload: Record<string, unknown> & Scope): Promise<void> {
   try {
     const dataEngine = ctx.container.resolve('dataEngine') as DataEngine
     await emitCrudSideEffects({

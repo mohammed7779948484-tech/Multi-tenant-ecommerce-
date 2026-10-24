@@ -29,6 +29,13 @@ function asImage(value: unknown): ImageValue {
   }
 }
 
+/** The field's current value, read when an upload finishes (the merchant may have typed meanwhile). */
+function useLatest<T>(value: T) {
+  const ref = React.useRef(value)
+  ref.current = value
+  return ref
+}
+
 function useImageUpload(pageId: string) {
   const t = useT()
   const [uploading, setUploading] = React.useState(false)
@@ -83,6 +90,7 @@ function AltInput({ id, value, onChange, disabled, invalid, t }: { id: string; v
 export function ImageInput({ id, value, setValue, disabled, error, pageId, name }: CrudCustomFieldRenderProps & { pageId: string; name: string }) {
   const t = useT()
   const image = asImage(value)
+  const latest = useLatest(value)
   const { upload, uploading } = useImageUpload(pageId)
   return (
     <div className="flex flex-col gap-2">
@@ -103,7 +111,7 @@ export function ImageInput({ id, value, setValue, disabled, error, pageId, name 
             return
           }
           void upload(file).then((attachmentId) => {
-            if (attachmentId) setValue({ attachmentId, alt: image.alt })
+            if (attachmentId) setValue({ attachmentId, alt: asImage(latest.current).alt })
           })
         }}
       />
@@ -126,6 +134,7 @@ export function ImageListInput({
 }: CrudCustomFieldRenderProps & { field: EditorImageListField; pageId: string; label: (entry: Label, params?: Record<string, string | number>) => string }) {
   const t = useT()
   const items = Array.isArray(value) ? value.map(asImage) : []
+  const latest = useLatest(value)
   const { upload, uploading } = useImageUpload(pageId)
   const update = (next: ImageValue[]) => setValue(next)
   const move = (index: number, delta: -1 | 1) => {
@@ -188,7 +197,8 @@ export function ImageListInput({
           onChange={(file) => {
             if (!file) return
             void upload(file).then((attachmentId) => {
-              if (attachmentId) update([...items, { attachmentId, alt: '' }])
+              const current = Array.isArray(latest.current) ? latest.current.map(asImage) : []
+              if (attachmentId) update([...current, { attachmentId, alt: '' }])
             })
           }}
         />

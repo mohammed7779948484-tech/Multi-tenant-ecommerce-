@@ -138,14 +138,23 @@ Spec: `.ai/specs/2026-10-22-storefront-builder.md`; decisions: `docs/DECISIONS.m
   store's pages (up to 30, including the home page). **New page** asks for a title,
   an address (suggested from the title; it can change until the first publish) and
   an optional search description. **Edit content** opens the section builder:
-  add sections from the picker (Hero, Rich text, Features, Footer), edit them in
-  the side panel, reorder with the arrows or Alt+Up/Down, preview at desktop or
+  add sections from the picker (Hero, Rich text, Features, Image, Image with
+  text, Gallery, Products, Collections, Testimonials, Questions and answers,
+  Contact details, Call to action, Footer), upload images and pick catalog
+  categories or products in the side panel, reorder with the arrows or Alt+Up/Down, preview at desktop or
   phone width, **Save draft**, **Publish**. Every publish is kept as a revision;
   **Revisions → Restore** publishes a copy of an older one and replaces the
   current draft. Buyers only ever see the published revision at
   `/<siteSlug>/<pageSlug>`. Features: `storefront.pages.manage` (create, edit,
   delete, save drafts) and `storefront.pages.publish` (publish, restore); admins
   have both through `storefront.*`, employees can only view.
+- **Templates and the public catalog (Phase 3):** **Start from a template** on the
+  pages list drafts a complete store (Classic shop or Simple showcase) from the
+  store name and its top-level categories. It replaces only the home page draft,
+  keeps existing pages, publishes nothing, and can be undone from the banner.
+  Products and categories that a published section shows get their own pages at
+  `/<siteSlug>/products/<handle>` and `/<siteSlug>/collections/<slug>`; everything
+  else answers 404.
 - **Payments:** the `payment_policy` module deactivates gateway payment methods (the
   `stripe` "Credit Card" method that `sales` seeds) for every new tenant. Cash on
   delivery and bank transfer stay active.
@@ -160,7 +169,8 @@ Spec: `.ai/specs/2026-10-22-storefront-builder.md`; decisions: `docs/DECISIONS.m
 - **Tests:** `yarn test` (unit) and the integration specs in
   `src/modules/storefront/__integration__/` — `TC-STOREFRONT-001` (brand),
   `-002` (page API and public pages), `-003` (pages list and builder in a
-  browser), `-004` (public pages load no json-render code)
+  browser), `-004` (public pages load no json-render code), `-005` (media and
+  commerce sections, product and collection pages), `-006` (templates and undo)
   (`yarn test:integration:ephemeral`, or
   `npx playwright test --config .ai/qa/tests/playwright.config.ts src/modules/storefront/__integration__`
   against a running app).
@@ -176,9 +186,12 @@ Spec: `.ai/specs/2026-10-22-storefront-builder.md`; decisions: `docs/DECISIONS.m
   Subdomains and custom domains need real DNS (`CUSTOM_DOMAIN_CNAME_TARGET`,
   for example a wildcard `*.<platform-domain>` record) and TLS at the edge
   (see Open Mercato's Traefik notes).
-- **Media and commerce blocks, SEO extras.** Images, product grids, collections
-  (spec Phase 3) and sitemap/robots (Phase 4) are not built yet; pages link to
-  each other through Hero and Footer links (`/about` resolves under the store).
+- **SEO extras.** Sitemap, robots and per-page Open Graph images (spec Phase 4)
+  are not built yet.
+- **Prices from channels.** Store pages price as an anonymous buyer, so prices
+  limited to a sales channel or customer group do not show (`docs/DECISIONS.md`).
+- **Ordering.** Product pages have no cart or order button (spec P3-Q9); ordering
+  by cash on delivery or bank transfer is a later checkout spec.
 - **Public page weight.** The app shell (upstream) references every module's admin
   screens, so any public page, the stores included, downloads their client chunks
   (~120 scripts in dev and production). The storefront keeps its own editor code

@@ -94,9 +94,29 @@ decision recorded here with a date. Detailed design lives in
 | J17 | The payment policy writes through the installed `sales.payment-methods.update` command with a system context. | Audit log, undo and events for every policy change, the same path as an admin's edit. |
 | J18 | Operator CLIs parse flags with Node's `util.parseArgs` (strict). | A bare `--tenant` used to mean "every tenant". |
 
+## Decisions made while implementing Phase 3 (2026-10-23 – 2026-10-24)
+
+| ID | Decision | Why |
+|---|---|---|
+| K1 | Store data for sections is read on the server by scalar id from the installed catalog entities (`findWithDecryption`, pinned to the site's tenant and organization). Prices come from `catalogPricingService.resolvePriceMany` over the product's and its variants' rows, exactly as the catalog products API does; no "From" label. | The catalog module forbids reimplementing pricing. The spec's earlier "product rows first, else lowest variant price" wording was corrected. |
+| K2 | A product, category or product image is public only while a published section of that store shows it; everything else answers 404, including the same id under another store's slug. | "Active in the back office" is not "for sale in this store"; drafts and unpublished items never leak. |
+| K3 | Product and collection pages run through the existing frontend catch-all, which now also passes the query string to public pages (`?page=`). | One routing seam; the change is small, limited to routes without auth, and recorded in `docs/UPSTREAM_DIVERGENCES.md` section 6. |
+| K4 | A collection page reads at most the first 1,000 category assignments (about 40 pages of 24). Collection cards take their cover from the category's whole tree. | Bounded queries on growing data. Products often sit only in leaf categories, so a parent card had no cover. |
+| K5 | The builder preview gets commerce data from `POST /api/storefront/preview-data` (same loader as the public render, without the published condition) and looks it up by the section's validated props. | json-render passes components their props only; keying by props needs no change to the spec format. The endpoint still answers keyed by section id, as the contract says. |
+| K6 | Product and category pickers use the catalog's own staff APIs through the shared `LookupSelect` and `TagsInput`; saved product names are fetched one id at a time (at most 12). | The products API filters by a single `id`; no new endpoint for labels. A 403 shows an inline message instead of options. |
+| K7 | Two templates: **Classic shop** (home, About, Questions, Contact) and **Simple showcase** (home, Contact). Copy mentions only cash on delivery and bank transfer, has no testimonials, and the contact page carries placeholder opening hours for the merchant to edit. | Owner payment policy; no invented reviews; drafts only, so placeholders never go live unreviewed. |
+| K8 | `storefront.templates.apply` is logged against the home page; undo goes through the platform's last-operation banner and refuses with 409 (nothing reverted) once any written page's `updated_at` differs. | Partial undo would leave a half template. |
+| K9 | The template dialog closes before the replace-draft confirmation opens (and reopens on Cancel); its Cmd/Ctrl+Enter stops propagation. | The shared confirmation listens on `window`: the same key press confirmed it unseen, and inside the modal dialog its buttons could not be clicked. |
+| K10 | Image fields read the field's current value when an upload finishes. | Alt text typed during an upload was overwritten (found by `TC-STOREFRONT-006`). |
+| K11 | Storefront locale files use flat keys only. | 3a had added nested objects beside flat keys; the loader merges both, and one key existed twice with different text. |
+| K12 | Media route: visibility is decided before any cache or storage read; resizing uses `sharp` with `limitInputPixels`, fixed widths (320–1920), never upscales, and serves GIFs as uploaded. | No image is served or cached for anyone the rule does not allow; bounded CPU and memory per request. |
+
+**Accepted risk (review minor):** applying a template requires only `storefront.pages.manage`, and the draft names the organization's top-level categories. Default roles grant that feature to admins only, who also hold `catalog.*`. Revisit if custom roles get page management without catalog access.
+
 ## Open items needing the owner
 
 - Spec Q2 (public path `/{siteSlug}`) and Q4 (theme saves go live immediately) are marked ⚠ in the spec.
 - **Signup without email (P6).** Signup must complete with no email at all, in production too, while the installed onboarding sends a verification link. Next session: a spec for an email-free signup (for example, an app-owned signup route that provisions directly, with abuse controls replacing the email check), reviewed against `onboarding` and `auth` before code.
+- **Prices for anonymous buyers.** Store pages price as an anonymous buyer (no channel, customer or group). Price rows limited to a sales channel or customer group do not show, so a product priced only per channel shows no price (the seeded example products, for instance). Decide whether stores should price through a default channel.
 - DNS for custom domains; release channel (stable 0.9.0 today).
 - Public page weight (J4): every public page downloads all modules' admin chunks through the upstream app shell; worth raising upstream or trimming the shell before launch. (Unrelated to json-render: S1 keeps our own renderer off the client, but the shell still preloads admin code.)
