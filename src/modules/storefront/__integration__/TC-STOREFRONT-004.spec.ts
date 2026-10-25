@@ -38,7 +38,13 @@ async function loadedScripts(browser: Browser, url: string, options: { staff?: b
     )
   })
   await page.goto(url, { waitUntil: 'networkidle' })
-  if (options.ready) await expect(page.getByText(options.ready).first()).toBeVisible({ timeout: 60_000 })
+  if (options.ready) {
+    // The positive control needs the lazy preview mounted, not just the page header: wait for the
+    // preview region to render the page's own heading and for its loading fallback to go away.
+    const preview = page.getByRole('region', { name: 'Preview of the draft' })
+    await expect(preview.getByText(options.ready, { exact: true }).first()).toBeVisible({ timeout: 60_000 })
+    await expect(preview.getByText('Loading preview…')).toHaveCount(0)
+  }
   await page.waitForLoadState('networkidle')
   await Promise.all(pending)
   await context.close()

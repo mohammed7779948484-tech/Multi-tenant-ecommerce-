@@ -123,4 +123,27 @@ describe('rich-text markup', () => {
       children: [{ type: 'text', text: '[not a link] and [also](not a link)' }],
     })
   })
+  it('keeps balanced parentheses inside a link target and round-trips them', () => {
+    const doc = parse('See [Help](https://example.com/help_(billing)) now.')
+    expect(doc.blocks[0]).toEqual({
+      type: 'paragraph',
+      children: [
+        { type: 'text', text: 'See ' },
+        { type: 'link', href: 'https://example.com/help_(billing)', children: [{ type: 'text', text: 'Help' }] },
+        { type: 'text', text: ' now.' },
+      ],
+    })
+    expect(parse(serializeRichTextMarkup(doc))).toEqual(doc)
+  })
+
+  it('round-trips a link target with an unbalanced parenthesis', () => {
+    const doc: RichTextDocument = {
+      type: 'doc',
+      blocks: [{ type: 'paragraph', children: [{ type: 'link', href: 'https://example.com/a)b(c', children: [{ type: 'text', text: 'x' }] }] }],
+    }
+    const back = parse(serializeRichTextMarkup(doc))
+    const link = (back.blocks[0] as { children: Array<{ type: string; href?: string }> }).children[0]
+    expect(link.type).toBe('link')
+    expect(decodeURIComponent(link.href!)).toBe('https://example.com/a)b(c')
+  })
 })

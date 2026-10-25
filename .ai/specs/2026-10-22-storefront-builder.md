@@ -1062,6 +1062,16 @@ Source doc: .ai/specs/2026-10-22-storefront-builder.md
   - **Commands:** `yarn generate`, `yarn typecheck`, `yarn lint` (0 errors), `yarn ds:check`, `yarn test` (20 suites, 170 tests), `yarn i18n:check-hardcoded` (no storefront hits), `yarn build` passed; `npx playwright test src/modules/storefront/__integration__` 24 passed (TC-001…006; TC-004 is TEST-012).
   - **Review:** `om-code-review` with `.ai/review-checklist.md`: approve; minors recorded (template category names for a caller without catalog view, accepted in `docs/DECISIONS.md`; the 409 integration case leaves the test store's home with a template draft).
 
+### Pre-merge corrections (2026-10-25)
+
+Final review of PR #1 before merge. Each fix has a test that fails without it.
+
+- **Undo after a publish on a seeded page.** A store's seeded home page keeps `draft_spec = null` ("same as live"). After save → publish → undo, the draft followed the newly published revision instead of the one live when the save was made. Undo now writes that revision's spec when another revision has since gone live (`commands/pages.ts`; `pages.test.ts` "seeded home page").
+- **A public page without its live revision fails closed.** Every published page now needs its revision row; a missing pointer serves the unavailable page instead of the working-copy title (`lib/publicPageLoader.tsx`; `publicPageLoader.test.ts`).
+- **Links.** `https:host` without slashes is rejected (a browser on an https store resolves it as a relative path), and rich-text link targets keep balanced parentheses (`https://x/help_(billing)`) and round-trip unbalanced ones percent-encoded (`schemas.ts`, `richTextMarkup.ts`).
+- **Cold production server.** Public pages bootstrap the app before rendering; before, the first request a server process handled answered 500 when it was a storefront page. Malformed percent-escapes in page paths answer 400 instead of 500. Both are recorded in `docs/UPSTREAM_DIVERGENCES.md` sections 1 and 6.
+- **TC-STOREFRONT-004** waits for the mounted preview, not just the page title, before collecting the builder's scripts.
+
 ## Changelog
 
 | Date | Change |
@@ -1076,3 +1086,4 @@ Source doc: .ai/specs/2026-10-22-storefront-builder.md
 | 2026-10-23 | Revision: json-render claims verified against the packages (two of the four inherited claims wrong, one documentation error confirmed, json-render catalog validation found not to check props); S1/S2 replaced (owner Q11); Phase 3 redefined as the assembled store (sections + store data + templates; Q12–Q14); REQ-008 rewritten, REQ-010/AC-011 added, TEST-013 detailed, TEST-020…023 added; Phase 2 corrections from the CodeRabbit review and the page search index |
 | 2026-10-24 | Phases 3a and 3b implemented and verified (ledger above); price wording corrected to the platform pricing path (no "From" label); collection page cap of 1,000 assignments recorded |
 | 2026-10-24 | Phase 3c implemented, reviewed and verified; AC-008, AC-011 and AC-012 met; implementation decisions K1–K12 in `docs/DECISIONS.md` |
+| 2026-10-25 | Pre-merge corrections from the final PR #1 review (undo on seeded pages, fail-closed public revision, link parsing, cold-server bootstrap, malformed escapes) |

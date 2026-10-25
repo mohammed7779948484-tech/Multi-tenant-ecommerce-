@@ -55,6 +55,8 @@ export async function generateMetadata({ params, searchParams }: FrontendParams)
   // Only routes without staff or customer auth are asked, because this runs
   // before the auth gates in the page below.
   if (!match.route.requireAuth && !match.route.requireCustomerAuth) {
+    // A public page's metadata reads through DI; bootstrap first, or a cold server answers 500.
+    await ensureServerBootstrap()
     const Component = (await match.route.load()) as {
       generateMetadata?: (input: { params: Record<string, string | string[]>; searchParams: SearchParams }) => Promise<Metadata>
     }
@@ -157,6 +159,9 @@ export default async function SiteCatchAll({ params, searchParams }: FrontendPar
   // Suqna divergence (docs/UPSTREAM_DIVERGENCES.md section 6): public pages also
   // receive the query string (the storefront collection page reads `?page=`).
   if (!match.route.requireAuth) {
+    // Public pages create request containers themselves; on a cold server nothing has
+    // bootstrapped the DI registrars yet (the auth branches above do it for staff pages).
+    await ensureServerBootstrap()
     const PublicComponent = Component as ComponentType<{ params: Record<string, string | string[]>; searchParams: SearchParams }>
     return <PublicComponent params={match.params} searchParams={(await searchParams) ?? {}} />
   }

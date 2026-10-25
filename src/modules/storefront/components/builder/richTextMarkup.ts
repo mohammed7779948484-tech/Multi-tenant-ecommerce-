@@ -165,7 +165,19 @@ function readLink(source: string, start: number): { label: string; href: string;
     i += 1
   }
   if (source[i] !== ']' || source[i + 1] !== '(') return null
-  const close = source.indexOf(')', i + 2)
+  // The target ends at the `)` that balances its `(`, so `https://x/help_(billing)` stays whole.
+  let close = -1
+  let depth = 0
+  for (let j = i + 2; j < source.length; j += 1) {
+    if (source[j] === '(') depth += 1
+    else if (source[j] === ')') {
+      if (depth === 0) {
+        close = j
+        break
+      }
+      depth -= 1
+    }
+  }
   if (close < 0) return null
   const href = source.slice(i + 2, close)
   if (/\s/.test(href.trim()) || !href.trim()) return null
@@ -238,12 +250,27 @@ function serializeText(node: TextNode): string {
   return `${lead}${marker}${escapeText(core)}${[...marker].reverse().join('')}${trail}`
 }
 
+/** Percent-encodes the parentheses that have no partner, so the parser finds the real end of the target. */
+function encodeUnbalancedParens(href: string): string {
+  const open: number[] = []
+  const unmatched = new Set<number>()
+  for (let i = 0; i < href.length; i += 1) {
+    if (href[i] === '(') open.push(i)
+    else if (href[i] === ')') {
+      if (open.length) open.pop()
+      else unmatched.add(i)
+    }
+  }
+  for (const index of open) unmatched.add(index)
+  return [...href].map((char, index) => (unmatched.has(index) ? (char === '(' ? '%28' : '%29') : char)).join('')
+}
+
 function serializeInline(nodes: RichTextInline[]): string {
   return nodes
     .map((node) => {
       if (node.type === 'text') return serializeText(node)
       const label = node.children.map(serializeText).join('')
-      return `[${label}](${node.href.replace(/\)/g, '%29').replace(/\s/g, '%20')})`
+      return `[${label}](${encodeUnbalancedParens(node.href).replace(/\s/g, '%20')})`
     })
     .join('')
 }

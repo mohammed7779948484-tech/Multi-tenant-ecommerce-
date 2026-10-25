@@ -342,6 +342,24 @@ describe('storefront page commands (TEST-017)', () => {
     await expect(publishPageCommand.execute({ id: created.id }, ctx)).resolves.toMatchObject({ revisionNo: 3 })
   })
 
+  it('undoing a save after a publish restores the old sections even when the draft was unset (seeded home page)', async () => {
+    const home = pages(em).find((p) => p.slug === 'index')!
+    const original = home.publishedSpec
+    expect(home.draftSpec).toBeNull()
+    const changed = buildDefaultHomeSpec({ storeName: 'Changed store' }) as unknown as Record<string, unknown>
+    const prepared = await updatePageCommand.prepare!({ id: home.id, draftSpec: changed }, ctx)
+    const updated = (await updatePageCommand.execute({ id: home.id, draftSpec: changed }, ctx)) as PageSnapshot
+    const log = await updatePageCommand.buildLog!({ input: {}, result: updated, snapshots: { before: prepared?.before }, ctx } as never)
+    await publishPageCommand.execute({ id: home.id }, ctx)
+
+    await updatePageCommand.undo!({ input: {}, ctx, logEntry: { commandPayload: log?.payload } as never })
+    // The draft is the revision that was live when the save was made, not the newly published one.
+    expect(home.draftSpec ?? home.publishedSpec).toEqual(original)
+    expect(pageStatus(home)).toBe('changed')
+    const republished = (await publishPageCommand.execute({ id: home.id }, ctx)) as PublishResult
+    expect(revisions(em, home.id).find((r) => r.id === republished.revisionId)!.spec).toEqual(original)
+  })
+
   it('refuses to undo a draft save once someone saved the draft again (409), and changes nothing', async () => {
     const created = await createPage(em, ctx)
     const page = pages(em).find((p) => p.id === created.id)!

@@ -28,6 +28,8 @@ export function isSafeHref(value: string): boolean {
   // A store path stays under the store: no `//host`, and no `.`/`..` segments (plain or
   // percent-encoded) that would climb out of `/{siteSlug}` once the base path is prepended.
   if (value.startsWith('/')) return !value.startsWith('//') && !DOT_SEGMENT.test(value.split(/[?#]/)[0])
+  // `https:host` (no slashes) parses as absolute but a browser on an https store resolves it as a relative path.
+  if (!/^https:\/\//i.test(value)) return false
   try {
     const url = new URL(value)
     return url.protocol === 'https:' && url.hostname.length > 0 && !url.username && !url.password

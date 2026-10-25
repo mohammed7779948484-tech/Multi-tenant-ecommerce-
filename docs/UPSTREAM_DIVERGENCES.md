@@ -34,6 +34,13 @@ Mercato (`yarn up '@open-mercato/*'`, `yarn mercato agentic:init --update-harnes
   route a store's custom domain `/` to the storefront and `/portal/*` to the portal. That
   change lands here and must be recorded in this section.
 
+- **Malformed escapes (2026-10-25):** the proxy answers `400 Bad Request` for a page path whose
+  percent-escapes do not decode (`/shop/products/%E0%A4%A`), via `src/lib/malformedEscape.ts`.
+  Next.js 16.3.6 in production answered such paths with a plain-text 500. API paths never reach
+  the proxy (matcher), so a malformed escape under `/api/*` still answers 500 from Next.js; no
+  handler runs and nothing is disclosed. Re-apply the check on upgrade unless Next.js answers 400
+  itself.
+
 ## 2. `src/modules.ts` — module set
 
 - **What:** 34 Open Mercato modules plus `ratelimit_probe` and the app modules (`storefront`,
@@ -84,6 +91,12 @@ Mercato (`yarn up '@open-mercato/*'`, `yarn mercato agentic:init --update-harnes
   the page body would duplicate the root layout's default title and description. The storefront
   pages (`src/modules/storefront/frontend/[siteSlug]/**/page.tsx`: home, page, product,
   collection) are the only users today. The template's catch-all passes no query string at all.
+- **Bootstrap (2026-10-25):** public routes now call the catch-all's own `ensureServerBootstrap()`
+  before their metadata and before rendering. The template bootstraps only inside the staff and
+  customer auth branches, so a public page that reads through DI (every storefront page does)
+  answered 500 ("DI registrars not registered") whenever it was the first request a production
+  server process handled. Reproduced with `yarn build && yarn start` and a product URL as the
+  first request; fixed in the same place.
 - **Safety:** the hook is skipped for any route with `requireAuth` or `requireCustomerAuth`,
   because `generateMetadata` runs before the auth gates in the page function.
 - **On upgrade, review:** if the template's catch-all gains its own metadata hook, switch the

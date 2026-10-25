@@ -12,6 +12,8 @@ const ignores = [
   'out/**',
   'build/**',
   'next-env.d.ts',
+  // Playwright reports (git-ignored like `.gitignore`'s `test-results/`): generated, not source.
+  '**/test-results/**',
 ]
 
 const ruleOverrides = {

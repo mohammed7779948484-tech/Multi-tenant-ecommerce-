@@ -411,6 +411,7 @@ const updatePageCommand: CommandHandler<Record<string, unknown>, PageSnapshot> =
     }
     const em = forkEm(ctx)
     let page: StorefrontPage | null = null
+    let restoredSpec: Record<string, unknown> | null = before.draftSpec
     await withAtomicFlush(
       em,
       [
@@ -437,13 +438,21 @@ const updatePageCommand: CommandHandler<Record<string, unknown>, PageSnapshot> =
             }
             await assertSlugFree(em, page.siteId, before.slug, page.id)
           }
+          // An unset draft meant "the live revision of that time". Once another revision is live,
+          // that revision's spec has to be written out, or the draft would follow the new one.
+          const liveChanged = (page.publishedRevisionId ?? null) !== (before.publishedRevisionId ?? null)
+          if (restoredSpec === null && liveChanged && before.publishedRevisionId) {
+            const revision = await em.findOne(StorefrontPageRevision, { id: before.publishedRevisionId, pageId: page.id, ...scope })
+            if (!revision) throw await conflictError('storefront.errors.undoPageChanged', 'The page changed since, so this change cannot be undone.')
+            restoredSpec = revision.spec
+          }
         },
         () => {
           const target = page!
           target.title = before.title
           target.seoDescription = before.seoDescription
           target.slug = before.slug
-          target.draftSpec = before.draftSpec
+          target.draftSpec = restoredSpec
           const now = new Date()
           // A publish or rollback since the update made another revision live: the
           // restored draft no longer matches it, so the page must read "changed"

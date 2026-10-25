@@ -44,8 +44,9 @@ export const loadStorefrontPage = cache(async (rawSiteSlug: string, rawPageSlug:
   }
   // A live store without its home page (a partial seed that `ensure-sites` repairs) shows the neutral page.
   if (!page) return rawPageSlug === null ? unavailable() : { kind: 'not-found' }
-  // Fail closed: without its live revision the page would show the working-copy title and description.
-  if (page.publishedRevisionId && !revision) {
+  // Fail closed: without its live revision (a missing pointer or a missing row) the page
+  // would show the working-copy title and description.
+  if (!revision) {
     logger.error('Published page has no live revision; serving the unavailable page', { siteId: site.id, pageId: page.id })
     return unavailable()
   }
@@ -79,9 +80,8 @@ export const loadStorefrontPage = cache(async (rawSiteSlug: string, rawPageSlug:
   const logoUrl = logoPath ? new URL(logoPath, storeUrl).toString() : null
   // Buyers see the live revision's title/description, never the working copy (spec P2-Q13).
   // The home page keeps the store name as its title (docs/DECISIONS.md I4).
-  const live = revision ?? { title: page.title, seoDescription: null }
-  const title = isHome ? site.name : live.title
-  const description = live.seoDescription ?? site.description ?? null
+  const title = isHome ? site.name : revision.title
+  const description = revision.seoDescription ?? site.description ?? null
   return {
     kind: 'ok',
     view: {
