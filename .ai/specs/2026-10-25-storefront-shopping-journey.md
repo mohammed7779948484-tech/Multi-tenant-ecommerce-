@@ -80,7 +80,7 @@ Merchants on Suqna cannot take an order today without staff entering it by hand 
 
   It shows the delivery price for that destination and the payment methods the store accepts, and the totals shown are the totals the order gets.
 - **REQ-008** — Placing the order creates a sales order through the installed `sales.orders.create` command. Prices and stock are re-checked first, the order is placed at most once per submission, and the cart is closed. The buyer sees a confirmation with the order number.
-- **REQ-009** — A guest follows an order on a tracking page reachable only with the order's access link, which is stored in the buyer's browser. The page shows status, payment status, lines with personalization, totals and the address.
+- **REQ-009** — A guest follows an order on a tracking page reachable only with the order's access link, which is stored in the buyer's browser. (The buyer-accounts spec adds a second key: the signed-in owner of the order.) The page shows status, payment status, lines with personalization, totals and the address.
 - **REQ-010** — For a bank-transfer order the buyer sees the store's transfer instructions and can submit the transfer reference and a receipt image once. The merchant sees them on the order in the existing sales admin (an order note plus the attachment).
 - **REQ-011** — Tenant isolation:
   - every read and write is pinned to the store's tenant and organization;
@@ -206,7 +206,7 @@ The storefront module grows from "published pages" to "a shop".
 | Yemeni mobile | Accepts `7XXXXXXXX`, `07XXXXXXXX` or `+967 7XXXXXXXX` with second digit 0/1/3/7/8; stored as `+9677XXXXXXXX` | Validator | 422 `phone` |
 | Delivery rate | Provider `suqna-yemen-zones` settings `{ currencyCode, rates: [{ governorate, district?, amount }], defaultAmount? }`. A district rate overrides its governorate rate; otherwise `defaultAmount`; otherwise the destination is not served | Shipping method `providerSettings` | Not served → the method is hidden for that address; no method → checkout explains delivery is unavailable there |
 | Quote | Server-computed totals for the current cart, destination, shipping and payment method: lines (priced), shipping, payment fees and grand total from `salesCalculationService` | Computed | — |
-| Placement | Re-price and re-check availability (`bypassCache`) and quote. If the client-held quote total differs, answer 409 with the new quote. Create the order (status `pending_approval`, payment `pending`, channel none) and mark the cart converted. Idempotent per cart: a second submit returns the same order | `sales_orders` + `storefront_carts.converted_order_id` | 409 price/stock change; 422 validation |
+| Placement | Re-price and re-check availability (`bypassCache`) and quote. If the new quote's hash differs from the client-held `quoteHash` (any price, line, stock or fee change, including a deactivated product), answer 409 with the new quote. Create the order (status `pending_approval`, payment `pending`, channel none) and mark the cart converted. Idempotent per cart: a second submit returns the same order | `sales_orders` + `storefront_carts.converted_order_id` | 409 price/stock change; 422 validation |
 | Access token | 32 random bytes, base64url; SHA-256 hash stored; one per order; set as an HttpOnly cookie `sf_ord_<siteId8>` (path `/{siteSlug}`, 90 days) and embedded in the confirmation link `?k=` | `storefront_order_access` | Missing/invalid → the tracking page answers 404 |
 | Transfer proof | Allowed once per order while payment status is `pending` and the method's provider is `wire-transfer`. Reference ≤ 64 chars (required), sender name ≤ 120 (optional), receipt image (JPEG/PNG/WebP ≤ 5 MB, required) | `sales_notes` + `attachments` + `storefront_order_access.proof_submitted_at` | Second attempt → 409; wrong method → 422 |
 
@@ -283,7 +283,7 @@ sales.order.created (installed) ─► staff notification (installed); wms reser
 3. Delivery options for that district appear with prices. If none serves it, the page says delivery is unavailable there and the buyer cannot continue.
 4. The buyer chooses cash on delivery or bank transfer. Transfer shows the store's instructions and account number with a copy button.
 5. "تأكيد الطلب" (confirm order) is enabled only when every step is valid. Prices or stock changed since the quote → 409, and the refreshed quote is shown with a notice. Double click → one order.
-6. The confirmation page shows the order number, a "follow your order" link with a copy action, and, for transfer, the proof form.
+6. The confirmation page shows the order number, a "follow your order" link with a copy action, and, for transfer, the store's transfer instructions. The proof form joins it in Phase 5.
 
 ### Journey J-004 — Track and prove payment
 
@@ -304,13 +304,13 @@ The closest installed references are:
 
 | Surface / route | Purpose and primary actions | Data source / mutations | Closest installed reference | Canonical shell / components | Required states | Requirement IDs |
 |---|---|---|---|---|---|---|
-| Store shell (all `/{site}/**`) | Header (logo/name, menu sheet, search, cart count), footer | Server: site, theme, categories; client: cart count `GET …/cart/summary` | `PortalShell`, `StorefrontView` | shadcn `Sheet`, `Button`, `Badge`, `Separator` | loading (count skeleton), error (count hidden) | REQ-001, REQ-002 |
+| Store shell (all `/{site}/**`) | Header (logo/name, menu sheet, search, cart count), footer | Server: site, theme, categories; client: cart count from `GET …/cart` (`count`) | `PortalShell`, `StorefrontView` | shadcn `Sheet`, `Button`, `Badge`, `Separator` | loading (count skeleton), error (count hidden) | REQ-001, REQ-002 |
 | `/{site}` and `/{site}/{page}` | Existing sections restyled RTL | Existing loaders | `StorefrontView` | existing blocks + shadcn `Card`, `Carousel` | existing unavailable/404 | REQ-001, REQ-002 |
 | `/{site}/collections` | Category index | Scoped categories | `CatalogViews` | `Card` grid | empty | REQ-003 |
 | `/{site}/collections/{key}` | Category products, sub-categories, sort, paging | Search service | `CatalogViews` | `Card`, `Badge`, `Pagination`, `Select` | empty, 404 | REQ-003, REQ-004 |
 | `/{site}/search` | Text search, filters (sheet on mobile, sidebar ≥1024 px), sort, paging | Search service; GET form, URL state | — | `Input`, `Select`, `Checkbox`, `Sheet`, `Accordion`, `Pagination`, `Badge` | empty, no results, invalid params clamp | REQ-004 |
 | `/{site}/products/{key}` | Gallery, variant axes, personalization, quantity, add to cart | Product loader; `POST …/cart/lines` | `CatalogViews` | `Carousel`, `ToggleGroup`, `Input`, `Textarea`, `Button`, `Badge`, `Alert` | unavailable, out of stock, no price, submitting, server error | REQ-005 |
-| Cart sheet + `/{site}/cart` | Lines, quantity stepper, edit personalization, remove (confirm), subtotal, checkout | `GET/PATCH/DELETE …/cart/lines` | — | `Sheet`, `Button`, `Input`, `AlertDialog`, `Skeleton`, `Alert` | loading, empty, stale price/stock notices, error | REQ-006 |
+| Cart sheet + `/{site}/cart` | Lines, quantity stepper, edit personalization, remove (confirm), subtotal, checkout | `GET …/cart`, `PATCH/DELETE …/cart/lines/{lineId}` | — | `Sheet`, `Button`, `Input`, `AlertDialog`, `Skeleton`, `Alert` | loading, empty, stale price/stock notices, error | REQ-006 |
 | `/{site}/checkout` | Contact and address, delivery, payment, review, place | `GET …/checkout/options`, `POST …/checkout/quote`, `POST …/checkout/place` | — | `Form` (RHF+Zod), `Input`, `Textarea`, `Command`+`Popover` (searchable selects), `RadioGroup`, `Card`, `Collapsible`, `Alert`, `Button` | empty cart redirect, loading quote, unavailable destination, 409 price change, 422 field errors, submitting | REQ-007, REQ-008 |
 | `/{site}/orders/{number}` | Confirmation + tracking, transfer proof form | `GET …/orders/{number}`, `POST …/orders/{number}/proof` | — | `Card`, `Badge`, `Separator`, `Form`, `Input`, `Button`, `Alert` | 404, proof submitted, proof error, upload too large | REQ-009, REQ-010 |
 
@@ -368,9 +368,9 @@ The closest installed references are:
 | `id` | uuid | pk | no | immutable |
 | `tenant_id`, `organization_id`, `site_id` | uuid, required | index (`tenant_id`, `organization_id`, `site_id`) | no | from the store row |
 | `token_hash` | text, required | unique | no (SHA-256 of a 256-bit secret) | set on create |
-| `status` | text: `active` / `converted` / `abandoned` | index (`site_id`, `status`) | no | `converted` on placement |
+| `status` | text: `active` / `converted` | index (`site_id`, `status`) | no | `converted` on placement |
 | `currency_code` | text, nullable | — | no | first priced line |
-| `converted_order_id` | uuid, nullable | — | no | sales order id |
+| `converted_order_id` | uuid, nullable | — | no | sales order id; derived (set in the same transaction as the order-access row) |
 | `expires_at` | timestamptz | index | no | now + 30 days on each write |
 | `created_at`, `updated_at` | timestamptz | — | no | `updated_at` is the version |
 
@@ -396,11 +396,11 @@ The closest installed references are:
 | `order_id` | uuid | unique | no | sales order id |
 | `order_number` | text | unique (`site_id`, `order_number`) | no | copy of the sales number for URL lookup |
 | `token_hash` | text | — | no | SHA-256 |
-| `cart_id` | uuid | unique | no | idempotency of placement |
+| `cart_id` | uuid | unique | no | **the** idempotency key of placement: one order per cart |
 | `proof_submitted_at` | timestamptz nullable | — | no | set once |
 | `created_at` | timestamptz | — | no | append-only except `proof_submitted_at` |
 
-Migrations: one additive migration creating these three tables; no change to shipped migrations or other modules' tables. Buyer name, phone and address live in the sales order's customer and address snapshots, encrypted by the sales module's existing encryption map. They are not duplicated here.
+Migrations: two additive migrations (Phase 3: carts and lines; Phase 4: order access) creating these three tables; no change to shipped migrations or other modules' tables. Buyer name, phone and address live in the sales order's customer and address snapshots, encrypted by the sales module's existing encryption map. They are not duplicated here.
 
 ## API, Command, and Error Contracts
 
@@ -417,10 +417,10 @@ Custom guarded routes, not `makeCrudRoute`: there is no staff auth, and scope co
 | Method / command | Path / ID | Auth and feature gate | Input | Success response / event | Errors and concurrency | Requirement IDs |
 |---|---|---|---|---|---|---|
 | `GET` | `…/cart` | public + cart cookie | — | `{ lines[{ id, product, variant, personalization, quantity, unitPrice, lineTotal, availability, issues[] }], subtotal, currencyCode, count, updatedAt }` | no cookie → empty cart | REQ-006 |
-| `POST` | `…/cart/lines` | public | `{ productId, variantId?, quantity, personalization? }` | 200 cart; creates cart + cookie when absent; `storefront.cart.updated` | 404 product; 422 variant/personalization/limits/currency/no price/unavailable | REQ-005, REQ-006 |
+| `POST` | `…/cart/lines` | public | `{ productId, variantId?, quantity, personalization? }` | 200 cart; creates cart + cookie when absent; `storefront.cart.updated` | 404 product; 422 variant/personalization/limits/currency/no price/unavailable; 400 `cookiesRequired` when a follow-up write arrives without the cookie the previous answer set; 429 rate limit | REQ-005, REQ-006 |
 | `PATCH` | `…/cart/lines/{lineId}` | public + cookie | `{ quantity?, personalization? }` | 200 cart | 404 (foreign/unknown line); 422 | REQ-006 |
 | `DELETE` | `…/cart/lines/{lineId}` | public + cookie | — | 200 cart | 404 | REQ-006 |
-| `GET` | `…/checkout/options` | public | `?governorate=&district=` | `{ governorates[], districts[], shippingMethods[{ id, name, amount, currencyCode }], paymentMethods[{ id, name, kind, instructions?, accountNumber? }] }` | 422 unknown codes | REQ-007 |
+| `GET` | `…/checkout/options` | public | `?governorate=&district=` | `{ governorates[], districts[], shippingMethods[{ id, name, amount, currencyCode }], paymentMethods[{ id, name, kind, instructions?, accountNumber? }] }`; bank transfer is omitted while its instructions are missing or equal the seeded example text | 422 unknown codes; 429 | REQ-007 |
 | `POST` | `…/checkout/quote` | public + cookie | `{ destination, shippingMethodId, paymentMethodId }` | `{ lines, subtotal, shipping, fees, grandTotal, currencyCode, quoteHash }` | 422; 409 cart changed | REQ-007 |
 | `POST` | `…/checkout/place` | public + cookie | `{ contact{ name, phone }, destination, shippingMethodId, paymentMethodId, quoteHash }` | 201 `{ orderNumber, trackingUrl }`; sets the order cookie; `sales.order.created` (installed), `storefront.order.placed` | 409 `{ quote }` price/stock changed; 422; idempotent replay → 200 same order | REQ-008 |
 | `GET` | `…/orders/{orderNumber}` | public + order token (cookie or `k`) | — | order view model | 404 for missing/invalid token | REQ-009 |
@@ -471,8 +471,8 @@ Cart writes are not undoable from the buyer UI; the commands declare `isUndoable
 | TEST-J04 | unit | option schema with axes + personalization; variants | Variant resolution, personalization validation | matches, required/unknown/too long refused | REQ-005 |
 | TEST-J05 | API | product with variants, prices, stock | Add, merge same line, change quantity, edit personalization, remove; caps; currency mismatch; foreign line id | cart totals from the server; 404 for foreign lines | REQ-006, REQ-011 |
 | TEST-J06 | unit | rates settings | Provider picks the district rate, then the governorate rate, then the default; not served | amounts and hiding | REQ-007 |
-| TEST-J07 | API | store with COD + transfer methods, zone shipping method | Options, quote, place; price change between quote and place; double place | 409 with a new quote; one order; order lines, shipping, payment and address snapshot in sales | REQ-007, REQ-008 |
-| TEST-J08 | API | placed order | Tracking with cookie, with `k`, with a wrong token, from another store | 200/200/404/404 | REQ-009, REQ-011 |
+| TEST-J07 | API | store with COD + transfer methods, zone shipping method | Options (transfer hidden while it carries the seeded example instructions), quote, place; price change between quote and place; double place; cross-store ids | 409 with a new quote; one order; order lines, shipping, payment and address snapshot in sales; foreign ids 404/422 | REQ-007, REQ-008, REQ-011 |
+| TEST-J08 | API + browser | placed order | Tracking with cookie, with `k`, with a wrong token, from another store; confirmation link opens the tracking page | 200/200/404/404 | REQ-009, REQ-011 |
 | TEST-J09 | API | transfer order | Submit proof; second submit; COD order proof; oversized file | note + attachment on the order; 409; 422; 413 | REQ-010 |
 | TEST-J10 | integration (browser) | fresh tenant + fixtures | Full guest journey on a phone viewport | order visible in `/backend/sales/orders` with matching totals | REQ-001…010 |
 | TEST-J11 | security | two fresh tenants | Cross-store cart/order/product/district/attachment ids | identical 404/422; no data | REQ-011 |
@@ -482,21 +482,20 @@ Cart writes are not undoable from the buyer UI; the commands declare `isUndoable
 ### Phase 1 — Arabic, merchant-themed store shell
 
 - **Depends on:** none (builds on PR #1).
-- **Outcome:** every existing buyer page is Arabic and RTL in a redesigned shell (header with menu sheet, search entry and cart placeholder hidden until Phase 3; footer), themed per merchant through shadcn/ui.
+- **Outcome:** every existing buyer page is Arabic and RTL in a redesigned shell (header with menu sheet and search entry; the cart button arrives in Phase 3), themed per merchant through shadcn/ui.
 - **Why this order / value delivered:** every later surface sits in this shell; stores look right immediately.
 - **Deliverables:**
-  - `ar` locale registration (`src/i18n` augmentation plus `registerLocales`);
+  - `ar` locale registration (type augmentation plus `registerLocales`);
   - `storefront/i18n/ar.json`;
-  - shadcn components (button, sheet, badge, separator, card, carousel, skeleton) via the CLI;
-  - `components/shop/StoreShell.tsx`, the theme bridge (`lib/shopTheme.ts`) and the portal container;
+  - shadcn components (button, sheet, badge, separator, card, skeleton) via the CLI;
+  - `components/shop/StoreShell.tsx`, the theme bridge and the portal container;
   - the dark-variant scope in `globals.css`;
-  - existing sections and product/collection views restyled with logical properties;
-  - the builder preview keeps working.
-- **Independent slices:** locale + dictionary; theme bridge + shell; restyle sections.
-- **Requirements closed:** REQ-001 and REQ-002 for existing surfaces.
+  - existing sections and product/collection views restyled with logical properties.
+- **Builder preview (deferred editor surface):** the preview renders through the same store frame. This phase changes only markup and CSS there; the builder's controls, data and behaviour are untouched. A regression check (`TC-STOREFRONT-003` builder preview) must stay green.
+- **Requirements closed:** REQ-001 and REQ-002 for existing surfaces; REQ-012 (no deferred-feature control) checked at the exit gate.
 - **Tests:** TEST-J01, the TEST-J02 subset (home/page/product/collection), existing `TC-STOREFRONT-001…006` updated for Arabic text.
 - **Validation:** `yarn generate && yarn typecheck && yarn lint && yarn ds:check && yarn test && yarn build`, plus storefront integration tests.
-- **Exit gate:** two stores with different themes render Arabic RTL pages at 390 and 1280 px with their own colours in the header, sections and an open menu sheet; dashboards are unchanged.
+- **Exit gate:** two stores with different themes render Arabic RTL pages at 390 and 1280 px with their own colours in the header, sections and an open menu sheet; dashboards are unchanged; the builder preview still renders.
 
 ### Phase 2 — Browse and search
 
@@ -506,10 +505,10 @@ Cart writes are not undoable from the buyer UI; the commands declare `isUndoable
   - `lib/shopCatalog.ts` (public catalog rule, search service);
   - `frontend/[siteSlug]/search`, `frontend/[siteSlug]/collections` (index);
   - collection pages on the search service;
-  - reserved slugs extended;
-  - `ProductCard`, `FilterSheet`, `SortSelect`, `ResultsPagination`;
+  - reserved slugs extended, plus a CLI report `storefront reserved-slugs` that lists existing pages whose slug is now reserved (read-only; no migration);
+  - `ProductCard`, the filter sheet, sort select and pagination;
   - DECISIONS entry superseding K2 for the shop.
-- **Requirements closed:** REQ-003, REQ-004.
+- **Requirements closed:** REQ-003, REQ-004; REQ-011 for catalog reads (TEST-J03 cross-store part); REQ-012 checked at the exit gate.
 - **Tests:** TEST-J03, TEST-J02 (search/category).
 - **Exit gate:** search with q/category/price/in-stock/sort/page returns correct, scoped results on two stores; empty states shown.
 
@@ -522,41 +521,46 @@ Cart writes are not undoable from the buyer UI; the commands declare `isUndoable
   - entities, validators and commands;
   - `/api/storefront/shop/{site}/cart*`;
   - `lib/shopCart.ts`, `lib/productOptions.ts`;
-  - `ProductPurchasePanel`, `CartSheet`, `/{site}/cart`;
-  - opportunistic purge of expired carts on cart creation;
+  - the product purchase panel, cart sheet and `/{site}/cart`;
+  - bounded purge of expired carts on cart creation;
   - shadcn `toggle-group`, `input`, `textarea`, `alert-dialog`, `alert`.
-- **Requirements closed:** REQ-005, REQ-006.
+- **Checkout button:** the cart's "إتمام الطلب" (checkout) action is not rendered in this phase; it appears with Phase 4. No dead link ships.
+- **Requirements closed:** REQ-005, REQ-006; REQ-011 for cart ids (foreign line ids 404).
 - **Tests:** TEST-J04, TEST-J05.
 - **Exit gate:** on two stores a buyer adds a configured personalized product, edits and removes lines, and reloads with the cart intact; foreign ids are 404; prices come from the server.
 
-### Phase 4 — Checkout and order placement
+### Phase 4 — Checkout, order placement and tracking
 
 - **Depends on:** Phase 3.
-- **Outcome:** guest checkout with Yemen address, destination-priced delivery, COD/transfer, quote = order totals, and order creation in sales.
+- **Outcome:**
+  - guest checkout with Yemen address and destination-priced delivery;
+  - COD and transfer payment;
+  - quote = order totals;
+  - order creation in sales;
+  - the confirmation and the read-only tracking page the confirmation links to.
 - **Deliverables:**
-  - Yemen dataset (`lib/yemen/regions.json` + loader + attribution);
-  - shipping provider `suqna-yemen-zones` (registered from `storefront/di.ts`);
+  - Yemen dataset (`lib/yemen/regions.json` + loader + attribution in `THIRD_PARTY_NOTICES.md`);
+  - shipping provider `suqna-yemen-zones` (registered from `storefront/di.ts`, a new file);
   - `order_access` migration;
   - quote and placement services;
   - checkout API;
   - `/{site}/checkout` (RHF + Zod, shadcn `form`, `radio-group`, `command`, `popover`, `collapsible`);
-  - confirmation route;
-  - development fixture CLI `storefront shop-fixtures --tenant <id>`, which creates a zone shipping method and Yemeni sample rates and is clearly marked as development data.
-- **Requirements closed:** REQ-007, REQ-008.
-- **Tests:** TEST-J06, TEST-J07.
-- **Exit gate:** a guest places COD and transfer orders on two stores; the orders appear in the sales admin with the same totals shown at checkout; a price change answers 409; a double submit makes one order.
+  - `/{site}/orders/{number}` (read-only tracking, Arabic status labels) and its API;
+  - development fixture CLI `storefront shop-fixtures --tenant <id>`, which creates a zone shipping method with Yemeni sample rates and is clearly marked as development data.
+- **Requirements closed:** REQ-007, REQ-008, REQ-009; REQ-011 for checkout and orders.
+- **Tests:** TEST-J06, TEST-J07, TEST-J08.
+- **Exit gate:** a guest places COD and transfer orders on two stores; the orders appear in the sales admin with the same totals shown at checkout; a price change answers 409; a double submit makes one order; the confirmation's link opens the tracking page; another store's token is 404.
 
-### Phase 5 — Order tracking and transfer proof
+### Phase 5 — Transfer proof and the full journey
 
 - **Depends on:** Phase 4.
-- **Outcome:** tracking page, transfer proof with receipt upload, and the merchant sees the proof on the order.
+- **Outcome:** a bank-transfer buyer submits the reference and receipt image from the tracking page; the merchant sees the note and file on the order.
 - **Deliverables:**
-  - `/{site}/orders/{number}` page and API;
-  - proof route (attachments + `sales.notes.create`);
-  - Arabic status labels;
-  - the full journey test.
-- **Requirements closed:** REQ-009, REQ-010, REQ-011 (with TEST-J11), REQ-012.
-- **Tests:** TEST-J08, TEST-J09, TEST-J10, TEST-J11.
+  - proof route (attachments + `sales.notes.create`) and form;
+  - the end-to-end journey test on two themes and viewports;
+  - the final cross-store probe.
+- **Requirements closed:** REQ-010; REQ-011 for proofs; REQ-012 final check. TEST-J10 re-runs the whole journey as a regression oracle for requirements already closed in Phases 1–4.
+- **Tests:** TEST-J09, TEST-J10, TEST-J11.
 - **Exit gate:** the full guest journey passes in the browser at 390 and 1280 px on two differently themed stores; cross-store probes fail closed.
 
 ## Requirement Traceability
@@ -571,10 +575,10 @@ Cart writes are not undoable from the buyer UI; the commands declare `isUndoable
 | REQ-006 | J-002, cart | carts/lines, cart API | 3 | TEST-J05 | AC-004 |
 | REQ-007 | J-003, checkout | options/quote API, zone provider | 4 | TEST-J06, J07 | AC-005 |
 | REQ-008 | J-003, place | place API, `sales.orders.create` | 4 | TEST-J07, J10 | AC-005 |
-| REQ-009 | J-004, tracking | order access, order API | 5 | TEST-J08 | AC-006 |
+| REQ-009 | J-004, tracking | order access, order API | 4 | TEST-J08 | AC-006 |
 | REQ-010 | J-004, proof | proof API, notes, attachments | 5 | TEST-J09 | AC-006 |
-| REQ-011 | all | scope rules | 2–5 | TEST-J03, J05, J08, J11 | AC-007 |
-| REQ-012 | — | this document | 5 | review | AC-008 |
+| REQ-011 | all | scope rules | 2, 3, 4, 5 (each phase closes its own surfaces) | TEST-J03, J05, J07, J08, J09, J11 | AC-007 |
+| REQ-012 | — | this document | 1–5 (checked at every exit gate) | review at each exit gate | AC-008 |
 
 ### Extension-surface traceability
 
@@ -584,14 +588,14 @@ Every row adapts one reference capability from `src/modules/example/references/s
 |---|---|---|---|---|---|
 | Public shop API routes `api/shop/[siteSlug]/**` (custom guarded routes, per-method `metadata` + `openApi`) | REQ-006…REQ-010 | `api.custom-route` → `src/modules/example/api/organizations/route.ts` | 3–5 | TEST-J05, J07, J08, J09 | emitted-example |
 | OpenAPI documents for the shop routes | REQ-006…REQ-010 | `api.openapi` → `src/modules/example/api/openapi.ts` | 3–5 | TEST-J05 (schema served by `api_docs`) | emitted-example |
-| Frontend pages `frontend/[siteSlug]/{search,collections,cart,checkout,orders/[orderNumber]}` | REQ-003…REQ-009 | `ui.frontend-page` → `src/modules/example/frontend/example.tsx` | 2–5 | TEST-J02, J10 | emitted-example |
+| Frontend pages `frontend/[siteSlug]/{search,collections,cart,checkout,orders/[orderNumber]}` | REQ-003…REQ-009 | `ui.frontend-page` → `src/modules/example/frontend/example.tsx` | 2–4 | TEST-J02, J10 | emitted-example |
 | Commands `storefront.cart.add_line`, `storefront.cart.update_line`, `storefront.cart.remove_line`, `storefront.checkout.place` | REQ-006, REQ-008 | `commands.write` → `src/modules/example/commands/todos.ts` | 3–4 | TEST-J05, J07 | emitted-example |
 | Entities `storefront:cart`, `storefront:cart_line`, `storefront:order_access` | REQ-006, REQ-009 | `data.entities` → `src/modules/example/data/entities.ts` | 3–4 | TEST-J05, J08 | emitted-example |
 | Validators (strict Zod bodies) | REQ-005…REQ-010 | `data.validators` → `src/modules/example/data/validators.ts` | 3–5 | TEST-J04, J05 | emitted-example |
 | Migrations (carts + lines; order access) | REQ-006, REQ-009 | `data.migrations` → `src/modules/example/migrations/Migration20260804120546_example.ts` | 3–4 | TEST-J05, J08 (run on a fresh ephemeral DB) | emitted-example |
 | Events `storefront.cart.updated`, `storefront.order.placed`, `storefront.order.proof_submitted` | REQ-006, REQ-008, REQ-010 | `events.typed-definitions` → `src/modules/example/events.ts` | 3–5 | TEST-J05, J07, J09 | emitted-example |
 | Shipping provider `suqna-yemen-zones` registered at DI time | REQ-007 | `module.di-registration` → `src/modules/example/di.ts` | 4 | TEST-J06, J07 | emitted-example |
-| Development fixture CLI `storefront shop-fixtures` | REQ-007 | `module.cli-command` → `src/modules/example/cli.ts` | 4 | TEST-J07 (fixture used by the test setup) | emitted-example |
+| Development fixture CLI `storefront shop-fixtures` (Phase 4) and `storefront reserved-slugs` report (Phase 2) | REQ-007, REQ-003 | `module.cli-command` → `src/modules/example/cli.ts` | 4 | TEST-J07 (fixture used by the test setup) | emitted-example |
 | Arabic dictionary `storefront/i18n/ar.json` | REQ-001 | `module.i18n-catalogs` → `src/modules/example/i18n/en.json` | 1 | TEST-J01 | emitted-example |
 | App locale registration (`ar` in `LocaleRegistry` + `registerLocales`) | REQ-001 | — | 1 | TEST-J01 | framework-only |
 
@@ -609,7 +613,7 @@ Each step is testable and leaves the app working. Steps run in phase order; a ph
 **Phase 2 — Browse and search**
 
 5. `lib/shopCatalog.ts`: the public catalog rule (S-2) and the search service (q, category tree, price range, in stock, sort, page). Test: TEST-J03 unit.
-6. Pages `/{site}/search` and `/{site}/collections`, with collection pages moved onto the search service. Add `ProductCard`, the filter sheet, sort and pagination. Extend the reserved slugs. Test: TEST-J03 API and browser.
+6. Pages `/{site}/search` and `/{site}/collections`, with collection pages moved onto the search service. Add `ProductCard`, the filter sheet, sort and pagination. Extend the reserved slugs and add the `storefront reserved-slugs` report. Test: TEST-J03 API and browser.
 7. Record the DECISIONS entry superseding K2 for the shop. Test: n/a (documentation).
 
 **Phase 3 — Product page and persisted cart**
@@ -625,10 +629,10 @@ Each step is testable and leaves the app working. Steps run in phase order; a ph
 13. Shipping provider `suqna-yemen-zones` and the `storefront shop-fixtures` CLI. Test: TEST-J06.
 14. Quote and placement services (pricing, availability, `salesCalculationService`, `sales.orders.create` with a system context), the order-access migration and entity, and idempotency. Test: TEST-J07 API.
 15. Checkout page and confirmation. Test: TEST-J07 browser.
+16. Tracking API and page with Arabic status labels, linked from the confirmation. Test: TEST-J08.
 
-**Phase 5 — Order tracking and transfer proof**
+**Phase 5 — Transfer proof and the full journey**
 
-16. Tracking API and page with Arabic status labels. Test: TEST-J08.
 17. Proof route (attachments plus `sales.notes.create`) and the proof form. Test: TEST-J09.
 18. Full journey and isolation probes on two stores and two themes. Test: TEST-J10, TEST-J11.
 
@@ -742,3 +746,4 @@ Verdict: Ready for implementation
 | Date | Change |
 |---|---|
 | 2026-10-25 | Initial specification (autonomous, owner brief of 2026-10-25) |
+| 2026-10-25 | Fresh-context scope review applied: tracking moved into Phase 4 (no dead confirmation link); each phase closes its own isolation and deferred-control checks; migration count, cart routes, idempotency source, placement 409 rule, error codes, reserved-slug report and the builder-preview boundary made consistent |

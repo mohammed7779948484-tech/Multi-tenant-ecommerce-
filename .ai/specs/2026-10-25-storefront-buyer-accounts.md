@@ -61,10 +61,11 @@ The Safqi reference shows the local expectation: account by phone + name + passw
 - **REQ-A02** — An account belongs to one store. The same phone in another store is a different, unrelated account; a session for store A is treated as signed out in store B.
 - **REQ-A03** — Signing in attaches the device's guest cart to the account, merging lines; a signed-in buyer's cart follows them across devices.
 - **REQ-A04** — Saved addresses (same Yemeni address model as checkout): add, edit, delete, set default. Checkout pre-selects the default and saves a new address on request.
-- **REQ-A05** — Order history: orders placed while signed in (and guest orders claimed with their access token on that device) are listed, newest first, and each opens the tracking view without the token.
+- **REQ-A05** — Order history: orders placed while signed in, plus guest orders the buyer claims on a device that holds their access cookie (`POST …/account/orders/claim`), are listed newest first. Each opens the tracking view through the owner's session instead of the token.
 - **REQ-A06** — Wishlist: add or remove a product from its card or page; a wishlist page lists the products that are still public.
 - **REQ-A07** — Notifications: when the merchant changes an order's status or payment status, the buyer gets an Arabic in-store notification. The header shows the unread count and a notifications page lists them with mark-all-read.
-- **REQ-A08** — Account page: name and phone, change password, links to orders, addresses, wishlist and notifications.
+- **REQ-A08** — Account page: name and phone, change password, sign-out, links to orders and addresses (wishlist and notifications links appear with Phase A3).
+- **REQ-A09** — No placeholder for deferred programmes: the account surfaces show no points, store credit, referral code or invite reward (the Safqi reference has them; Suqna defers them).
 
 ## Non-goals
 
@@ -227,6 +228,18 @@ Under `/api/storefront/shop/{siteSlug}/account/…`:
 | PATCH/DELETE | `…/account/addresses/{id}` | address / — | 200 / 204 | 401/404/422 | A04 |
 | GET | `…/account/orders` | `?page=` | `{ items, total }` | 401 | A05 |
 | GET/POST/DELETE | `…/account/wishlist(/{productId})` | — | list / 201 / 204 | 401/404 | A06 |
+| POST | `…/account/orders/claim` | — (reads this store's `sf_ord_*` cookie) | 200 `{ claimed: n }`: sets `storefront_order_access.customer_user_id` for orders whose token the device holds and that have no owner yet | 401; already-owned orders are skipped | A05 |
+
+### Amended shopping-journey contracts
+
+These change contracts defined in `2026-10-25-storefront-shopping-journey.md`. Each change is additive.
+
+| Contract | Change | Phase |
+|---|---|---|
+| `GET …/orders/{orderNumber}` and the tracking page | Authorized by the order token **or** a store session whose user owns the order (`storefront_order_access.customer_user_id`). Every other caller still gets 404 | A2 |
+| `POST …/checkout/place` body | Optional `savedAddressId` (an address of the session's person; foreign id → 422) and `saveAddress: boolean`. With a session, the order gets `customerEntityId` and the access row gets `customer_user_id` | A2 |
+| `GET …/checkout/options` | With a session, returns the buyer's saved addresses (id, label, governorate, district) and the default | A2 |
+| Cart cookie and cart reads | With a session, the account's cart is used (`storefront_carts.customer_user_id`) | A1 |
 
 ## Events, Jobs, Notifications, and Cross-Module Flows
 
@@ -238,7 +251,7 @@ Under `/api/storefront/shop/{siteSlug}/account/…`:
 ## Security, Privacy, and Compliance
 
 - **Authentication:** installed password hashing, lockout and sessions. Phone + password only.
-  - Without OTP, a person can register someone else's number in a store. Accepted under P6: no order data is bound by phone, guest orders are claimed only by token, and the merchant sees "phone not verified".
+  - Without OTP, a person can register someone else's number in a store. Accepted under P6: no order data is bound by phone, and guest orders are claimed only by token. A merchant-facing "phone not verified" marker is deferred dashboard work.
 - **Isolation:** sessions are honoured only when the JWT tenant and organization equal the store's. Addresses, orders and wishlist are always filtered by the session's user and the store scope; a foreign address id is 404.
 - **Privacy:** the phone is encrypted at rest and looked up by hash. Logs carry ids only.
 
@@ -248,35 +261,35 @@ Under `/api/storefront/shop/{siteSlug}/account/…`:
 |---|---|---|---|---|
 | TEST-A01 | API | sign up, sign in, wrong password, lockout, sign out | cookies; 401 generic; no email captured | A01 |
 | TEST-A02 | security | same phone in two stores; store A session on store B | two accounts; B treats as signed out | A02 |
-| TEST-A03 | API | guest cart → sign in → merge | lines merged, guest cart closed | A03 |
+| TEST-A03 | API | guest cart → sign in → merge; sign in on a second device (fresh cookie jar) | lines merged, guest cart closed; second device sees the same cart | A03 |
 | TEST-A04 | API + browser | addresses CRUD, default, checkout pre-select | one default; checkout uses it | A04 |
-| TEST-A05 | API | orders list; other user's order | only own orders | A05 |
+| TEST-A05 | API | orders list; other user's order; claim with and without the order cookie; tracking by session | only own orders; claim takes only cookie-held, unowned orders; owner session opens tracking, others 404 | A05 |
 | TEST-A06 | API | wishlist add/remove/list; inactive product hidden | — | A06 |
 | TEST-A07 | integration | merchant changes status → buyer notification | one notification per change, Arabic text | A07 |
-| TEST-A08 | browser | full account journey at 390 px, two themes | RTL, themed | A01–A08 |
+| TEST-A08 | browser | account journey at 390 px, two themes (A2 slice: account page, password, sign-out; A3: wishlist and bell) | RTL, themed; no points/credit/referral UI | A01–A09 |
 
 ## Implementation Phases
 
 ### Phase A1 — Phone accounts and the store session
 
-- **Depends on:** shopping-journey Phase 3 (cart).
-- **Deliverables:** `storefront_buyer_phones` migration; signup/login/logout routes; session helper (store-scoped); cart attach/merge; header account button; login/sign-up pages.
+- **Depends on:** shopping-journey Phase 4 (cart and the shared phone normalizer).
+- **Deliverables:** migration for `storefront_buyer_phones` plus `storefront_carts.customer_user_id`; signup/login/logout routes; session helper (store-scoped); cart attach/merge; header account button with a sign-out action; login/sign-up pages.
 - **Requirements closed:** REQ-A01, A02, A03.
 - **Tests:** TEST-A01, A02, A03.
 - **Exit gate:** two stores, the same phone, two accounts; sign-in merges the cart; no email captured.
 
 ### Phase A2 — Addresses and orders
 
-- **Depends on:** A1, shopping-journey Phase 4.
-- **Deliverables:** person creation on sign-up; addresses API and page; checkout pre-select and save; `customerEntityId` on orders; orders page.
-- **Requirements closed:** REQ-A04, A05, A08.
-- **Tests:** TEST-A04, A05.
+- **Depends on:** A1, shopping-journey Phase 4 (tracking view).
+- **Deliverables:** migration for `storefront_order_access.customer_user_id`; person creation on sign-up; addresses API and page; checkout pre-select and save (amended journey contracts); `customerEntityId` on orders; orders page and claim route; account page (password change, sign-out, links to existing surfaces only).
+- **Requirements closed:** REQ-A04, A05, A08, A09.
+- **Tests:** TEST-A04, A05, TEST-A08 (account-page slice).
 - **Exit gate:** a second order with a saved address in one tap; the order appears under the buyer and the customer in the CRM.
 
 ### Phase A3 — Wishlist and notifications
 
 - **Depends on:** A2.
-- **Deliverables:** wishlist table, API, buttons and page; order-status subscriber; bell and notifications page.
+- **Deliverables:** migration for `storefront_wishlist_items` plus `storefront_order_access.last_notified_status`/`last_notified_payment_status`; wishlist API, buttons and page; order-status subscriber; bell and notifications page; account-page links to wishlist and notifications.
 - **Requirements closed:** REQ-A06, A07.
 - **Tests:** TEST-A06, A07, A08.
 - **Exit gate:** a status change made in the admin reaches the buyer's bell; the wishlist works on both stores.
@@ -303,7 +316,8 @@ Under `/api/storefront/shop/{siteSlug}/account/…`:
 | REQ-A05 | orders | orders API | A2 | TEST-A05 | AC-A03 |
 | REQ-A06 | wishlist | wishlist API | A3 | TEST-A06 | AC-A04 |
 | REQ-A07 | bell | subscriber, installed API | A3 | TEST-A07 | AC-A04 |
-| REQ-A08 | account | account API | A2 | TEST-A08 | AC-A03 |
+| REQ-A08 | account | account API | A2 | TEST-A08 | AC-A05 |
+| REQ-A09 | account | — | A2 | TEST-A08 | AC-A05 |
 
 ### Extension-surface traceability
 
@@ -353,7 +367,7 @@ Under `/api/storefront/shop/{siteSlug}/account/…`:
 
 | Risk | Impact | Mitigation | Residual |
 |---|---|---|---|
-| No phone verification | Someone registers another person's number | Nothing is bound by phone; merchant sees unverified; OTP spec later | Accepted (P6) |
+| No phone verification | Someone registers another person's number | Nothing is bound by phone; guest orders are claimed only by token; OTP spec later (merchant "unverified" marker is deferred dashboard work) | Accepted (P6) |
 | Forgotten password | Buyer locked out | Merchant reset in a later dashboard; new account with a new number is not possible for the same phone | Accepted until the dashboard |
 | `.invalid` identifier visible to staff | Confusion in the admin | The person record holds the real name and phone; document | Low |
 | One customer cookie per browser | Signing into store B signs out of store A | Session honoured per store; documented | Accepted |
@@ -372,6 +386,7 @@ Under `/api/storefront/shop/{siteSlug}/account/…`:
 - [ ] **AC-A02** — The same phone is two separate accounts in two stores; a session never crosses stores.
 - [ ] **AC-A03** — Saved addresses and order history work, and the second checkout uses the default address.
 - [ ] **AC-A04** — Wishlist and order-status notifications work in Arabic in each store's theme.
+- [ ] **AC-A05** — The account page shows name and phone, changes the password and signs out; it shows no points, store credit, referral or invite placeholders.
 - [ ] All surfaces have loading, empty, error, keyboard, accessibility and responsive states; validation gate passes.
 
 ## Final Compliance Report
@@ -399,3 +414,4 @@ Verdict: Ready for implementation
 | Date | Change |
 |---|---|
 | 2026-10-25 | Initial specification (autonomous, owner brief of 2026-10-25) |
+| 2026-10-25 | Fresh-context scope review applied: claim route and amended journey contracts; dependencies corrected (A1 after journey Phase 4); columns assigned to phases; sign-out in A1; REQ-A09 and AC-A05; second-device cart test; deferred dashboard no longer used as a mitigation |
