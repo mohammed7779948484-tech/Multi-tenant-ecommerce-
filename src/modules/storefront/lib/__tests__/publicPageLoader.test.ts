@@ -55,7 +55,7 @@ describe('public page loader', () => {
     if (loaded.kind === 'ok') expect(loaded.view.head.title).toBe('Live title')
   })
 
-  it('builds the Arabic shell: home link first, no shell footer when the page has its own Footer', async () => {
+  it('builds the Arabic shell: home and categories links first, no shell footer when the page has its own Footer', async () => {
     resolveMock.mockResolvedValueOnce(
       resolved(
         { id: 'p3', slug: 'faq', title: 'Working title', publishedSpec: buildDefaultHomeSpec({ storeName: 'Shop' }), publishedRevisionId: 'r1' },
@@ -68,6 +68,7 @@ describe('public page loader', () => {
     expect(loaded.view.head.locale).toBe('ar')
     expect(loaded.view.shell.links).toEqual([
       { href: '/shop', label: 'الرئيسية' },
+      { href: '/shop/collections', label: expect.any(String) },
       { href: '/shop/faq', label: 'Questions' },
     ])
     expect(loaded.view.shell.footer).toBe(false)

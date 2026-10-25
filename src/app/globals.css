@@ -285,6 +285,8 @@ TODO: Fix that latter to have reference by the package names
 
   /* Switch thumb: thin drop shadow + hairline outline (matches Figma switch spec). */
   --shadow-switch-thumb: 0 1px 2px rgb(10 13 20 / 0.10), 0 0 0 0.5px rgb(10 13 20 / 0.04);
+  --color-success: var(--success);
+  --color-sale: var(--sale);
 }
 
 :root {
@@ -486,6 +488,8 @@ TODO: Fix that latter to have reference by the package names
   --status-neutral-solid-foreground: #ffffff;
   --status-pink-solid: oklch(0.388 0.180 340);       /* pink-700  #be185d, on white 6.04 */
   --status-pink-solid-foreground: #ffffff;
+  --sale: hsl(0 72% 42%);
+  --success: hsl(138 30% 34%);
 }
 
 /* Opt-in Figma-style focus ring: 2px inner ring + 4px outer ring */
@@ -1155,4 +1159,9 @@ body[data-demo-feedback-fab="visible"] main {
 .om-mdx-editor .cm-cursor,
 .om-mdx-editor .cm-dropCursor {
   border-left-color: var(--foreground);
+}
+/* ecomcn block tokens (sale and in-bag states); store pages map them to status tokens in the theme bridge. */
+.dark:not(:has(.sf-shop)) {
+  --sale: hsl(4 74% 58%);
+  --success: hsl(138 26% 52%);
 }

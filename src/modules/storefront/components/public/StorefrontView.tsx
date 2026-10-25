@@ -1,4 +1,6 @@
 import * as React from 'react'
+import { SearchIcon } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import type { ValidatedSection } from '../../lib/blocks/pageSpec'
 import type { ThemeTokens } from '../../lib/theme'
 import { buildShopThemeCss } from '../../lib/shopTheme'
@@ -108,6 +110,15 @@ export function StorefrontFrame(props: StorefrontFrameProps) {
                 <span>{props.storeName}</span>
               )}
             </a>
+            {shell ? (
+              <div className="sf-header-actions">
+                <Button asChild variant="ghost" size="icon" className="sf-menu-trigger">
+                  <a href={shell.searchHref} aria-label={shell.labels.search}>
+                    <SearchIcon aria-hidden="true" />
+                  </a>
+                </Button>
+              </div>
+            ) : null}
           </div>
         </header>
         <main id="sf-main" className="sf-main" tabIndex={-1}>

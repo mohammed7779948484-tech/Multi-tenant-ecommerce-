@@ -12011,6 +12011,34 @@ __metadata:
   languageName: node
   linkType: hard
 
+"embla-carousel-react@npm:^8.6.0":
+  version: 8.6.0
+  resolution: "embla-carousel-react@npm:8.6.0"
+  dependencies:
+    embla-carousel: "npm:8.6.0"
+    embla-carousel-reactive-utils: "npm:8.6.0"
+  peerDependencies:
+    react: ^16.8.0 || ^17.0.1 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc
+  checksum: 10c0/461b0c427a6fca62e730c7b39d08e9c55b01a2138c173d5b9ebf77ec92092a900b45ac384731c77382b48d5d65946994d3abba6e9899a66d6e16f8ddf191ed1c
+  languageName: node
+  linkType: hard
+
+"embla-carousel-reactive-utils@npm:8.6.0":
+  version: 8.6.0
+  resolution: "embla-carousel-reactive-utils@npm:8.6.0"
+  peerDependencies:
+    embla-carousel: 8.6.0
+  checksum: 10c0/33d07e6df4d8dec9b4fc95858838ea2d5e5df078039c05b2a342c05ba4979d8d18564a1c607da445fed744daf969a0b5a90124ce487a854e86ced6f0458b51e9
+  languageName: node
+  linkType: hard
+
+"embla-carousel@npm:8.6.0":
+  version: 8.6.0
+  resolution: "embla-carousel@npm:8.6.0"
+  checksum: 10c0/f4c598e7be28b70340d31ffd2bebb2472db370b0c81d9b089bf9555cf618695f35dc4a0694565c994c9ab972731123063f945aa09ff485df0df761d79c6a08ef
+  languageName: node
+  linkType: hard
+
 "emittery@npm:^0.13.1":
   version: 0.13.1
   resolution: "emittery@npm:0.13.1"
@@ -13298,6 +13326,25 @@ __metadata:
   version: 0.2.0
   resolution: "forwarded@npm:0.2.0"
   checksum: 10c0/9b67c3fac86acdbc9ae47ba1ddd5f2f81526fa4c8226863ede5600a3f7c7416ef451f6f1e240a3cc32d0fd79fcfe6beb08fd0da454f360032bde70bf80afbb33
+  languageName: node
+  linkType: hard
+
+"framer-motion@npm:14.4.0":
+  version: 14.4.0
+  resolution: "framer-motion@npm:14.4.0"
+  dependencies:
+    motion-dom: "npm:14.4.0"
+    motion-utils: "npm:14.1.1"
+    tslib: "npm:^2.4.0"
+  peerDependencies:
+    react: ^18.0.0 || ^19.0.0
+    react-dom: ^18.0.0 || ^19.0.0
+  peerDependenciesMeta:
+    react:
+      optional: true
+    react-dom:
+      optional: true
+  checksum: 10c0/c3ace6167466265b0af199190ad42959d44853c348d6721b4f1892a8430188af86ee4842ca95d6386f0235da9523b703f29ec7babb1853e38d34e0d645ff1403
   languageName: node
   linkType: hard
 
@@ -17440,10 +17487,44 @@ __metadata:
   languageName: node
   linkType: hard
 
+"motion-dom@npm:14.4.0":
+  version: 14.4.0
+  resolution: "motion-dom@npm:14.4.0"
+  dependencies:
+    motion-utils: "npm:14.1.1"
+  checksum: 10c0/d0ac8c07dde0e1133e6b231da10b9057344066a6e5a13c0aa49648b29d6417c6015f50356f4bb9e81426fc00f82093b814ae0f6a4990dc7871972c406b5a8b60
+  languageName: node
+  linkType: hard
+
 "motion-utils@npm:13.5.0":
   version: 13.5.0
   resolution: "motion-utils@npm:13.5.0"
   checksum: 10c0/25182af58dafe8aafd596106529ee3bcf39f1295c2cf1016eded6f8876cfd28c550c368fe2d4167dad0782c5ea106c06c39efaedbbb1be2a7cb325b1a827ed11
+  languageName: node
+  linkType: hard
+
+"motion-utils@npm:14.1.1":
+  version: 14.1.1
+  resolution: "motion-utils@npm:14.1.1"
+  checksum: 10c0/ee89684857aae2b02897d7297568e1e6dc6c1eec08c61533fbc0a9650de5d5c454aa888532b825baabac92defddecd364cbb8cd7fa63b2171152edf8f9f819f0
+  languageName: node
+  linkType: hard
+
+"motion@npm:^14.4.0":
+  version: 14.4.0
+  resolution: "motion@npm:14.4.0"
+  dependencies:
+    framer-motion: "npm:14.4.0"
+    tslib: "npm:^2.4.0"
+  peerDependencies:
+    react: ^18.0.0 || ^19.0.0
+    react-dom: ^18.0.0 || ^19.0.0
+  peerDependenciesMeta:
+    react:
+      optional: true
+    react-dom:
+      optional: true
+  checksum: 10c0/21cac355cec725b658e2ef12eab5c70f3a0a5584feace58ac85be9b6c5f8e7d1bf63a4b4312181cafb558776cb20397278059e7f89ef64256bc132b257f7ecc1
   languageName: node
   linkType: hard
 
@@ -21170,6 +21251,7 @@ __metadata:
     date-fns: "npm:4.4.0"
     date-fns-tz: "npm:^3.2.0"
     dotenv: "npm:^17.4.2"
+    embla-carousel-react: "npm:^8.6.0"
     eslint: "npm:^9.39.4"
     eslint-config-next: "npm:16.3.6"
     ioredis: "npm:^6.0.0"
@@ -21177,6 +21259,7 @@ __metadata:
     jest-environment-jsdom: "npm:^30.4.1"
     lucide-react: "npm:^1.34.0"
     mammoth: "npm:^1.9.0"
+    motion: "npm:^14.4.0"
     newrelic: "npm:^14.3.9"
     next: "npm:16.3.6"
     pdfjs-dist: "npm:^6.2.108"

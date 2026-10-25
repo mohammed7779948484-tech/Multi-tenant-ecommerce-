@@ -4,6 +4,8 @@ import type { EntityManager } from '@mikro-orm/postgresql'
 import { Organization } from '@open-mercato/core/modules/directory/data/entities'
 import { parseTenantArgs } from './lib/cliArgs'
 import { ensureStorefrontSite } from './lib/seeding'
+import { StorefrontPage, StorefrontSite } from './data/entities'
+import { HOME_PAGE_SLUG_VALUE, RESERVED_PAGE_SLUGS } from './lib/slug'
 
 /**
  * `yarn mercato storefront ensure-sites [--tenant <uuid>]`
@@ -53,6 +55,45 @@ const ensureSites: ModuleCli = {
   },
 }
 
-const cli: ModuleCli[] = [ensureSites]
+/**
+ * `yarn mercato storefront reserved-slugs [--tenant <uuid>]`
+ *
+ * Read-only report: pages whose slug is now reserved for a shop route (for
+ * example a page created as `search` before the search page existed). Such a
+ * page is shadowed by the shop route; the merchant renames it in the page
+ * editor. Changes nothing (shopping-journey spec Phase 2, no migration).
+ */
+const reservedSlugs: ModuleCli = {
+  command: 'reserved-slugs',
+  async run(argv) {
+    const args = parseTenantArgs(argv)
+    if (!args.ok) {
+      console.error(args.error)
+      process.exitCode = 1
+      return
+    }
+    const container = await createRequestContainer()
+    const em = container.resolve('em') as EntityManager
+    const pages = await em.find(
+      StorefrontPage,
+      { deletedAt: null, slug: { $in: [...RESERVED_PAGE_SLUGS] }, ...(args.tenantId ? { tenantId: args.tenantId } : {}) },
+      { fields: ['id', 'slug', 'siteId', 'tenantId', 'organizationId'], orderBy: { createdAt: 'asc' } },
+    )
+    // `index` is the home page's own fixed slug, never a conflict.
+    const conflicts = pages.filter((page) => page.slug !== HOME_PAGE_SLUG_VALUE)
+    if (!conflicts.length) {
+      console.log('No pages use a reserved slug.')
+      return
+    }
+    const sites = await em.find(StorefrontSite, { id: { $in: [...new Set(conflicts.map((page) => page.siteId))] } }, { fields: ['id', 'slug'] })
+    const siteSlugs = new Map(sites.map((site) => [site.id, site.slug]))
+    for (const page of conflicts) {
+      console.log(`- /${siteSlugs.get(page.siteId) ?? page.siteId}/${page.slug} (page ${page.id}, tenant ${page.tenantId}, organization ${page.organizationId})`)
+    }
+    console.log(`${conflicts.length} page(s) use a reserved slug; rename them in the page editor.`)
+  },
+}
+
+const cli: ModuleCli[] = [ensureSites, reservedSlugs]
 
 export default cli

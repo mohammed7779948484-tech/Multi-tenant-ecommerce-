@@ -41,7 +41,8 @@ describe('TEST-J01 theme bridge', () => {
 describe('TEST-J01 Arabic dictionary completeness', () => {
   const english = en as Record<string, string>
   const arabic = ar as Record<string, string>
-  const buyerKeys = Object.keys(english).filter((key) => key.startsWith('storefront.public.') || key.startsWith('storefront.shop.'))
+  const BUYER_PREFIXES = ['storefront.public.', 'storefront.shop.', 'ecomcn.', 'ui.carousel.']
+  const buyerKeys = Object.keys(english).filter((key) => BUYER_PREFIXES.some((prefix) => key.startsWith(prefix)))
   const placeholders = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort()
 
   it('has an Arabic value for every buyer-facing key', () => {
@@ -53,8 +54,17 @@ describe('TEST-J01 Arabic dictionary completeness', () => {
     }
   })
 
-  it('keeps the same placeholders as English', () => {
-    for (const key of buyerKeys) expect(placeholders(arabic[key])).toEqual(placeholders(english[key]))
+  it('uses only placeholders the English text has (Arabic may spell a count out, e.g. "منتج واحد")', () => {
+    for (const key of buyerKeys) {
+      const allowed = new Set(placeholders(english[key]))
+      for (const name of placeholders(arabic[key])) expect([key, allowed.has(name)]).toEqual([key, true])
+    }
+  })
+
+  it('has every Arabic plural form for counts', () => {
+    for (const noun of ['products', 'results', 'items']) {
+      for (const form of ['zero', 'one', 'two', 'few', 'many', 'other']) expect(arabic[`storefront.shop.count.${noun}.${form}`]).toBeTruthy()
+    }
   })
 
   it('carries no keys that English lacks', () => {

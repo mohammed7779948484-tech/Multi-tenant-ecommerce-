@@ -15,6 +15,8 @@ export type ShopShell = {
   /** Client dictionary for `I18nProvider` (buyer keys only). */
   dict: Dict
   links: ShopNavLink[]
+  /** The store's search page (header search entry). */
+  searchHref: string
   /** False when the page already ends with the merchant's own Footer section. */
   footer: boolean
   year: number
@@ -25,6 +27,7 @@ export type ShopShell = {
     menuDescription: string
     nav: string
     rights: string
+    search: string
   }
 }
 
@@ -41,7 +44,12 @@ export function buildShopShell(
   return {
     locale: i18n.locale,
     dict: i18n.clientDict,
-    links: [{ href: `/${site.slug}`, label: translate('storefront.shop.navHome', 'Home') }, ...links],
+    links: [
+      { href: `/${site.slug}`, label: translate('storefront.shop.navHome', 'Home') },
+      { href: `/${site.slug}/collections`, label: translate('storefront.shop.navCollections', 'All categories') },
+      ...links,
+    ],
+    searchHref: `/${site.slug}/search`,
     footer: options.footer,
     year,
     labels: {
@@ -51,6 +59,7 @@ export function buildShopShell(
       menuDescription: translate('storefront.shop.menuDescription', "Browse the store's pages"),
       nav: translate('storefront.shop.navLabel', 'Store links'),
       rights: translate('storefront.shop.footerRights', '© {year} {store}. All rights reserved.', { year, store: site.name }),
+      search: translate('storefront.shop.search.open', 'Search the store'),
     },
   }
 }

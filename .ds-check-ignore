@@ -1414,6 +1414,496 @@
       "match": "data-[state=open]",
       "line": 85,
       "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/category-rail.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "basis-[46%]",
+      "line": 149,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/category-rail.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "aspect-[4/5]",
+      "line": 160,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/category-rail.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "group-hover:scale-[1.04]",
+      "line": 162,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/category-rail.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "[&>img]",
+      "line": 162,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/category-rail.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "[&>img]",
+      "line": 162,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/category-rail.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "text-[11px]",
+      "line": 169,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/category-rail.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "text-[13px]",
+      "line": 176,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/category-rail.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "aspect-[4/5]",
+      "line": 183,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/empty-results.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "tracking-[0.14em]",
+      "line": 105,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/empty-results.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "text-[13px]",
+      "line": 118,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/filter-panel.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "tracking-[0.14em]",
+      "line": 212,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/filter-panel.tsx",
+      "rule": "inline-style",
+      "match": "style=",
+      "line": 481,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/filter-sheet.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "text-[11px]",
+      "line": 147,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/filter-sheet.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "max-h-[88dvh]",
+      "line": 158,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/filter-sheet.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "flex-[2]",
+      "line": 200,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/price-tag.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "text-[var(--sale)]",
+      "line": 75,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/price-tag.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "bg-[var(--sale)]",
+      "line": 91,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/price-tag.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "text-[11px]",
+      "line": 91,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/price-tag.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "tracking-[0.14em]",
+      "line": 91,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/product-card.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "aspect-[4/5]",
+      "line": 271,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/product-card.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "[&>[data-slot=product-card-badge]",
+      "line": 308,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/product-card.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "text-[11px]",
+      "line": 323,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/product-card.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "tracking-[0.16em]",
+      "line": 323,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/product-card.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=on]",
+      "line": 352,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/product-card.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=on]",
+      "line": 352,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/product-card.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "text-[12px]",
+      "line": 375,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/product-card.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "tracking-[0.14em]",
+      "line": 375,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/product-card.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "bg-[var(--success)]",
+      "line": 378,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/product-card.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "hover:bg-[var(--success)]",
+      "line": 378,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/product-card.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "text-[11px]",
+      "line": 429,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/product-card.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "tracking-[0.18em]",
+      "line": 429,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/product-grid.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "aspect-[4/5]",
+      "line": 45,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/product-grid.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "text-[13px]",
+      "line": 95,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ecomcn/sort-toolbar.tsx",
+      "rule": "manual-dark-override",
+      "match": "dark:",
+      "line": 140,
+      "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/slider.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[disabled]",
+      "line": 33,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/slider.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[orientation=vertical]",
+      "line": 33,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/slider.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[orientation=vertical]",
+      "line": 33,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/slider.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[orientation=vertical]",
+      "line": 33,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/slider.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[orientation=vertical]",
+      "line": 33,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/slider.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[orientation=horizontal]",
+      "line": 41,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/slider.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[orientation=horizontal]",
+      "line": 41,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/slider.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[orientation=vertical]",
+      "line": 41,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/slider.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[orientation=vertical]",
+      "line": 41,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/slider.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[orientation=horizontal]",
+      "line": 47,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/slider.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[orientation=vertical]",
+      "line": 47,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/slider.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "transition-[color,box-shadow]",
+      "line": 55,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/switch.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "focus-visible:ring-[3px]",
+      "line": 19,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/switch.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[size=default]",
+      "line": 19,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/switch.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[size=sm]",
+      "line": 19,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/switch.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[size=sm]",
+      "line": 19,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/switch.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=checked]",
+      "line": 19,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/switch.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=unchecked]",
+      "line": 19,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/switch.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "dark:data-[state=unchecked]",
+      "line": 19,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/switch.tsx",
+      "rule": "manual-dark-override",
+      "match": "dark:",
+      "line": 19,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/switch.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "group-data-[size=default]",
+      "line": 27,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/switch.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "group-data-[size=sm]",
+      "line": 27,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/switch.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=unchecked]",
+      "line": 27,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/switch.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "rtl:data-[state=unchecked]",
+      "line": 27,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/switch.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "dark:data-[state=checked]",
+      "line": 27,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/switch.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "dark:data-[state=unchecked]",
+      "line": 27,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/switch.tsx",
+      "rule": "manual-dark-override",
+      "match": "dark:",
+      "line": 27,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/switch.tsx",
+      "rule": "manual-dark-override",
+      "match": "dark:",
+      "line": 27,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/toggle.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "transition-[color,box-shadow]",
+      "line": 9,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/toggle.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "focus-visible:ring-[3px]",
+      "line": 9,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/toggle.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=on]",
+      "line": 9,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/toggle.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=on]",
+      "line": 9,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/toggle.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "[&_svg]",
+      "line": 9,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/toggle.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "[&_svg]",
+      "line": 9,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/toggle.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "[&_svg:not([class*='size-']",
+      "line": 9,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/toggle.tsx",
+      "rule": "manual-dark-override",
+      "match": "dark:",
+      "line": 9,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     }
   ]
 }

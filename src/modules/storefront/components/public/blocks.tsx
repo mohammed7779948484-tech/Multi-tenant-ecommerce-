@@ -17,6 +17,7 @@ import type {
   TestimonialsProps,
 } from '../../lib/blocks/schemas'
 import type { MediaResolver } from '../../lib/mediaUrls'
+import { ShopProductCard, toCardProduct } from '../shop/ShopProductCard'
 import type { CategoryCard, ProductCard, SectionData } from '../../lib/sectionDataTypes'
 
 /**
@@ -63,7 +64,7 @@ export function resolveSectionLabels(translate: (key: string, fallback: string) 
   ) as SectionLabels
 }
 
-function StoreImage({
+export function StoreImage({
   image,
   media,
   sizes,
@@ -412,16 +413,7 @@ export function FooterBlock({ props, context }: { props: FooterProps; context: B
 export function ProductCardItem({ product, media, showPrice }: { product: ProductCard; media: MediaResolver; showPrice: boolean }) {
   return (
     <li className="sf-product">
-      <a href={product.href} className="sf-product-link">
-        {product.image ? (
-          <StoreImage image={product.image} media={media} sizes="(min-width: 48rem) 25vw, 50vw" className="sf-product-image" />
-        ) : (
-          <span className="sf-product-image sf-placeholder" aria-hidden="true" />
-        )}
-        <span className="sf-product-title">{product.title}</span>
-      </a>
-      {product.subtitle ? <span className="sf-product-subtitle">{product.subtitle}</span> : null}
-      {showPrice && product.price ? <span className="sf-price">{product.price}</span> : null}
+      <ShopProductCard product={toCardProduct(product, media)} showPrice={showPrice} />
     </li>
   )
 }

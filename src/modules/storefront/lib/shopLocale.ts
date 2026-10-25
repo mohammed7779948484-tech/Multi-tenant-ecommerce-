@@ -22,8 +22,8 @@ declare module '@open-mercato/shared/lib/i18n/config' {
 
 export const SHOP_LOCALE: Locale = 'ar'
 
-/** Key prefixes a buyer page needs on the client (for its `I18nProvider`). */
-const CLIENT_PREFIXES = ['storefront.public.', 'storefront.shop.']
+/** Key prefixes a buyer page needs on the client (for its `I18nProvider`): buyer copy and the shared shop blocks (ecomcn, carousel). */
+const CLIENT_PREFIXES = ['storefront.public.', 'storefront.shop.', 'ecomcn.', 'ui.carousel.']
 
 export type ShopTranslate = ReturnType<typeof createFallbackTranslator>
 

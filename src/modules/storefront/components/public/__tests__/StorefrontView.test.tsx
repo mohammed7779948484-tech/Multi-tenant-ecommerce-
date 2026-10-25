@@ -1,8 +1,14 @@
-import { describe, expect, it } from '@jest/globals'
+import { describe, expect, it, jest } from '@jest/globals'
+
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({ push: () => undefined, replace: () => undefined }),
+  usePathname: () => '/acme',
+}))
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { StorefrontFrame, StorefrontView } from '../StorefrontView'
-import { CollectionPageView, ProductPageView } from '../CatalogViews'
+import { ProductPageView } from '../CatalogViews'
+import { CollectionPageView } from '../../shop/ShopListingViews'
 import { buildShopShell } from '../../../lib/shopShell'
 import { createFallbackTranslator } from '@open-mercato/shared/lib/i18n/translate'
 import ar from '../../../i18n/ar.json'
@@ -101,12 +107,15 @@ describe('TEST-J02 Arabic store shell', () => {
       <CollectionPageView
         {...frame}
         category={{ name: 'تمور', description: null }}
-        products={[]}
-        emptyLabel="منتجات جديدة في الطريق."
-        pagination={{ page: 2, pageCount: 3, previousHref: '/acme/collections/dates', nextHref: '/acme/collections/dates?page=3', label: 'الصفحات', status: 'صفحة 2 من 3', previous: 'السابق', next: 'التالي' }}
+        subcategories={[]}
+        subcategoriesTitle="تصفّح حسب النوع"
+        listing={{ products: [], total: 0, facets: [], sort: 'featured', defaultSort: 'featured', sortOptions: [{ value: 'featured', label: 'المميّز' }], search: '', query: null }}
+        pagination={{ page: 2, pageCount: 3, hrefs: { 1: '/acme/collections/dates', 2: '/acme/collections/dates?page=2', 3: '/acme/collections/dates?page=3' }, labels: { nav: 'الصفحات', previous: 'السابق', next: 'التالي', more: 'صفحات أخرى', status: 'صفحة ٢ من ٣' } }}
       />,
     )
-    expect(collection).toContain('صفحة 2 من 3')
+    expect(collection).toContain('صفحة ٢ من ٣')
+    expect(collection).toContain('aria-current="page"')
+    expect(collection).toContain('لا منتجات')
     expect(collection).toContain('rel="prev"')
   })
 

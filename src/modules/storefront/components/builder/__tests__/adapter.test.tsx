@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@jest/globals'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { I18nProvider } from '@open-mercato/shared/lib/i18n/context'
 import type { z } from 'zod'
 import { STOREFRONT_BLOCKS, STOREFRONT_BLOCK_TYPES, type StorefrontBlockType } from '../../../lib/blocks/catalog'
 import { validatePageSpec } from '../../../lib/blocks/pageSpec'
@@ -258,7 +259,7 @@ describe('preview registry', () => {
         previewDataKey('ProductGrid', SAMPLE_PROPS.ProductGrid)!,
         {
           products: [
-            { id: PRODUCT_A, title: 'House blend', subtitle: null, href: '/acme/products/house-blend', image: { attachmentId: IMG_A, alt: 'House blend' }, price: '€12.00' },
+            { id: PRODUCT_A, title: 'House blend', subtitle: null, href: '/acme/products/house-blend', image: { attachmentId: IMG_A, alt: 'House blend' }, price: { amount: 12, currencyCode: 'EUR', formatted: '€12.00' } },
           ],
         },
       ],
@@ -272,14 +273,14 @@ describe('preview registry', () => {
       tokens: DEFAULT_THEME_TOKENS,
       labels: { home: 'Acme home', unavailable: 'Preview unavailable', sections: SECTION_LABELS },
     }
-    const html = renderToStaticMarkup(<BuilderPreview {...props} sectionData={sectionData} />)
+    const html = renderToStaticMarkup(<I18nProvider locale="en" dict={{}}><BuilderPreview {...props} sectionData={sectionData} /></I18nProvider>)
     expect(html).toContain('House blend')
     expect(html).toContain('href="/acme/products/house-blend"')
     expect(html).toContain(`/api/attachments/image/${IMG_A}?width=`)
     // showPrice: false hides the price even when the data has one.
     expect(html).not.toContain('€12.00')
     expect(html).toContain('Collections soon')
-    const empty = renderToStaticMarkup(<BuilderPreview {...props} />)
+    const empty = renderToStaticMarkup(<I18nProvider locale="en" dict={{}}><BuilderPreview {...props} /></I18nProvider>)
     expect(empty).toContain('Products soon')
     expect(empty).not.toContain('Preview unavailable')
   })

@@ -7,7 +7,7 @@ import { readJsonSafe } from '@open-mercato/core/helpers/integration/generalFixt
 /**
  * TC-STOREFRONT-005: the assembled store's sections (spec TEST-013).
  * Part a — media and content sections, page images and the media route.
- * Part b — commerce sections, product and collection pages, the visibility rule,
+ * Part b — commerce sections, product and collection pages, the public catalog rule (S-2),
  * product images on the media route, catalog references and preview data.
  *
  * Runs as the env-configured superadmin's organization; every page and upload it
@@ -159,6 +159,9 @@ test.describe('TC-STOREFRONT-005a: media and content sections', () => {
   })
 })
 
+/** Buyer prices are Arabic (ar-YE), formatted by the server. */
+const PRICE_A = new Intl.NumberFormat('ar-YE', { style: 'currency', currency: 'EUR' }).format(12.5)
+
 test.describe('TC-STOREFRONT-005b: commerce sections and catalog pages', () => {
   let token = ''
   let siteSlug = ''
@@ -244,14 +247,14 @@ test.describe('TC-STOREFRONT-005b: commerce sections and catalog pages', () => {
     for (const id of [ids.child, ids.parent, ids.unrelated]) if (id) await catalog(request, 'DELETE', `/api/catalog/categories?id=${id}`).catch(() => null)
   })
 
-  test('the published page shows exactly the visible products, with prices and product images', async ({ request }) => {
+  test('the published page shows exactly the products its sections pick, with Arabic prices and product images', async ({ request }) => {
     const html = await (await request.get(`/${siteSlug}/${pageSlug}`)).text()
     expect(html).toContain(`Product a ${RUN}`)
     expect(html).toContain(`Product b ${RUN}`)
     expect(html).toContain(`Product picked ${RUN}`)
     expect(html).not.toContain(`Product off ${RUN}`)
     expect(html).not.toContain(`Product hidden ${RUN}`)
-    expect(html).toContain('€12.50')
+    expect(html).toContain(PRICE_A)
     expect(html).toContain(`href="/${siteSlug}/products/${handle('a')}"`)
     expect(html).toContain(`/api/storefront/media/${siteSlug}/${images.a}`)
     // The collection card links by slug and uses a product image as its cover.
@@ -262,12 +265,12 @@ test.describe('TC-STOREFRONT-005b: commerce sections and catalog pages', () => {
     expect(collectionCard).toContain(`/api/storefront/media/${siteSlug}/${images.a}`)
   })
 
-  test('product pages: visible products only, canonical by handle', async ({ request }) => {
+  test('product pages: every active product of the store (S-2), canonical by handle', async ({ request }) => {
     const page = await request.get(`/${siteSlug}/products/${handle('a')}`)
     expect(page.status()).toBe(200)
     const html = await page.text()
     expect(html).toContain(`<h1 class="sf-product-heading">Product a ${RUN}</h1>`)
-    expect(html).toContain('€12.50')
+    expect(html).toContain(PRICE_A)
     expect(html).toContain(`العودة إلى Beans ${RUN}`)
     // Product pages have no Footer section of their own, so the store shell adds one.
     expect(html).toMatch(/class="sf-root sf-shop"[^>]*dir="rtl"[^>]*lang="ar"/)
@@ -278,14 +281,16 @@ test.describe('TC-STOREFRONT-005b: commerce sections and catalog pages', () => {
     expect(byId.status()).toBe(308)
     expect(byId.headers()['location']).toContain(`/${siteSlug}/products/${handle('a')}`)
     expect((await request.get(`/${siteSlug}/products/${handle('picked')}`)).status()).toBe(200)
-    for (const key of [handle('off'), handle('hidden'), ids.hidden, '00000000-0000-4000-8000-000000000000']) {
+    // Active but shown by no section: public in the shop (S-2 supersedes K2).
+    expect((await request.get(`/${siteSlug}/products/${handle('hidden')}`)).status()).toBe(200)
+    for (const key of [handle('off'), '00000000-0000-4000-8000-000000000000']) {
       expect((await request.get(`/${siteSlug}/products/${key}`)).status(), key).toBe(404)
     }
     // A malformed escape is refused before the page runs (Next answers 400); it never renders.
     expect([400, 404]).toContain((await request.get(`/${siteSlug}/products/%E0%A4%A`)).status())
   })
 
-  test('collection pages: the category tree, pagination clamp, and 404 for unreferenced categories', async ({ request }) => {
+  test('collection pages: the category tree, pagination clamp, every active category', async ({ request }) => {
     const page = await request.get(`/${siteSlug}/collections/${handle('coffee')}`)
     expect(page.status()).toBe(200)
     const html = await page.text()
@@ -303,14 +308,18 @@ test.describe('TC-STOREFRONT-005b: commerce sections and catalog pages', () => {
     expect(byId.status()).toBe(308)
     // The sub-category is visible through its parent and has no slug, so its id is canonical.
     expect((await request.get(`/${siteSlug}/collections/${ids.child}`)).status()).toBe(200)
-    expect((await request.get(`/${siteSlug}/collections/${ids.unrelated}`)).status()).toBe(404)
+    // Unreferenced by any section, but active: public in the shop (S-2), canonical by slug.
+    const unrelated = await request.get(`/${siteSlug}/collections/${ids.unrelated}`, { maxRedirects: 0 })
+    expect(unrelated.status()).toBe(308)
+    expect(unrelated.headers()['location']).toContain(`/collections/${handle('tea')}`)
+    expect((await request.get(`/${siteSlug}/collections/00000000-0000-4000-8000-000000000000`)).status()).toBe(404)
   })
 
-  test('product images are public only while the product is', async ({ request }) => {
+  test('product images are public while the product is active', async ({ request }) => {
     const shown = await request.get(`/api/storefront/media/${siteSlug}/${images.a}?w=320`)
     expect(shown.status()).toBe(200)
     expect(shown.headers()['content-type']).toBe('image/jpeg')
-    expect((await request.get(`/api/storefront/media/${siteSlug}/${images.hidden}`)).status()).toBe(404)
+    expect((await request.get(`/api/storefront/media/${siteSlug}/${images.hidden}`)).status()).toBe(200)
   })
 
   test('drafts may only reference this organization\'s catalog rows', async ({ request }) => {

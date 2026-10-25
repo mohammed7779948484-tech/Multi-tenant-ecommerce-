@@ -71,7 +71,6 @@ export const loadStorefrontPage = cache(async (rawSiteSlug: string, rawPageSlug:
 
   const sectionData = await loadSectionData({ em, container }, { tenantId: site.tenantId, organizationId: site.organizationId }, validation.sections, {
     links: storeCatalogLinks(`/${site.slug}`),
-    locale: site.defaultLocale || 'en',
   })
   const storeUrl = storefrontPublicUrl(site.slug)
   const canonicalUrl = storefrontPublicUrl(site.slug, isHome ? '' : `/${page.slug}`)

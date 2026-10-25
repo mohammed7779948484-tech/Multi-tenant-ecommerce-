@@ -15,6 +15,7 @@ import { createLogger } from '@open-mercato/shared/lib/logger'
 import type { ValidatedSection } from './blocks/pageSpec'
 import type { ImageRef, ProductGridProps } from './blocks/schemas'
 import { isStorefrontImageMimeType } from './media'
+import { formatShopPrice } from './shopFormat'
 import type { CategoryCard, ProductCard, SectionData } from './sectionDataTypes'
 
 /**
@@ -72,16 +73,15 @@ export function anonymousPricingContext(now = new Date()): PricingContext {
   return { channelId: null, offerId: null, userId: null, userGroupId: null, customerId: null, customerGroupId: null, quantity: 1, date: now }
 }
 
-/** A price row as the buyer sees it: gross when set, else net, in the row's currency and the store's locale. */
-export function formatPrice(row: Pick<PriceRow, 'unitPriceGross' | 'unitPriceNet'> & { currencyCode?: string | null }, locale: string): string | null {
+/** A resolved price as the buyer sees it: the amount (gross when set, else net), its currency and the Arabic text. */
+export type ShopPrice = { amount: number; currencyCode: string; formatted: string }
+
+/** The buyer-facing price of a price row, or `null` when its amount or currency is unusable. */
+export function shopPriceOf(row: Pick<PriceRow, 'unitPriceGross' | 'unitPriceNet'> & { currencyCode?: string | null }): ShopPrice | null {
   const raw = row.unitPriceGross ?? row.unitPriceNet
   const amount = raw === null || raw === undefined ? NaN : Number(raw)
-  if (!Number.isFinite(amount) || !row.currencyCode) return null
-  try {
-    return new Intl.NumberFormat(locale || 'en', { style: 'currency', currency: row.currencyCode }).format(amount)
-  } catch {
-    return new Intl.NumberFormat('en', { style: 'currency', currency: row.currencyCode }).format(amount)
-  }
+  const formatted = formatShopPrice(amount, row.currencyCode)
+  return formatted && row.currencyCode ? { amount, currencyCode: row.currencyCode, formatted } : null
 }
 
 /** Active, non-deleted products of the scope, keyed by id (encryption-aware read). */
@@ -180,9 +180,9 @@ export async function allProductImages(em: EntityManager, scope: CatalogScope, p
   return ordered.slice(0, max).map((attachmentId) => ({ attachmentId, alt: product.title }))
 }
 
-/** Formatted best price per product through the platform pricing engine (product and variant rows). */
-export async function productPrices(deps: CatalogDataDeps, scope: CatalogScope, productIds: string[], locale: string): Promise<Map<string, string>> {
-  const prices = new Map<string, string>()
+/** Best price per product through the platform pricing engine (product and variant rows). */
+export async function productPrices(deps: CatalogDataDeps, scope: CatalogScope, productIds: string[]): Promise<Map<string, ShopPrice>> {
+  const prices = new Map<string, ShopPrice>()
   if (!productIds.length) return prices
   const { em, container } = deps
   const variants = await findWithDecryption(em, CatalogProductVariant, { product: { $in: productIds }, deletedAt: null, ...scope }, { fields: ['id', 'product'] }, scope)
@@ -220,8 +220,8 @@ export async function productPrices(deps: CatalogDataDeps, scope: CatalogScope, 
   const best = await pricing.resolvePriceMany(entries.map(([, priceRows]) => ({ rows: priceRows, context })))
   entries.forEach(([productId], index) => {
     const row = best[index]
-    const formatted = row ? formatPrice(row, locale) : null
-    if (formatted) prices.set(productId, formatted)
+    const price = row ? shopPriceOf(row) : null
+    if (price) prices.set(productId, price)
   })
   return prices
 }
@@ -230,16 +230,16 @@ export async function productCards(
   deps: CatalogDataDeps,
   scope: CatalogScope,
   orderedIds: string[],
-  options: { links: CatalogLinks; locale: string; withPrices: boolean; limit?: number },
+  options: { links: CatalogLinks; withPrices: boolean; limit?: number },
 ): Promise<ProductCard[]> {
   const products = await loadActiveProducts(deps.em, scope, orderedIds)
   const ordered = orderedIds.map((id) => products.get(id)).filter((product): product is CatalogProduct => Boolean(product))
   const visible = options.limit ? ordered.slice(0, options.limit) : ordered
   const images = await productImages(deps.em, scope, visible)
-  let prices = new Map<string, string>()
+  let prices = new Map<string, ShopPrice>()
   if (options.withPrices) {
     try {
-      prices = await productPrices(deps, scope, visible.filter((product) => !product.isQuoteOnly).map((product) => product.id), options.locale)
+      prices = await productPrices(deps, scope, visible.filter((product) => !product.isQuoteOnly).map((product) => product.id))
     } catch (err) {
       logger.warn('Storefront price resolution failed; showing products without prices', { err, ...scope })
     }
@@ -263,7 +263,7 @@ export async function loadSectionData(
   deps: CatalogDataDeps,
   scope: CatalogScope,
   sections: ValidatedSection[],
-  options: { links: CatalogLinks; locale: string },
+  options: { links: CatalogLinks },
 ): Promise<Record<string, SectionData>> {
   const data: Record<string, SectionData> = {}
   for (const section of sections) {
@@ -283,7 +283,7 @@ export async function loadSectionData(
             ids = [...new Set(tree.flatMap((id) => byCategory.get(id) ?? []))]
           }
         }
-        data[section.id] = { products: await productCards(deps, scope, ids, { links: options.links, locale: options.locale, withPrices: showPrice, limit }) }
+        data[section.id] = { products: await productCards(deps, scope, ids, { links: options.links, withPrices: showPrice, limit }) }
       } else if (section.type === 'CollectionList') {
         const categories = await loadActiveCategories(deps.em, scope, section.props.categoryIds)
         const ordered = section.props.categoryIds.map((id) => categories.get(id)).filter((category): category is CatalogProductCategory => Boolean(category))

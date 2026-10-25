@@ -31,8 +31,9 @@ function cacheKeyFor(width: number): string {
 }
 
 /**
- * Serves an image a live store shows publicly: its logo, or a page image a
- * published page references (spec "Reference rules"). Every other id answers
+ * Serves an image a live store shows publicly: its logo, a page image a
+ * published page references (spec "Reference rules"), or an image of an active
+ * product of the store (shopping-journey spec S-2). Every other id answers
  * the same 404 (another tenant's file, another entity's file, an unreferenced
  * upload, a deleted or deactivated store), so the route never confirms that an
  * attachment exists. Visibility is decided before the thumbnail cache or the
@@ -111,7 +112,7 @@ export const openApi: OpenApiRouteDoc = {
     GET: {
       summary: 'Serve an image a live store shows publicly',
       description:
-        'Anonymous. Returns the image only when the live store `{siteSlug}` shows it publicly: its logo, or a page image referenced by one of its published pages. Optional `?w=` (320, 640, 960, 1280, 1920) returns a resized copy, never upscaled. Every other combination answers 404 without revealing whether the attachment exists.',
+        'Anonymous. Returns the image only when the live store `{siteSlug}` shows it publicly: its logo, a page image referenced by one of its published pages, or an image of one of its active products. Optional `?w=` (320, 640, 960, 1280, 1920) returns a resized copy, never upscaled. Every other combination answers 404 without revealing whether the attachment exists.',
       responses: [{ status: 200, description: 'Image bytes (PNG, JPEG, WebP, GIF or AVIF)', schema: z.any() }],
       errors: [{ status: 404, description: 'Not a live store, or not an asset it references', schema: storefrontErrorSchema }],
     },

@@ -10,7 +10,7 @@ import { loadPublishedSections } from './publishedSections'
 /**
  * Which images a live store may serve anonymously (spec "Reference rules"):
  * its logo, page images referenced by one of its published pages, and images of
- * products a published section shows (spec Q12). Everything is pinned to the site's tenant and
+ * its public products (shopping-journey spec S-2). Everything is pinned to the site's tenant and
  * organization; drafts never make an image public.
  */
 

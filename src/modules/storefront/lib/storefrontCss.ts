@@ -17,6 +17,11 @@ export const STOREFRONT_STRUCTURAL_CSS = [
   // Store shell (shopping-journey Phase 1). Logical properties only, so the shell mirrors with the page direction.
   '.sf-skip{position:absolute;inset-inline-start:calc(var(--sf-space) * 0.5);top:calc(var(--sf-space) * -3);z-index:60;background:var(--sf-color-background);color:var(--sf-color-text) !important;border:1px solid var(--sf-color-border);border-radius:var(--sf-radius);padding:calc(var(--sf-space) * 0.5) var(--sf-space)}',
   '.sf-skip:focus{top:calc(var(--sf-space) * 0.5)}',
+  '.sf-header-actions{display:flex;align-items:center;gap:calc(var(--sf-space) * 0.25);margin-inline-start:auto}',
+  '.sf-listing{display:grid;gap:calc(var(--sf-space) * 2);grid-template-columns:minmax(0,1fr)}',
+  '.sf-listing-filters{display:none}',
+  '@media (min-width: 64rem){.sf-listing{grid-template-columns:16rem minmax(0,1fr)}.sf-listing-filters{display:block;position:sticky;top:calc(var(--sf-space) * 1.5);align-self:start;max-height:calc(100vh - 3rem);overflow-y:auto}}',
+  '.sf-listing[data-pending] .sf-listing-results{transition:opacity .2s}',
   '.sf-root .sf-menu-trigger{color:var(--sf-color-text);margin-inline-start:calc(var(--sf-space) * -0.5)}',
   '.sf-root .sf-menu-link{color:var(--sf-color-text);text-decoration:none}',
   '.sf-root .sf-menu-link[aria-current="page"]{background:var(--accent);font-weight:600}',
@@ -50,6 +55,9 @@ export const STOREFRONT_STRUCTURAL_CSS = [
   '.sf-narrow{max-width:48rem}',
   '.sf-pre-line{white-space:pre-line}',
   '.sf-split{display:grid;gap:calc(var(--sf-space) * 2);align-items:center}',
+  // Unlayered rules beat Tailwind's layered utilities: frames that crop their image say so here.
+  '.sf-root [data-slot=category-rail] [data-slot=carousel-content]>div{background:transparent}',
+  '.sf-root [data-slot=product-card-image] img,.sf-root [data-slot=category-rail-tile] img{width:100%;height:100%;object-fit:cover}',
   '.sf-media img{width:100%;border-radius:var(--sf-radius);object-fit:cover;aspect-ratio:4/3}',
   '.sf-split-text{display:flex;flex-direction:column;gap:var(--sf-space);align-items:flex-start}',
   '.sf-split-text p{margin:0;color:var(--sf-color-muted-text)}',

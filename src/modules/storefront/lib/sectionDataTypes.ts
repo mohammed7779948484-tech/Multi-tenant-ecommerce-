@@ -8,7 +8,10 @@ export type ProductCard = {
   subtitle: string | null
   href: string
   image: ImageRef | null
-  price: string | null
+  /** Resolved by the platform pricing engine; `formatted` is Arabic (ar-YE). */
+  price: { amount: number; currencyCode: string; formatted: string } | null
+  /** Search and collection pages only: shown as a badge when the product cannot be bought or runs low. */
+  stock?: 'out_of_stock' | 'low_stock' | null
 }
 
 export type CategoryCard = {

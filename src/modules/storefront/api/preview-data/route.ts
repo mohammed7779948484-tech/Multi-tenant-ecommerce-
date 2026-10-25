@@ -29,7 +29,7 @@ const bodySchema = z.object({
 const imageSchema = z.object({ attachmentId: z.string().uuid(), alt: z.string() }).nullable()
 const sectionDataSchema = z.object({
   products: z
-    .array(z.object({ id: z.string().uuid(), title: z.string(), subtitle: z.string().nullable(), href: z.string(), image: imageSchema, price: z.string().nullable() }))
+    .array(z.object({ id: z.string().uuid(), title: z.string(), subtitle: z.string().nullable(), href: z.string(), image: imageSchema, price: z.object({ amount: z.number(), currencyCode: z.string(), formatted: z.string() }).nullable() }))
     .optional(),
   categories: z
     .array(z.object({ id: z.string().uuid(), name: z.string(), description: z.string().nullable(), href: z.string(), image: imageSchema }))
@@ -65,7 +65,6 @@ export async function POST(req: Request) {
   const data = sections.length
     ? await loadSectionData({ em, container }, { tenantId, organizationId }, sections, {
         links: storeCatalogLinks(`/${site.slug}`),
-        locale: site.defaultLocale || 'en',
       })
     : {}
   return NextResponse.json({ sections: data })
