@@ -59,9 +59,16 @@ Phase 1 notes (decisions L8–L12 on the spec branch, PR #2):
 
 ### Phase 2: Browse and search
 
-- [ ] 2.1 Public catalog rule and search service
-- [ ] 2.2 Search page, collections index, collection pages, product cards, filters, sort, pagination
+- [x] 2.1 Public catalog rule and search service — 6f95ce5
+- [x] 2.2 Search page, collections index, collection pages, product cards, filters, sort, pagination — 6f95ce5
 - [ ] 2.3 Decision record superseding K2 for the shop
+
+Phase 2 evidence (2026-10-25):
+- Gates: generate, typecheck, lint (0 errors, 8 pre-existing warnings), ds:check, unit 213/213; integration 32/32 (ephemeral), including the new TC-STOREFRONT-008 (search, filters, sort, paging, collections) and TC-STOREFRONT-005 updated for S-2 and Arabic prices.
+- Browser check on two differently themed local stores (dates-corner, honey-house; OS dark mode, 390 and 1280 px): 17/17. Filter sheet portalled in the themed root and opening from the right; staged apply writes `category=` to the URL; sort and in-stock write the URL; empty results name the query; clear-all keeps the query; multi-word search; the other store's products, product pages and category pages are absent or 404; inactive products absent or 404; menu links stay in the store; no console errors.
+- Blocks from ecomcn (registry `@ecomcn`, installed with the shadcn CLI, `rtl: true`): product-card, product-grid, price-tag, filter-panel, filter-sheet, sort-toolbar, empty-results, category-rail. shadcn: pagination, carousel, slider, switch, toggle. Strings localized via `useT`, Arabic plural counts, prices formatted once on the server (ar-YE), Embla scrolls RTL.
+- The collections index reuses the CollectionList section cards (ecomcn collection-grid holds three editorial tiles only).
+- The seeded example store's prices are all channel-bound, so anonymous buyers see none there; local verification used dev fixtures with channel-less YER prices (owner question: default sales channel for store prices).
 
 ### Phase 3: Product page and persisted cart
 
