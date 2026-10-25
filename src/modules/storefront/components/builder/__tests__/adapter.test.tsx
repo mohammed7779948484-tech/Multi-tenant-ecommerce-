@@ -223,7 +223,7 @@ describe('preview registry', () => {
         basePath="/acme"
         logoSrc={null}
         tokens={DEFAULT_THEME_TOKENS}
-        labels={{ home: 'Acme home', signIn: 'Sign in', unavailable: 'Preview unavailable', sections: SECTION_LABELS }}
+        labels={{ home: 'Acme home', unavailable: 'Preview unavailable', sections: SECTION_LABELS }}
       />,
     )
     expect(html).toContain(`data-sf-site="${SITE_ID}"`)
@@ -270,7 +270,7 @@ describe('preview registry', () => {
       basePath: '/acme',
       logoSrc: null,
       tokens: DEFAULT_THEME_TOKENS,
-      labels: { home: 'Acme home', signIn: 'Sign in', unavailable: 'Preview unavailable', sections: SECTION_LABELS },
+      labels: { home: 'Acme home', unavailable: 'Preview unavailable', sections: SECTION_LABELS },
     }
     const html = renderToStaticMarkup(<BuilderPreview {...props} sectionData={sectionData} />)
     expect(html).toContain('House blend')
@@ -301,7 +301,7 @@ describe('preview registry', () => {
         basePath="/acme"
         logoSrc={null}
         tokens={DEFAULT_THEME_TOKENS}
-        labels={{ home: 'Acme home', signIn: 'Sign in', unavailable: 'Preview unavailable', sections: SECTION_LABELS }}
+        labels={{ home: 'Acme home', unavailable: 'Preview unavailable', sections: SECTION_LABELS }}
       />,
     )
     expect(html.match(/Preview unavailable/g)).toHaveLength(2)

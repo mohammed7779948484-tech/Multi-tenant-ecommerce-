@@ -11,7 +11,7 @@ import { StorefrontFrame, StorefrontJsonLd, type StorefrontViewProps } from './S
  * own tenant and organization and is rendered as text.
  */
 
-type FrameProps = Pick<StorefrontViewProps, 'siteId' | 'siteSlug' | 'storeName' | 'basePath' | 'logoSrc' | 'tokens' | 'signInHref' | 'labels' | 'head'>
+type FrameProps = Pick<StorefrontViewProps, 'siteId' | 'siteSlug' | 'storeName' | 'basePath' | 'logoSrc' | 'tokens' | 'labels' | 'shell' | 'head'>
 
 export type ProductPageProps = FrameProps & {
   product: { title: string; subtitle: string | null; description: string | null; price: string | null; images: ImageRef[] }
@@ -67,7 +67,7 @@ export function ProductPageView(props: ProductPageProps) {
 export type CollectionPageProps = FrameProps & {
   category: { name: string; description: string | null }
   products: ProductCard[]
-  pagination: { page: number; pageCount: number; previousHref: string | null; nextHref: string | null; label: string; previous: string; next: string }
+  pagination: { page: number; pageCount: number; previousHref: string | null; nextHref: string | null; label: string; status: string; previous: string; next: string }
   emptyLabel: string
 }
 
@@ -100,9 +100,7 @@ export function CollectionPageView(props: CollectionPageProps) {
                 ) : (
                   <span />
                 )}
-                <span>
-                  {pagination.page} / {pagination.pageCount}
-                </span>
+                <span>{pagination.status}</span>
                 {pagination.nextHref ? (
                   <a href={pagination.nextHref} rel="next">
                     {pagination.next}

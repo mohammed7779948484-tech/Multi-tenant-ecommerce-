@@ -462,5 +462,13 @@
   "storefront.templates.copy.faqReturnQ": "Can I return a product?",
   "storefront.templates.copy.faqReturnA": "Contact us and we will find a solution together.",
   "storefront.audit.templateApply": "Apply store template",
-  "storefront.errors.undoPageChanged": "The page changed since, so this change cannot be undone."
+  "storefront.errors.undoPageChanged": "The page changed since, so this change cannot be undone.",
+  "storefront.shop.skipToContent": "Skip to content",
+  "storefront.shop.openMenu": "Open menu",
+  "storefront.shop.closeMenu": "Close menu",
+  "storefront.shop.menuDescription": "Browse the store's pages",
+  "storefront.shop.navHome": "Home",
+  "storefront.shop.navLabel": "Store links",
+  "storefront.shop.footerRights": "© {year} {store}. All rights reserved.",
+  "storefront.shop.pageOf": "Page {page} of {count}"
 }

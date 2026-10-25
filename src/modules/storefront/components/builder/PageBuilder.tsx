@@ -756,7 +756,6 @@ export function PageBuilder({ pageId }: { pageId: string }) {
                       tokens={brand.tokens}
                       labels={{
                         home: t('storefront.public.home', '{store} home', { store: brand.name }),
-                        signIn: t('storefront.public.signIn', 'Sign in'),
                         unavailable: t('storefront.builder.previewUnavailable', 'Preview unavailable for this section. Open it to fix the highlighted fields.'),
                         sections: previewSectionLabels,
                       }}

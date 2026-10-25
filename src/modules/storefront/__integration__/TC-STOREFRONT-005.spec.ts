@@ -268,7 +268,10 @@ test.describe('TC-STOREFRONT-005b: commerce sections and catalog pages', () => {
     const html = await page.text()
     expect(html).toContain(`<h1 class="sf-product-heading">Product a ${RUN}</h1>`)
     expect(html).toContain('€12.50')
-    expect(html).toContain(`Back to Beans ${RUN}`)
+    expect(html).toContain(`العودة إلى Beans ${RUN}`)
+    // Product pages have no Footer section of their own, so the store shell adds one.
+    expect(html).toMatch(/class="sf-root sf-shop"[^>]*dir="rtl"[^>]*lang="ar"/)
+    expect(html).toContain('<footer class="sf-footer sf-shell-footer"')
     expect(html).toContain(`<link rel="canonical" href="`)
     expect(html).toContain(`/${siteSlug}/products/${handle('a')}"`)
     const byId = await request.get(`/${siteSlug}/products/${ids.a}`, { maxRedirects: 0 })

@@ -17,6 +17,9 @@ import { buildThemeCssVariables, readThemeTokens, type ThemeRadius } from './the
  * the stylesheet.
  */
 
+// shadcn controls round with `rounded-md` (= --radius − 2px), so each value is the
+// store's own radius + 2px. `full` stays a soft 1.25rem: cards and sheets also read
+// --radius, and a 9999px value would turn them into circles.
 const RADIUS_BRIDGE: Record<ThemeRadius, string> = {
   none: '0px',
   sm: '0.375rem',

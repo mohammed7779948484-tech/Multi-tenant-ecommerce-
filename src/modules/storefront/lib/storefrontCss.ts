@@ -5,16 +5,26 @@
  * plain text inside a `<style>` element.
  */
 export const STOREFRONT_STRUCTURAL_CSS = [
-  '.sf-root{background:var(--sf-color-background);color:var(--sf-color-text);font-family:var(--sf-font-body);line-height:1.6;min-height:100vh;display:flex;flex-direction:column}',
+  '.sf-root{position:relative;background:var(--sf-color-background);color:var(--sf-color-text);font-family:var(--sf-font-body);line-height:1.6;min-height:100vh;display:flex;flex-direction:column}',
   '.sf-root[data-sf-preview]{min-height:0}',
   '.sf-root a{color:var(--sf-color-primary);text-underline-offset:0.2em}',
   '.sf-root h1,.sf-root h2,.sf-root h3{font-family:var(--sf-font-heading);line-height:1.2;margin:0}',
   '.sf-container{width:100%;max-width:72rem;margin:0 auto;padding:0 calc(var(--sf-space) * 1.25)}',
   '.sf-header{border-bottom:1px solid var(--sf-color-border);background:var(--sf-color-surface)}',
-  '.sf-header-inner{display:flex;align-items:center;justify-content:space-between;gap:var(--sf-space);padding-top:calc(var(--sf-space) * 0.75);padding-bottom:calc(var(--sf-space) * 0.75)}',
+  '.sf-header-inner{display:flex;align-items:center;justify-content:flex-start;gap:calc(var(--sf-space) * 0.5);padding-block:calc(var(--sf-space) * 0.75)}',
   '.sf-root .sf-brand{display:flex;align-items:center;gap:calc(var(--sf-space) * 0.75);color:var(--sf-color-text);text-decoration:none;font-family:var(--sf-font-heading);font-weight:700;font-size:1.25rem}',
   '.sf-logo{display:block;height:2.5rem;width:auto;max-width:10rem;object-fit:contain}',
-  '.sf-header-link{font-weight:600}',
+  // Store shell (shopping-journey Phase 1). Logical properties only, so the shell mirrors with the page direction.
+  '.sf-skip{position:absolute;inset-inline-start:calc(var(--sf-space) * 0.5);top:calc(var(--sf-space) * -3);z-index:60;background:var(--sf-color-background);color:var(--sf-color-text) !important;border:1px solid var(--sf-color-border);border-radius:var(--sf-radius);padding:calc(var(--sf-space) * 0.5) var(--sf-space)}',
+  '.sf-skip:focus{top:calc(var(--sf-space) * 0.5)}',
+  '.sf-root .sf-menu-trigger{color:var(--sf-color-text);margin-inline-start:calc(var(--sf-space) * -0.5)}',
+  '.sf-root .sf-menu-link{color:var(--sf-color-text);text-decoration:none}',
+  '.sf-root .sf-menu-link[aria-current="page"]{background:var(--accent);font-weight:600}',
+  '.sf-main:focus{outline:none}',
+  // Merchant text may be Arabic or English: each paragraph takes the direction of its first letter.
+  '.sf-main :is(h1,h2,h3,p,li,blockquote,figcaption,summary,dt,dd){unicode-bidi:plaintext}',
+  '.sf-shell-footer{border-top:1px solid var(--sf-color-border);padding-block:calc(var(--sf-space) * 1.5)}',
+  '.sf-shell-footer p{margin:0}',
   '.sf-main{flex:1}',
   '.sf-section{padding-top:calc(var(--sf-space) * 3);padding-bottom:calc(var(--sf-space) * 3)}',
   '.sf-section+.sf-section{border-top:1px solid var(--sf-color-border)}',

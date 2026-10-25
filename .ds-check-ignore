@@ -1218,6 +1218,202 @@
       "rule": "inline-style",
       "match": "style",
       "reason": "Theme swatch shows the merchant's own validated #rrggbb token as data; it is not an admin design colour and no token can express it."
+    },
+    {
+      "file": "src/components/ui/badge.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "transition-[color,box-shadow]",
+      "line": 7,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/badge.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "focus-visible:ring-[3px]",
+      "line": 7,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/badge.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "[&>svg]",
+      "line": 7,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/badge.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "[&>svg]",
+      "line": 7,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/badge.tsx",
+      "rule": "manual-dark-override",
+      "match": "dark:",
+      "line": 7,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/badge.tsx",
+      "rule": "manual-dark-override",
+      "match": "dark:",
+      "line": 15,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/badge.tsx",
+      "rule": "manual-dark-override",
+      "match": "dark:",
+      "line": 15,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/separator.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[orientation=horizontal]",
+      "line": 19,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/separator.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[orientation=horizontal]",
+      "line": 19,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/separator.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[orientation=vertical]",
+      "line": 19,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/separator.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[orientation=vertical]",
+      "line": 19,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/sheet.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=closed]",
+      "line": 43,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/sheet.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=closed]",
+      "line": 43,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/sheet.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=open]",
+      "line": 43,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/sheet.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=open]",
+      "line": 43,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/sheet.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=closed]",
+      "line": 70,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/sheet.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=closed]",
+      "line": 70,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/sheet.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=open]",
+      "line": 70,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/sheet.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=open]",
+      "line": 70,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/sheet.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=closed]",
+      "line": 72,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/sheet.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=open]",
+      "line": 72,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/sheet.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=closed]",
+      "line": 74,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/sheet.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=open]",
+      "line": 74,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/sheet.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=closed]",
+      "line": 76,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/sheet.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=open]",
+      "line": 76,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/sheet.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=closed]",
+      "line": 78,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/sheet.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=open]",
+      "line": 78,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
+    },
+    {
+      "file": "src/components/ui/sheet.tsx",
+      "rule": "arbitrary-tailwind",
+      "match": "data-[state=open]",
+      "line": 85,
+      "reason": "Unmodified shadcn/ui registry styling (added with `shadcn add`); kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     }
   ]
 }

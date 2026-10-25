@@ -5,7 +5,6 @@ import type { EntityManager } from '@mikro-orm/postgresql'
 import { CatalogProductCategory } from '@open-mercato/core/modules/catalog/data/entities'
 import { createRequestContainer } from '@open-mercato/shared/lib/di/container'
 import { findOneWithDecryption } from '@open-mercato/shared/lib/encryption/find'
-import { resolveTranslations } from '@open-mercato/shared/lib/i18n/server'
 import { createLogger } from '@open-mercato/shared/lib/logger'
 import { CollectionPageView, ProductPageView, type CollectionPageProps, type ProductPageProps } from '../components/public/CatalogViews'
 import { StorefrontTheme } from '../data/entities'
@@ -25,6 +24,8 @@ import { findPublicCategory, findPublicProduct, visibleCategoriesOf } from './pu
 import { resolvePublicSite, storefrontMediaPath, storefrontPublicUrl } from './publicSite'
 import { buildStorefrontJsonLd } from './structuredData'
 import { readThemeTokens } from './theme'
+import { SHOP_LOCALE } from './shopLocale'
+import { loadShopShell } from './shopShell'
 
 /**
  * Product and collection pages (spec P3-Q4, Q12). Anonymous; the site is found
@@ -38,25 +39,25 @@ export const COLLECTION_PAGE_SIZE = 24
 
 type Loaded<T> = { kind: 'not-found' } | { kind: 'redirect'; path: string } | { kind: 'ok'; view: T }
 
-type Translate = Awaited<ReturnType<typeof resolveTranslations>>['translate']
-
 function plainExcerpt(text: string | null | undefined, max = 160): string | null {
   if (!text) return null
   const flat = text.replace(/\s+/g, ' ').trim()
   return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat || null
 }
 
-async function storeFrame(em: EntityManager, rawSiteSlug: string, translate: Translate) {
+async function storeFrame(em: EntityManager, rawSiteSlug: string) {
   const resolved = await resolvePublicSite(em, rawSiteSlug)
   if (!resolved) return null
-  const { site, organizationSlug } = resolved
+  const { site } = resolved
   const scope: CatalogScope = { tenantId: site.tenantId, organizationId: site.organizationId }
   const theme = await em.findOne(StorefrontTheme, { siteId: site.id, ...scope, deletedAt: null })
+  const { translate, shell } = await loadShopShell(em, site, { footer: true })
   const basePath = `/${site.slug}`
   const logoPath = site.logoAttachmentId ? storefrontMediaPath(site.slug, site.logoAttachmentId) : null
   return {
     site,
     scope,
+    translate,
     frame: {
       siteId: site.id,
       siteSlug: site.slug,
@@ -64,11 +65,8 @@ async function storeFrame(em: EntityManager, rawSiteSlug: string, translate: Tra
       basePath,
       logoSrc: logoPath,
       tokens: readThemeTokens(theme?.tokens),
-      signInHref: organizationSlug ? `/${encodeURIComponent(organizationSlug)}/portal/login` : null,
-      labels: {
-        signIn: translate('storefront.public.signIn', 'Sign in'),
-        home: translate('storefront.public.home', '{store} home', { store: site.name }),
-      },
+      labels: { home: translate('storefront.public.home', '{store} home', { store: site.name }) },
+      shell,
     },
     head: (title: string, description: string | null, path: string) => {
       const storeUrl = storefrontPublicUrl(site.slug)
@@ -79,7 +77,7 @@ async function storeFrame(em: EntityManager, rawSiteSlug: string, translate: Tra
         canonicalUrl: storefrontPublicUrl(site.slug, path),
         siteName: site.name,
         imageUrl: logoUrl,
-        locale: site.defaultLocale || 'en',
+        locale: SHOP_LOCALE,
         jsonLd: buildStorefrontJsonLd({ storeName: site.name, description: site.description ?? null, url: storeUrl, logoUrl }),
       }
     },
@@ -89,10 +87,9 @@ async function storeFrame(em: EntityManager, rawSiteSlug: string, translate: Tra
 export const loadProductPage = cache(async (rawSiteSlug: string, rawKey: string): Promise<Loaded<ProductPageProps>> => {
   const container = await createRequestContainer()
   const em = (container.resolve('em') as EntityManager).fork()
-  const { translate } = await resolveTranslations()
-  const store = await storeFrame(em, rawSiteSlug, translate)
+  const store = await storeFrame(em, rawSiteSlug)
   if (!store) return { kind: 'not-found' }
-  const { site, scope, frame } = store
+  const { site, scope, frame, translate } = store
   const key = safeDecode(rawKey)
   if (key === null) return { kind: 'not-found' }
   const found = await findPublicProduct(em, site, key)
@@ -133,10 +130,9 @@ export const loadProductPage = cache(async (rawSiteSlug: string, rawKey: string)
 export const loadCollectionPage = cache(async (rawSiteSlug: string, rawKey: string, rawPage: string | null): Promise<Loaded<CollectionPageProps>> => {
   const container = await createRequestContainer()
   const em = (container.resolve('em') as EntityManager).fork()
-  const { translate } = await resolveTranslations()
-  const store = await storeFrame(em, rawSiteSlug, translate)
+  const store = await storeFrame(em, rawSiteSlug)
   if (!store) return { kind: 'not-found' }
-  const { site, scope, frame } = store
+  const { site, scope, frame, translate } = store
   const key = safeDecode(rawKey)
   if (key === null) return { kind: 'not-found' }
   const found = await findPublicCategory(em, site, key)
@@ -177,6 +173,7 @@ export const loadCollectionPage = cache(async (rawSiteSlug: string, rawKey: stri
         previousHref: page > 1 ? pageHref(page - 1) : null,
         nextHref: page < pageCount ? pageHref(page + 1) : null,
         label: translate('storefront.public.pagination', 'Pages'),
+        status: translate('storefront.shop.pageOf', 'Page {page} of {count}', { page, count: pageCount }),
         previous: translate('storefront.public.previous', 'Previous'),
         next: translate('storefront.public.next', 'Next'),
       },

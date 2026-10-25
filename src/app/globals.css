@@ -14,7 +14,9 @@ TODO: Fix that latter to have reference by the package names
 @source "../../node_modules/@open-mercato/content/src/**/*.{ts,tsx}";
 @source "../../node_modules/@open-mercato/ai-assistant/src/**/*.{ts,tsx}";
 
-@custom-variant dark (&:is(.dark *));
+/* Store pages wear the merchant's theme, never the admin dark mode: the `dark:`
+   variant skips everything inside a store root (public page or builder preview). */
+@custom-variant dark (&:is(.dark *):not(.sf-root, .sf-root *));
 
 @utility z-popover {
   z-index: var(--z-index-popover);
@@ -494,7 +496,15 @@ TODO: Fix that latter to have reference by the package names
     0 0 0 6px var(--focus-ring-outer);
 }
 
-.dark {
+/* Platform notice bars (demo, cookie) speak for the platform, in the dashboard
+   language, and link to the platform's policy pages; public store pages do not
+   show them (docs/DECISIONS.md L9). */
+body:has(.sf-shop) [data-om-notice-bars] {
+  display: none;
+}
+
+/* Not on a public store page (`.sf-shop`): the store keeps its own light/dark colours. */
+.dark:not(:has(.sf-shop)) {
   --brand-google: #F14336;
   --brand-google-text-bg: #D93C31; /* White label contrast4.53:1; source red remains for icon-only. */
   --file-format-red: #dc2626;

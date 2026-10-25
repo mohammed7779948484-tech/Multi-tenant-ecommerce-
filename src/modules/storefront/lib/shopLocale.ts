@@ -3,6 +3,8 @@ import type { Locale } from '@open-mercato/shared/lib/i18n/config'
 import { loadDictionary } from '@open-mercato/shared/lib/i18n/server'
 import { createFallbackTranslator } from '@open-mercato/shared/lib/i18n/translate'
 
+export { SHOP_DIRECTION } from './shopDirection'
+
 /**
  * Buyer pages are Arabic (shopping-journey spec REQ-001). Arabic is an app
  * locale, declared on the framework's `LocaleRegistry` (type half of the
@@ -19,7 +21,6 @@ declare module '@open-mercato/shared/lib/i18n/config' {
 }
 
 export const SHOP_LOCALE: Locale = 'ar'
-export const SHOP_DIRECTION = 'rtl' as const
 
 /** Key prefixes a buyer page needs on the client (for its `I18nProvider`). */
 const CLIENT_PREFIXES = ['storefront.public.', 'storefront.shop.']

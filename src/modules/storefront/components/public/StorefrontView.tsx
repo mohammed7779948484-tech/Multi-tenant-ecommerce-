@@ -1,12 +1,17 @@
 import * as React from 'react'
 import type { ValidatedSection } from '../../lib/blocks/pageSpec'
-import { buildThemeCssVariables, type ThemeTokens } from '../../lib/theme'
+import type { ThemeTokens } from '../../lib/theme'
+import { buildShopThemeCss } from '../../lib/shopTheme'
+import type { ShopShell } from '../../lib/shopShell'
+import { SHOP_DIRECTION } from '../../lib/shopDirection'
 import { STOREFRONT_STRUCTURAL_CSS } from '../../lib/storefrontCss'
 import { serializeJsonLd } from '../../lib/structuredData'
 import { publicMediaResolver } from '../../lib/mediaUrls'
 import type { SectionLabels } from './blocks'
 import type { SectionData } from '../../lib/sectionDataTypes'
 import { renderSection } from './registry'
+import { ShopProviders } from '../shop/ShopProviders'
+import { StoreMenu } from '../shop/StoreMenu'
 
 export type StorefrontHeadData = {
   title: string
@@ -27,8 +32,9 @@ export type StorefrontViewProps = {
   tokens: ThemeTokens
   sections: ValidatedSection[]
   head: StorefrontHeadData
-  signInHref: string | null
-  labels: { signIn: string; home: string }
+  labels: { home: string }
+  /** Public pages only: Arabic shell (menu, footer, buyer dictionary). */
+  shell: ShopShell
   sectionLabels: SectionLabels
   /** Store data for commerce sections, keyed by section id. */
   sectionData?: Record<string, SectionData>
@@ -51,42 +57,85 @@ export function StorefrontJsonLd({ data }: { data: Record<string, unknown>[] }) 
   )
 }
 
-export type StorefrontFrameProps = Pick<StorefrontViewProps, 'siteId' | 'storeName' | 'basePath' | 'logoSrc' | 'tokens' | 'signInHref' | 'labels'> & {
+export type StorefrontFrameProps = Pick<StorefrontViewProps, 'siteId' | 'storeName' | 'basePath' | 'logoSrc' | 'tokens' | 'labels'> & {
   children: React.ReactNode
+  /** Public pages pass the shell; the builder preview renders the bare frame. */
+  shell?: ShopShell
   /** Builder preview: the frame sizes to its content instead of filling the viewport. */
   preview?: boolean
 }
 
 /**
- * Theme wrapper, header and main region of a store page. Shared by the public
- * page and the admin builder preview, so the preview shows exactly the store's
- * chrome around the sections.
+ * Theme wrapper, header, main region and footer of a store page. Shared by the
+ * public page and the admin builder preview, so the preview shows the store's
+ * theme and right-to-left layout around the sections. Only public pages carry
+ * `.sf-shop` (which themes `<body>` and keeps admin dark mode off the page) and
+ * the shell's menu and footer.
  */
 export function StorefrontFrame(props: StorefrontFrameProps) {
-  const css = STOREFRONT_STRUCTURAL_CSS + buildThemeCssVariables(props.siteId, props.tokens)
+  const { shell } = props
+  const css = STOREFRONT_STRUCTURAL_CSS + buildShopThemeCss(props.siteId, props.tokens)
   return (
-    <div className="sf-root" data-sf-site={props.siteId.toLowerCase()} data-sf-preview={props.preview ? '' : undefined}>
+    <div
+      className={shell ? 'sf-root sf-shop' : 'sf-root'}
+      data-sf-site={props.siteId.toLowerCase()}
+      data-sf-preview={props.preview ? '' : undefined}
+      dir={SHOP_DIRECTION}
+      lang={shell?.locale}
+    >
       <style>{css}</style>
-      <header className="sf-header">
-        <div className="sf-container sf-header-inner">
-          <a className="sf-brand" href={props.basePath || '/'} aria-label={props.labels.home}>
-            {props.logoSrc ? (
-              // The logo is served by the site-scoped media route; the next/image optimizer would fetch it out of band.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img className="sf-logo" src={props.logoSrc} alt={props.storeName} />
-            ) : (
-              <span>{props.storeName}</span>
-            )}
+      <ShopProviders dir={SHOP_DIRECTION} i18n={shell ? { locale: shell.locale, dict: shell.dict } : undefined}>
+        {shell ? (
+          <a className="sf-skip" href="#sf-main">
+            {shell.labels.skipToContent}
           </a>
-          {props.signInHref ? (
-            <a className="sf-header-link" href={props.signInHref}>
-              {props.labels.signIn}
+        ) : null}
+        <header className="sf-header">
+          <div className="sf-container sf-header-inner">
+            {shell ? (
+              <StoreMenu
+                storeName={props.storeName}
+                links={shell.links}
+                labels={{ open: shell.labels.openMenu, close: shell.labels.closeMenu, description: shell.labels.menuDescription, nav: shell.labels.nav }}
+              />
+            ) : null}
+            <a className="sf-brand" href={props.basePath || '/'} aria-label={props.labels.home}>
+              {props.logoSrc ? (
+                // The logo is served by the site-scoped media route; the next/image optimizer would fetch it out of band.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="sf-logo" src={props.logoSrc} alt={props.storeName} />
+              ) : (
+                <span>{props.storeName}</span>
+              )}
             </a>
-          ) : null}
-        </div>
-      </header>
-      <main className="sf-main">{props.children}</main>
+          </div>
+        </header>
+        <main id="sf-main" className="sf-main" tabIndex={-1}>
+          {props.children}
+        </main>
+        {shell?.footer ? <StoreFooter shell={shell} /> : null}
+      </ShopProviders>
     </div>
+  )
+}
+
+/** Shell footer for pages without the merchant's own Footer section (product and collection pages). */
+function StoreFooter({ shell }: { shell: ShopShell }) {
+  return (
+    <footer className="sf-footer sf-shell-footer">
+      <div className="sf-container sf-footer-inner">
+        <p>{shell.labels.rights}</p>
+        <nav aria-label={shell.labels.nav}>
+          <ul>
+            {shell.links.map((link) => (
+              <li key={link.href}>
+                <a href={link.href}>{link.label}</a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      </div>
+    </footer>
   )
 }
 
@@ -111,9 +160,9 @@ export function StorefrontView(props: StorefrontViewProps) {
 }
 
 /** Neutral page for a store whose published spec fails validation; its metadata is `noindex`. */
-export function StorefrontUnavailable({ title, message }: { title: string; message: string }) {
+export function StorefrontUnavailable({ title, message, lang }: { title: string; message: string; lang?: string }) {
   return (
-    <div className="sf-unavailable">
+    <div className="sf-unavailable" dir={SHOP_DIRECTION} lang={lang}>
       <style>{STOREFRONT_STRUCTURAL_CSS}</style>
       <div>
         <h1>{title}</h1>
