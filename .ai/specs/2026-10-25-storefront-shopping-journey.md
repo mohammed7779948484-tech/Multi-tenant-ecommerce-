@@ -497,6 +497,14 @@ Cart writes are not undoable from the buyer UI; the commands declare `isUndoable
 - **Validation:** `yarn generate && yarn typecheck && yarn lint && yarn ds:check && yarn test && yarn build`, plus storefront integration tests.
 - **Exit gate:** two stores with different themes render Arabic RTL pages at 390 and 1280 px with their own colours in the header, sections and an open menu sheet; dashboards are unchanged; the builder preview still renders.
 
+- **Implementation notes (2026-10-25, PR on `feat/storefront-shopping-journey`):**
+  - `ar` is declared on the locale type registry but not registered at runtime, so the dashboards' language switcher is unchanged (docs/DECISIONS.md L11).
+  - `button` and `card` were already in `src/components/ui` and are reused; `sheet`, `badge`, `separator` and `skeleton` were added with the shadcn CLI, configured for RTL (`components.json` `rtl: true`, L12).
+  - The theme bridge also sets the variables the reused button reads (`--primary-hover`, focus-ring and disabled tokens).
+  - The header's search entry moves to Phase 2 with the search page, so Phase 1 ships no link to a missing page.
+  - The builder preview gets the theme and RTL layout but no shell (menu, footer, buyer dictionary); its controls and labels stay the admin's.
+  - The store header drops the portal sign-in link (L8). Platform notice bars are hidden on store pages (L9, ⚠). New stores seed an Arabic home page; merchant paragraphs take their own direction (L10).
+
 ### Phase 2 — Browse and search
 
 - **Depends on:** Phase 1.
@@ -746,4 +754,5 @@ Verdict: Ready for implementation
 | Date | Change |
 |---|---|
 | 2026-10-25 | Initial specification (autonomous, owner brief of 2026-10-25) |
+| 2026-10-25 | Phase 1 implemented; implementation notes added under Phase 1 (decisions L8–L12) |
 | 2026-10-25 | Fresh-context scope review applied: tracking moved into Phase 4 (no dead confirmation link); each phase closes its own isolation and deferred-control checks; migration count, cart routes, idempotency source, placement 409 rule, error codes, reserved-slug report and the builder-preview boundary made consistent |

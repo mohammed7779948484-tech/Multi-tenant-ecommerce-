@@ -126,12 +126,17 @@ Specs: `.ai/specs/2026-10-25-storefront-shopping-journey.md` (S-1…S-14) and `.
 | L5 | Delivery is priced by a registered sales shipping provider (`suqna-yemen-zones`) whose rates live in the shipping method's settings, keyed by OCHA P-codes. | Reuses the sales provider registry and admin; merchant UI is deferred. |
 | L6 | Guests reach an order only with a random access token (hashed at rest, cookie plus link); there is no lookup by phone. | Phones are unverified (no SMS, P6). |
 | L7 | Buyer accounts are installed `customer_accounts` users with a non-routable `.invalid` login identifier and an app-owned phone binding; no verification. ⚠ Owner confirmation requested. | P6 forbids email; avoids a parallel auth system. |
+| L8 | The store header no longer links to the customer portal sign-in. Buyer sign-in returns with buyer accounts (companion spec). | The portal is the installed B2B customer portal in the dashboard language, not part of the Arabic buyer journey. |
+| L9 | Public store pages hide the platform notice bars (demo notice, cookie notice). A per-store privacy page and notice are a follow-up. ⚠ Owner confirmation requested. | They speak for the platform, in the dashboard language, and link to the platform's own policy pages; store pages set only essential cookies. |
+| L10 | New stores seed their default home page in Arabic; existing stores keep their content. Merchant text takes its direction per paragraph from its first letter (`unicode-bidi: plaintext`). | Buyer pages are Arabic; merchants still write some English (brand names, product names), which must not render with punctuation on the wrong side. |
+| L11 | `ar` is declared on the framework's locale type registry only. It is not registered at runtime (`registerLocales`), so it stays out of the dashboards' language switcher; buyer pages load the Arabic dictionary directly. Amends L2's "app-registered". | Dashboard localization is out of scope. |
+| L12 | shadcn components come from the official registry with `components.json` set to `rtl: true` (logical classes). `button` and `card` were already in `src/components/ui` and are reused; `sheet`, `badge`, `separator` and `skeleton` were added with the CLI (which adds the `radix-ui` package). Portalled components mount in the store root through `src/components/ui/portal-container.tsx`. | One component family; RTL from the registry instead of hand-patched classes. |
 
 ## Open items needing the owner
 
 - Spec Q2 (public path `/{siteSlug}`) and Q4 (theme saves go live immediately) are marked ⚠ in the spec.
 - **Buyer accounts without email** are specified in `2026-10-25-storefront-buyer-accounts.md` (L7).
-- **Confirm L1** (whole active catalog is public in the shop) and **L7** (buyer accounts without phone verification).
+- **Confirm L1** (whole active catalog is public in the shop), **L7** (buyer accounts without phone verification) and **L9** (no platform cookie/demo notice on store pages).
 - **Merchant signup without email (P6).** Signup must complete with no email at all, in production too, while the installed onboarding sends a verification link. Next session: a spec for an email-free signup (for example, an app-owned signup route that provisions directly, with abuse controls replacing the email check), reviewed against `onboarding` and `auth` before code.
 - **Prices for anonymous buyers.** Store pages price as an anonymous buyer (no channel, customer or group). Price rows limited to a sales channel or customer group do not show, so a product priced only per channel shows no price (the seeded example products, for instance). Decide whether stores should price through a default channel.
 - DNS for custom domains; release channel (stable 0.9.0 today).
