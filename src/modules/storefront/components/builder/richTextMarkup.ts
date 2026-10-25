@@ -262,7 +262,13 @@ function encodeUnbalancedParens(href: string): string {
     }
   }
   for (const index of open) unmatched.add(index)
-  return [...href].map((char, index) => (unmatched.has(index) ? (char === '(' ? '%28' : '%29') : char)).join('')
+  // Index by UTF-16 code unit, like the scan above (a spread would split by code point).
+  let out = ''
+  for (let i = 0; i < href.length; i += 1) {
+    const char = href[i]
+    out += unmatched.has(i) ? (char === '(' ? '%28' : '%29') : char
+  }
+  return out
 }
 
 function serializeInline(nodes: RichTextInline[]): string {

@@ -146,4 +146,15 @@ describe('rich-text markup', () => {
     expect(link.type).toBe('link')
     expect(decodeURIComponent(link.href!)).toBe('https://example.com/a)b(c')
   })
+  it('round-trips an unbalanced parenthesis after an emoji (UTF-16 surrogate pair)', () => {
+    const href = 'https://example.com/\u{1F600})x'
+    const doc: RichTextDocument = {
+      type: 'doc',
+      blocks: [{ type: 'paragraph', children: [{ type: 'link', href, children: [{ type: 'text', text: 'x' }] }] }],
+    }
+    const markup = serializeRichTextMarkup(doc)
+    expect(markup).toContain('\u{1F600}%29x')
+    const link = (parse(markup).blocks[0] as { children: Array<{ type: string; href?: string }> }).children[0]
+    expect(decodeURIComponent(link.href!)).toBe(href)
+  })
 })
