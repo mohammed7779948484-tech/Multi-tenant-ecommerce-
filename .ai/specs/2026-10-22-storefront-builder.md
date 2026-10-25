@@ -1,7 +1,7 @@
 # Storefront Builder
 
 **Date**: 2026-10-22
-**Status**: Phases 1–2 implemented and verified (2026-10-22). Phase 3 (3a/3b/3c) revised on 2026-10-23 with owner answers Q11–Q14 and implemented and verified on 2026-10-24 (ledger in Implementation Status). Phase 4 pending.
+**Status**: Phases 1–3 implemented, verified and merged (PR #1, 2026-10-25). Remaining editor work, including Phase 4, is **deferred** by the owner on 2026-10-25; see **Revision 2026-10-25 — remaining editor work deferred**. Nothing in this spec is in progress.
 
 > Authored with `om-spec-writing --autonomous` (skeleton → resolved assumptions → research → design → breakdown → review). Every autonomous default is recorded in **Resolved assumptions** and in the **Open Questions** table so the product owner can override it before a dependent phase starts.
 
@@ -46,6 +46,30 @@ Owner-chosen defaults from the brief are marked **owner**; the rest are autonomo
 | P2-Q10 | No navigation-menu builder in Phase 2. Merchants link pages from Footer links and Hero CTAs with site-relative hrefs (`/about` renders as `/{siteSlug}/about`). | Already supported by the Phase 1 renderer; a menu builder is a separate feature. | — |
 | P2-Q11 | Revisions are kept without a retention limit in Phase 2 (pages are capped at 30); the revisions list is paginated, 20 per page. | Retention is a later policy decision; nothing is lost meanwhile. | — |
 | P2-Q12 | Dependencies `@json-render/core@0.21.0` and `@json-render/react@0.21.0`, pinned exact. The React renderer is imported only by client components under `src/modules/storefront/components/builder/**`. The preview that imports it is loaded with `React.lazy`, because the app shell references every admin page and statically imported client code reaches public routes (docs/DECISIONS.md J4). | The owner approved these dependencies for the builder. *Corrected 2026-10-23:* the rule "json-render is admin-editor only" was a reviewer's recommendation recorded as an owner decision. The owner's decision of 2026-10-23 (Q11) is narrower: no client-side spec renderer on buyer pages; `@json-render/core` may run in server code. TEST-012 still proves no public route ships the client renderer. | owner (dependencies); Q11 (role) |
+
+## Revision 2026-10-25 — remaining editor work deferred
+
+**Decision (owner brief, 2026-10-25).** Priorities moved from the merchant's editor to the buyer's purchase journey. A store can now be branded, authored and assembled from templates and its own catalog (Phases 1–3, merged in PR #1). It still cannot take an order, and buyers in the launch market need Arabic, right-to-left pages. The next work is therefore:
+
+- `.ai/specs/2026-10-25-storefront-shopping-journey.md`: the Arabic guest purchase loop;
+- `.ai/specs/2026-10-25-storefront-buyer-accounts.md`: signed-in buyers.
+
+**What is deferred (not started, not complete):**
+
+- **Phase 4 — SEO and indexability** (REQ-009, AC-009, TEST-014): the Open Graph image, `noindex` flag, sitemap, robots policy and event-driven revalidation.
+- **Further editor features beyond Phase 3**: any new builder interaction, new section types, a replacement editor, editor UI localization, and the roadmap follow-ups named in **Phasing** (custom domains, AI generation, webfonts, translations).
+
+**What is preserved:**
+
+- The builder, pages, revisions, templates and every verified behaviour of Phases 1–3 stay as merged.
+- The shopping-journey spec restyles buyer pages (Arabic, RTL, shadcn components themed by the same tokens). The builder preview renders through the same store frame, so it shows the new look without any editor change.
+- K2 (a product is public only while a published section shows it) is superseded for the shop by the shopping-journey decision S-2. Commerce sections keep working unchanged.
+
+**Where to resume.**
+
+- Pick up at **Phase 4** with the exit gate stated there. It depends only on Phase 2, which is implemented.
+- Before starting, re-read the shopping-journey spec's public-catalog rule (S-2): the sitemap must list the shop's public products and categories, not only section-referenced ones.
+- Phase 4 then needs its own detail pass with `om-spec-writing` (UI contracts for the SEO fields, which are dashboard work).
 
 ## Revision 2026-10-23 — json-render's role and the assembled store
 
@@ -981,7 +1005,7 @@ Source doc: .ai/specs/2026-10-22-storefront-builder.md
 | Phase 3a — Media and content sections | verified (2026-10-24) | Phase 2 (verified; corrected 2026-10-23) | AC-008 | `yarn typecheck && yarn jest src/modules/storefront` + `TC-STOREFRONT-005` (media/content) | Phase 3a exit gate |
 | Phase 3b — Commerce sections and public catalog | verified (2026-10-24) | Phase 3a | AC-012 | + `TC-STOREFRONT-005` (commerce) + two-tenant check | Phase 3b exit gate |
 | Phase 3c — Store templates | verified (2026-10-24) | Phase 3b | AC-011 | + `TC-STOREFRONT-006` | Phase 3c exit gate |
-| Phase 4 — SEO and indexability | pending | Phase 2 | AC-009 | — | — |
+| Phase 4 — SEO and indexability | deferred (2026-10-25, owner) | Phase 2 | AC-009 | — | resume point: see Revision 2026-10-25 |
 
 ### Phase 1 progress
 
@@ -1087,3 +1111,4 @@ Final review of PR #1 before merge. Each fix has a test that fails without it.
 | 2026-10-24 | Phases 3a and 3b implemented and verified (ledger above); price wording corrected to the platform pricing path (no "From" label); collection page cap of 1,000 assignments recorded |
 | 2026-10-24 | Phase 3c implemented, reviewed and verified; AC-008, AC-011 and AC-012 met; implementation decisions K1–K12 in `docs/DECISIONS.md` |
 | 2026-10-25 | Pre-merge corrections from the final PR #1 review (undo on seeded pages, fail-closed public revision, link parsing, cold-server bootstrap, malformed escapes) |
+| 2026-10-25 | Revision: remaining editor work, including Phase 4, deferred by the owner. Priorities moved to the buyer journey (new specs `2026-10-25-storefront-shopping-journey.md` and `2026-10-25-storefront-buyer-accounts.md`). Completed-phase evidence kept; resume point recorded |

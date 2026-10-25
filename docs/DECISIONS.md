@@ -113,10 +113,26 @@ decision recorded here with a date. Detailed design lives in
 
 **Accepted risk (review minor):** applying a template requires only `storefront.pages.manage`, and the draft names the organization's top-level categories. Default roles grant that feature to admins only, who also hold `catalog.*`. Revisit if custom roles get page management without catalog access.
 
+## Decisions for the buyer journey (2026-10-25)
+
+Specs: `.ai/specs/2026-10-25-storefront-shopping-journey.md` (S-1…S-14) and `.ai/specs/2026-10-25-storefront-buyer-accounts.md` (A-1…A-5). The remaining storefront-builder editor work, including Phase 4, is deferred (revision in `.ai/specs/2026-10-22-storefront-builder.md`).
+
+| ID | Decision | Why |
+|---|---|---|
+| L1 | In the shop, a product or category is public when it is active and not deleted in the store's organization. This supersedes K2 for browsing, search, cart and checkout; commerce sections keep working. | Search and browsing need the whole catalog; `isActive` is the merchant's existing control. ⚠ Owner confirmation requested. |
+| L2 | Buyer pages are Arabic and right-to-left only, through an app-registered `ar` locale; dashboards keep their languages. | Owner brief; the framework's locale registry supports app locales without patching. |
+| L3 | Buyer UI is built from shadcn/ui components in `src/components/ui`, themed per store by a scoped variable bridge from the theme tokens, with portals inside the store root. | Owner requirement; `@open-mercato/ui` carries the admin design tokens. |
+| L4 | Buyer orders are created through the installed `sales.orders.create` command with a system context pinned to the store; totals come from `salesCalculationService`. | One order model; the merchant works orders in the sales admin. |
+| L5 | Delivery is priced by a registered sales shipping provider (`suqna-yemen-zones`) whose rates live in the shipping method's settings, keyed by OCHA P-codes. | Reuses the sales provider registry and admin; merchant UI is deferred. |
+| L6 | Guests reach an order only with a random access token (hashed at rest, cookie plus link); there is no lookup by phone. | Phones are unverified (no SMS, P6). |
+| L7 | Buyer accounts are installed `customer_accounts` users with a non-routable `.invalid` login identifier and an app-owned phone binding; no verification. ⚠ Owner confirmation requested. | P6 forbids email; avoids a parallel auth system. |
+
 ## Open items needing the owner
 
 - Spec Q2 (public path `/{siteSlug}`) and Q4 (theme saves go live immediately) are marked ⚠ in the spec.
-- **Signup without email (P6).** Signup must complete with no email at all, in production too, while the installed onboarding sends a verification link. Next session: a spec for an email-free signup (for example, an app-owned signup route that provisions directly, with abuse controls replacing the email check), reviewed against `onboarding` and `auth` before code.
+- **Buyer accounts without email** are specified in `2026-10-25-storefront-buyer-accounts.md` (L7).
+- **Confirm L1** (whole active catalog is public in the shop) and **L7** (buyer accounts without phone verification).
+- **Merchant signup without email (P6).** Signup must complete with no email at all, in production too, while the installed onboarding sends a verification link. Next session: a spec for an email-free signup (for example, an app-owned signup route that provisions directly, with abuse controls replacing the email check), reviewed against `onboarding` and `auth` before code.
 - **Prices for anonymous buyers.** Store pages price as an anonymous buyer (no channel, customer or group). Price rows limited to a sales channel or customer group do not show, so a product priced only per channel shows no price (the seeded example products, for instance). Decide whether stores should price through a default channel.
 - DNS for custom domains; release channel (stable 0.9.0 today).
 - Public page weight (J4): every public page downloads all modules' admin chunks through the upstream app shell; worth raising upstream or trimming the shell before launch. (Unrelated to json-render: S1 keeps our own renderer off the client, but the shell still preloads admin code.)
