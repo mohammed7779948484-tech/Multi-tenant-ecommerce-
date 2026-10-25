@@ -8,6 +8,7 @@ import {
 } from './lib/customDomainResolver'
 import { tryNormalizeHostname } from '@open-mercato/core/modules/customer_accounts/lib/hostname'
 import { secretEqual } from '@open-mercato/core/modules/customer_accounts/lib/secretCompare'
+import { hasMalformedEscape } from './lib/malformedEscape'
 
 const FORCE_HOST_HEADER = 'x-force-host'
 const FORCE_HOST_SECRET_HEADER = 'x-force-host-secret'
@@ -58,6 +59,8 @@ export async function proxy(req: NextRequest) {
   const normalizedHost = rawHost ? tryNormalizeHostname(rawHost) : null
   const platform = !normalizedHost || isPlatformHost(normalizedHost)
   const pathname = req.nextUrl.pathname
+  // A malformed percent-escape cannot name any page; answer 400 before routing tries to decode it.
+  if (hasMalformedEscape(pathname)) return new NextResponse('Bad Request', { status: 400 })
 
   const requestHeaders = new Headers(req.headers)
 

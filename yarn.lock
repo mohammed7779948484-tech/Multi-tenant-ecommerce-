@@ -2785,6 +2785,28 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@json-render/core@npm:0.21.0":
+  version: 0.21.0
+  resolution: "@json-render/core@npm:0.21.0"
+  dependencies:
+    zod: "npm:^4.3.6"
+  peerDependencies:
+    zod: ^4.0.0
+  checksum: 10c0/0cba02b9ff696a38e474e8bfbf3dcff2ef9210894a301079153a645c4a022466c4fbe46fed64b76048ee0389512f63b537258d36342a803ea24c02d2485fa92d
+  languageName: node
+  linkType: hard
+
+"@json-render/react@npm:0.21.0":
+  version: 0.21.0
+  resolution: "@json-render/react@npm:0.21.0"
+  dependencies:
+    "@json-render/core": "npm:0.21.0"
+  peerDependencies:
+    react: ^19.2.3
+  checksum: 10c0/5c6f84ad19da686704fca04bf9adddb601ecd425ec84caaa134493cfd4be9317d07c5b235cb36c0cf3c7f72bb6f1649ec998d75a7163b48ec62848ada5cf4d11
+  languageName: node
+  linkType: hard
+
 "@kwsites/file-exists@npm:^1.1.1":
   version: 1.1.1
   resolution: "@kwsites/file-exists@npm:1.1.1"
@@ -19766,7 +19788,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"sharp@npm:^0.35.3, sharp@npm:^0.35.4":
+"sharp@npm:0.35.5, sharp@npm:^0.35.3, sharp@npm:^0.35.4":
   version: 0.35.5
   resolution: "sharp@npm:0.35.5"
   dependencies:
@@ -20528,6 +20550,8 @@ __metadata:
     "@dnd-kit/core": "npm:^6.3.1"
     "@dnd-kit/sortable": "npm:^10.0.0"
     "@dnd-kit/utilities": "npm:^3.2.2"
+    "@json-render/core": "npm:0.21.0"
+    "@json-render/react": "npm:0.21.0"
     "@mikro-orm/core": "npm:^7.1.14"
     "@mikro-orm/decorators": "npm:^7.1.14"
     "@mikro-orm/migrations": "npm:^7.1.14"
@@ -20627,6 +20651,7 @@ __metadata:
     resend: "npm:^6.24.0"
     sanitize-html: "npm:^2.17.5"
     semver: "npm:^7.8.5"
+    sharp: "npm:0.35.5"
     svix: "npm:^1.96.1"
     tailwind-merge: "npm:^3.6.0"
     tailwindcss: "npm:^4.3.2"

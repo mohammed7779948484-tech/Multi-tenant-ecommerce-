@@ -38,39 +38,22 @@ Verified on 2026-10-22: form submit → 200, captured "Confirm your email to fin
 link → `/onboarding/preparing` → `/login`, owner sign-in → `/backend`, owner sees only their
 own organization and cannot list tenants.
 
-## Before any deployment: configure a real provider
+## Deployments: no email provider (owner decision)
 
-**A deployment without a working email provider cannot onboard tenants**: signup stops at
-the verification email. Never copy the three development lines above to a deployed
-environment. Instead set:
+The owner decided on 2026-10-23 that email stays **disabled in production too**: no Resend,
+no SES, no other provider, no verification codes (`docs/DECISIONS.md` P6). The provider
+settings this file used to describe for deployments are therefore not used.
 
-**Resend**
-
-```env
-SYSTEM_EMAIL_PROVIDER=resend
-RESEND_API_KEY=re_...                 # from the Resend dashboard
-EMAIL_FROM="Suqna <no-reply@your-domain>"   # a sender on a domain verified in Resend
-ADMIN_EMAIL=ops@your-domain           # receives new-signup notifications
-APP_URL=https://your-domain           # base URL for verification links
-```
-
-**Amazon SES**
-
-```env
-SYSTEM_EMAIL_PROVIDER=ses
-AWS_SES_REGION=eu-west-1              # or AWS_REGION
-EMAIL_FROM="Suqna <no-reply@your-domain>"   # must be a verified SES identity
-# credentials from the AWS SDK chain (instance role, or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY)
-```
-
-SES also needs the `channel_ses` module enabled in `src/modules.ts` (it is installed but
-disabled in this app). Restart the app after changing email settings, then sign up once
-with a real inbox to confirm delivery.
+Consequence today: the installed onboarding confirms every signup with an emailed link, so
+**a deployment cannot onboard tenants yet**. The capture mode above is a development
+workaround only; it must not be copied to a deployment, because it would write
+verification links to a file on the server. The fix is an email-free signup flow, planned as
+the next spec (open item in `docs/DECISIONS.md`).
 
 ## Checks that keep the dev mode out of production
 
 - `.env.example` (the template for every environment) does not set any of the three
   variables; they appear there only as commented documentation.
 - `.env` is git-ignored.
-- In production, a missing provider is a hard failure at signup (502), which is the
-  intended signal.
+- In production, a missing provider is a hard failure at signup (502). That is the
+  current, known gap (P6) until the email-free signup flow replaces verification.

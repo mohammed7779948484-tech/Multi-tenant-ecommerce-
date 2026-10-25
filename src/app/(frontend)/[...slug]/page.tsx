@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
+import type { ComponentType } from 'react'
 import Link from 'next/link'
 import { findRouteManifestMatch, getFrontendRouteManifests, registerFrontendRouteManifests } from '@open-mercato/shared/modules/registry'
 import { frontendRoutes } from '@/.mercato/generated/frontend-routes.generated'
@@ -18,7 +19,8 @@ import { frontendMiddlewareEntries } from '@/.mercato/generated/frontend-middlew
 
 registerFrontendRouteManifests(frontendRoutes)
 
-type FrontendParams = { params: Promise<{ slug: string[] }> }
+type SearchParams = Record<string, string | string[] | undefined>
+type FrontendParams = { params: Promise<{ slug: string[] }>; searchParams?: Promise<SearchParams> }
 
 async function ensureServerBootstrap() {
   const { bootstrap } = await import('@/bootstrap')
@@ -40,12 +42,27 @@ async function renderAccessDenied() {
   )
 }
 
-export async function generateMetadata({ params }: FrontendParams): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: FrontendParams): Promise<Metadata> {
   const p = await params
   const pathname = '/' + (p.slug?.join('/') ?? '')
   const match = findRouteManifestMatch(getFrontendRouteManifests(), pathname)
   if (!match) {
     return {}
+  }
+
+  // Suqna divergence (docs/UPSTREAM_DIVERGENCES.md): a public page component may
+  // expose a static `generateMetadata({ params })` for per-record title/SEO tags.
+  // Only routes without staff or customer auth are asked, because this runs
+  // before the auth gates in the page below.
+  if (!match.route.requireAuth && !match.route.requireCustomerAuth) {
+    // A public page's metadata reads through DI; bootstrap first, or a cold server answers 500.
+    await ensureServerBootstrap()
+    const Component = (await match.route.load()) as {
+      generateMetadata?: (input: { params: Record<string, string | string[]>; searchParams: SearchParams }) => Promise<Metadata>
+    }
+    if (typeof Component.generateMetadata === 'function') {
+      return Component.generateMetadata({ params: match.params, searchParams: (await searchParams) ?? {} })
+    }
   }
 
   return resolveLocalizedTitleMetadata({
@@ -54,7 +71,7 @@ export async function generateMetadata({ params }: FrontendParams): Promise<Meta
   })
 }
 
-export default async function SiteCatchAll({ params }: FrontendParams) {
+export default async function SiteCatchAll({ params, searchParams }: FrontendParams) {
   const p = await params
   const pathname = '/' + (p.slug?.join('/') ?? '')
   const match = findRouteManifestMatch(getFrontendRouteManifests(), pathname)
@@ -139,5 +156,14 @@ export default async function SiteCatchAll({ params }: FrontendParams) {
   })
   if (middlewareRedirect) redirect(middlewareRedirect)
   const Component = await match.route.load()
+  // Suqna divergence (docs/UPSTREAM_DIVERGENCES.md section 6): public pages also
+  // receive the query string (the storefront collection page reads `?page=`).
+  if (!match.route.requireAuth) {
+    // Public pages create request containers themselves; on a cold server nothing has
+    // bootstrapped the DI registrars yet (the auth branches above do it for staff pages).
+    await ensureServerBootstrap()
+    const PublicComponent = Component as ComponentType<{ params: Record<string, string | string[]>; searchParams: SearchParams }>
+    return <PublicComponent params={match.params} searchParams={(await searchParams) ?? {}} />
+  }
   return <Component params={match.params} />
 }
