@@ -355,6 +355,33 @@ describe('storefront page commands (TEST-017)', () => {
     expect(page.title).toBe('Theirs')
   })
 
+  it('refuses to undo when a later save landed in the same millisecond (equal updated_at)', async () => {
+    const created = await createPage(em, ctx)
+    const page = pages(em).find((p) => p.id === created.id)!
+    const prepared = await updatePageCommand.prepare!({ id: created.id, title: 'Mine' }, ctx)
+    const mine = (await updatePageCommand.execute({ id: created.id, title: 'Mine' }, ctx)) as PageSnapshot
+    const log = await updatePageCommand.buildLog!({ input: {}, result: mine, snapshots: { before: prepared?.before }, ctx } as never)
+    await updatePageCommand.execute({ id: created.id, title: 'Theirs' }, ctxFor(em, tenantA, orgA))
+    page.updatedAt = new Date(mine.updatedAt!)
+    await expect(updatePageCommand.undo!({ input: {}, ctx, logEntry: { commandPayload: log?.payload } as never })).rejects.toMatchObject({ status: 409 })
+    expect(page.title).toBe('Theirs')
+  })
+
+  it('still undoes when the stored draft only differs in key order (jsonb normalises it)', async () => {
+    const created = await createPage(em, ctx)
+    const page = pages(em).find((p) => p.id === created.id)!
+    const prepared = await updatePageCommand.prepare!({ id: created.id, title: 'Mine' }, ctx)
+    const mine = (await updatePageCommand.execute({ id: created.id, title: 'Mine' }, ctx)) as PageSnapshot
+    const log = await updatePageCommand.buildLog!({ input: {}, result: mine, snapshots: { before: prepared?.before }, ctx } as never)
+    const reorder = (value: unknown): unknown =>
+      value && typeof value === 'object' && !Array.isArray(value)
+        ? Object.fromEntries(Object.entries(value as Record<string, unknown>).reverse().map(([k, v]) => [k, reorder(v)]))
+        : value
+    page.draftSpec = reorder(page.draftSpec) as Record<string, unknown>
+    await updatePageCommand.undo!({ input: {}, ctx, logEntry: { commandPayload: log?.payload } as never })
+    expect(page.title).toBe('About us')
+  })
+
   it("answers 404 for another tenant's pages and revisions and changes nothing", async () => {
     const { home: foreignHome } = seedSite(em, tenantB, orgB)
     const foreignRevision = revisions(em, foreignHome.id)[0]!

@@ -33,6 +33,7 @@ import {
 } from '../lib/commandScope'
 import { isHomePage, MAX_PAGES_PER_SITE } from '../lib/pages'
 import { pageSlugIssue } from '../lib/slug'
+import { stableStringify } from '../lib/stableJson'
 
 export const PAGE_RESOURCE_KIND = 'storefront.page'
 export const PAGE_COMMAND_IDS = {
@@ -417,7 +418,14 @@ const updatePageCommand: CommandHandler<Record<string, unknown>, PageSnapshot> =
           page = await loadPage(em, before.id, scope, true)
           // A later edit (someone else's, or one the banner no longer offers) must not be
           // overwritten. A clean later publish or rollback is fine: it leaves no unpublished draft.
-          const versionChanged = Boolean(after?.updatedAt) && (page.updatedAt?.toISOString() ?? null) !== after?.updatedAt
+          // The edited fields are compared too: two saves in the same millisecond share `updated_at`.
+          const versionChanged =
+            Boolean(after) &&
+            ((page.updatedAt?.toISOString() ?? null) !== after!.updatedAt ||
+              page.title !== after!.title ||
+              page.slug !== after!.slug ||
+              (page.seoDescription ?? null) !== after!.seoDescription ||
+              stableStringify(page.draftSpec ?? null) !== stableStringify(after!.draftSpec))
           const publicationChanged = (page.publishedRevisionId ?? null) !== (after?.publishedRevisionId ?? null)
           if (versionChanged && (!publicationChanged || page.draftUpdatedAt)) {
             throw await conflictError('storefront.errors.undoPageChanged', 'The page changed since, so this change cannot be undone.')
