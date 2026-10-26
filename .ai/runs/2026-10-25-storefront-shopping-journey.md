@@ -61,7 +61,7 @@ Phase 1 notes (decisions L8–L12 on the spec branch, PR #2):
 
 - [x] 2.1 Public catalog rule and search service — 6f95ce5
 - [x] 2.2 Search page, collections index, collection pages, product cards, filters, sort, pagination — 6f95ce5
-- [ ] 2.3 Decision record superseding K2 for the shop
+- [x] 2.3 Decision record superseding K2 for the shop — 1fab748 (spec branch, DECISIONS L13)
 
 Phase 2 evidence (2026-10-25):
 - Gates: generate, typecheck, lint (0 errors, 8 pre-existing warnings), ds:check, unit 213/213; integration 32/32 (ephemeral), including the new TC-STOREFRONT-008 (search, filters, sort, paging, collections) and TC-STOREFRONT-005 updated for S-2 and Arabic prices.
@@ -72,10 +72,23 @@ Phase 2 evidence (2026-10-25):
 
 ### Phase 3: Product page and persisted cart
 
-- [ ] 3.1 Cart migration, entities, validators, service and commands
-- [ ] 3.2 Cart API routes with OpenAPI
-- [ ] 3.3 Variant and personalization resolution and the product purchase panel
-- [ ] 3.4 Cart sheet, cart page and header count
+- [x] 3.1 Cart migration, entities, validators, service and commands — fd7a779
+- [x] 3.2 Cart API routes with OpenAPI — fd7a779
+- [x] 3.3 Variant and personalization resolution and the product purchase panel — fd7a779
+- [x] 3.4 Cart sheet, cart page and header count — fd7a779
+
+Phase 3 closed (2026-10-26). Exit gate evidence:
+- Gates: generate, typecheck, lint (0 errors, 8 pre-existing warnings), ds:check, unit 218/218, build, integration 36/36 (ephemeral; migration applied on the fresh database), including TC-STOREFRONT-009 (cart API, refusals, isolation, phone buyer flow).
+- Browser check on the two themed local stores at 390 and 1280 px with OS dark mode: 38/38. The button names the missing option, then the required personalization field, and focuses it; an unmade combination reads unavailable; the price follows the variant; the cart sheet is portalled in the themed root and opens from the left edge (end); options and personalization show verbatim; the subtotal comes from the server; no checkout button; the count survives reload; the cart page edits personalization (an empty required field is refused in Arabic), re-prices on quantity and empties after undoable removal; another store sees an empty cart with the same browser; another store's line id answers 404; no console errors. A scan for English UI text found none on any store page or overlay.
+- The local sandbox database got the cart migration through `yarn db:migrate` (development data only); the ephemeral test database applies it on its own.
+- Code review (om-code-review): approve. Two major findings were fixed during the review: the rate limit is keyed by IP, else by cart token (it was one bucket per store when the IP is unknown), and a same-line insert race retries once. Six minor findings and two nits remain; see the PR.
+
+Phase 2–3 notes (decisions L13–L19 on the spec branch, 1fab748):
+- Add-to-cart is never disabled for a missing step: it names the step and focuses it (ecomcn pattern, L17). Line removal uses the ecomcn undo bar instead of a confirmation dialog.
+- Cart commands are not undoable and not audited (L18); `storefront.cart.updated` carries ids only.
+- Close labels on store pages use storefront-owned keys, because the app's English dictionary overrides `ui.*` keys (L19).
+- Dashboard follow-ups recorded in the spec: store price channel, personalization field editor, stock badge threshold.
+- Carried to Phase 4: stock check on merged quantities; keep order access independent of purged carts; two-tenant integration probes (TEST-J11).
 
 ### Phase 4: Checkout, order placement and tracking
 
