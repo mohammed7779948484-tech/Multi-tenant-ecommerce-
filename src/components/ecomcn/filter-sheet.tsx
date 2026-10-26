@@ -153,6 +153,7 @@ export function FilterSheet({
 
       <SheetContent
         side={side}
+        closeLabel={t("ecomcn.filters.close", "Close")}
         className={cn(
           "flex flex-col gap-0 p-0",
           side === "bottom" ? "max-h-[88dvh]" : "w-full sm:max-w-sm",

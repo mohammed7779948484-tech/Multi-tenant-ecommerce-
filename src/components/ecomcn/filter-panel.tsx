@@ -626,6 +626,10 @@ function RangeControl({ facet }: { facet: RangeFacet }) {
           max={facet.max}
           step={facet.step ?? 1}
           value={[shownLo, shownHi]}
+          thumbLabels={[
+            t("ecomcn.filters.minimum", "Minimum {label}", { label: facet.label }),
+            t("ecomcn.filters.maximum", "Maximum {label}", { label: facet.label }),
+          ]}
           onValueChange={(next: number | readonly number[]) => {
             const values: [number, number] =
               typeof next === "number" ? [next, next] : [next[0], next[1]]

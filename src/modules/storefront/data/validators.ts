@@ -80,3 +80,32 @@ export const pageDeleteSchema = z.object({ id: z.string().uuid() }).strict()
 export const pagePublishSchema = z.object({ id: z.string().uuid() }).strict()
 export const pageRollbackBodySchema = z.object({ revisionId: z.string().uuid() }).strict()
 export const pageRollbackSchema = z.object({ id: z.string().uuid(), revisionId: z.string().uuid() }).strict()
+
+/**
+ * Buyer cart bodies (shopping-journey spec, API contracts). Strict: no tenant,
+ * organization, price or currency is ever accepted from the client; the store
+ * comes from the URL slug and prices from the pricing engine.
+ */
+const personalizationInputSchema = z
+  .record(z.string().max(64), z.union([z.string().max(2000), z.number()]))
+  .refine((value) => Object.keys(value).length <= 64, 'storefront.shop.errors.personalizationInvalid')
+
+export const cartLineAddSchema = z
+  .object({
+    productId: z.string().uuid(),
+    variantId: z.string().uuid().nullable().optional(),
+    quantity: z.number().int().min(1).max(99).default(1),
+    personalization: personalizationInputSchema.optional(),
+  })
+  .strict()
+
+export const cartLineUpdateSchema = z
+  .object({
+    quantity: z.number().int().min(1).max(99).optional(),
+    personalization: personalizationInputSchema.optional(),
+  })
+  .strict()
+  .refine((value) => value.quantity !== undefined || value.personalization !== undefined, 'storefront.shop.errors.nothingToUpdate')
+
+export type CartLineAddInput = z.infer<typeof cartLineAddSchema>
+export type CartLineUpdateInput = z.infer<typeof cartLineUpdateSchema>

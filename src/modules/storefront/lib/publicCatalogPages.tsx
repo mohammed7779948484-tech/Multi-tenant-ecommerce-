@@ -6,7 +6,8 @@ import { createRequestContainer } from '@open-mercato/shared/lib/di/container'
 import { createLogger } from '@open-mercato/shared/lib/logger'
 import { ProductPageView, type ProductPageProps } from '../components/public/CatalogViews'
 import { StorefrontTheme } from '../data/entities'
-import { allProductImages, productPrices, storeCatalogLinks, type CatalogScope } from './catalogData'
+import { allProductImages, storeCatalogLinks, type CatalogScope } from './catalogData'
+import { loadPurchaseModel, type PurchaseModel } from './shopProduct'
 import { buildStorefrontMetadata } from './publicMetadata'
 import { findPublicProduct, publicCategoriesOf } from './publicCatalog'
 import { resolvePublicSite, storefrontMediaPath, storefrontPublicUrl } from './publicSite'
@@ -85,13 +86,11 @@ export const loadProductPage = cache(async (rawSiteSlug: string, rawKey: string)
   // Compared decoded, so a key that differs only in percent-encoding can never loop.
   if (rawSiteSlug !== site.slug || key !== canonicalKey) return { kind: 'redirect', path: canonicalPath }
 
-  let price: string | null = null
-  if (!product.isQuoteOnly) {
-    try {
-      price = (await productPrices({ em, container }, scope, [product.id])).get(product.id)?.formatted ?? null
-    } catch (err) {
-      logger.warn('Storefront product price failed; showing the product without a price', { err, siteId: site.id, productId: product.id })
-    }
+  let purchase: PurchaseModel | null = null
+  try {
+    purchase = await loadPurchaseModel({ em, container }, scope, product)
+  } catch (err) {
+    logger.warn('Storefront purchase options failed; showing the product without a buy panel', { err, siteId: site.id, productId: product.id })
   }
   const images = await allProductImages(em, scope, product)
   let back: ProductPageProps['back'] = null
@@ -102,7 +101,8 @@ export const loadProductPage = cache(async (rawSiteSlug: string, rawKey: string)
     view: {
       ...frame,
       head: store.head(`${product.seoTitle || product.title} · ${site.name}`, product.seoDescription ?? plainExcerpt(product.subtitle ?? product.description), `/products/${encodeURIComponent(canonicalKey)}`),
-      product: { title: product.title, subtitle: product.subtitle ?? null, description: product.description ?? null, price, images },
+      product: { title: product.title, subtitle: product.subtitle ?? null, description: product.description ?? null, images },
+      purchase,
       back,
     },
   }

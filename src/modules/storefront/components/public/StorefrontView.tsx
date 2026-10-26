@@ -14,6 +14,7 @@ import type { SectionData } from '../../lib/sectionDataTypes'
 import { renderSection } from './registry'
 import { ShopProviders } from '../shop/ShopProviders'
 import { StoreMenu } from '../shop/StoreMenu'
+import { StoreCartSheet } from '../shop/ShopCart'
 
 export type StorefrontHeadData = {
   title: string
@@ -86,7 +87,11 @@ export function StorefrontFrame(props: StorefrontFrameProps) {
       lang={shell?.locale}
     >
       <style>{css}</style>
-      <ShopProviders dir={SHOP_DIRECTION} i18n={shell ? { locale: shell.locale, dict: shell.dict } : undefined}>
+      <ShopProviders
+        dir={SHOP_DIRECTION}
+        i18n={shell ? { locale: shell.locale, dict: shell.dict } : undefined}
+        cart={shell ? { siteSlug: shell.siteSlug } : undefined}
+      >
         {shell ? (
           <a className="sf-skip" href="#sf-main">
             {shell.labels.skipToContent}
@@ -117,6 +122,7 @@ export function StorefrontFrame(props: StorefrontFrameProps) {
                     <SearchIcon aria-hidden="true" />
                   </a>
                 </Button>
+                <StoreCartSheet cartHref={shell.cartHref} shopHref={props.basePath || '/'} />
               </div>
             ) : null}
           </div>

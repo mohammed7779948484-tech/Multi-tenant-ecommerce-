@@ -98,7 +98,7 @@ describe('TEST-J02 Arabic store shell', () => {
       head: { title: 'P', description: null, canonicalUrl: 'https://x.example/acme', siteName: 'Acme', imageUrl: null, locale: 'ar', jsonLd: [] },
     }
     const product = renderToStaticMarkup(
-      <ProductPageView {...frame} product={{ title: 'تمر', subtitle: null, description: null, price: null, images: [] }} back={{ href: '/acme/collections/dates', label: 'العودة إلى تمور' }} />,
+      <ProductPageView {...frame} product={{ title: 'تمر', subtitle: null, description: null, images: [] }} purchase={null} back={{ href: '/acme/collections/dates', label: 'العودة إلى تمور' }} />,
     )
     expect(product).toMatch(/class="sf-root sf-shop"[^>]*dir="rtl"[^>]*lang="ar"/)
     expect(product).toContain('<footer class="sf-footer sf-shell-footer"')

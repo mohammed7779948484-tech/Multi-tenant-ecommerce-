@@ -188,3 +188,101 @@ export class StorefrontPageRevision {
   @Property({ name: 'created_at', type: Date, onCreate: () => new Date() })
   createdAt: Date = new Date()
 }
+
+/**
+ * A buyer's cart in one store (shopping-journey spec, Data Models). Anonymous:
+ * the browser holds a random per-store token in an HttpOnly cookie and only its
+ * SHA-256 lands here. Lines hold ids, quantities and personalization; prices and
+ * stock are computed on every read, never stored. Scope always comes from the
+ * store row resolved by slug.
+ */
+@Entity({ tableName: 'storefront_carts' })
+@Index({ name: 'storefront_carts_scope_idx', properties: ['tenantId', 'organizationId', 'siteId'] })
+@Index({ name: 'storefront_carts_site_status_idx', properties: ['siteId', 'status'] })
+@Index({ name: 'storefront_carts_expires_idx', properties: ['siteId', 'expiresAt'] })
+@Unique({ name: 'storefront_carts_token_hash_uniq', properties: ['tokenHash'] })
+export class StorefrontCart {
+  @PrimaryKey({ type: 'uuid', defaultRaw: 'gen_random_uuid()' })
+  id!: string
+
+  @Property({ name: 'tenant_id', type: 'uuid' })
+  tenantId!: string
+
+  @Property({ name: 'organization_id', type: 'uuid' })
+  organizationId!: string
+
+  @Property({ name: 'site_id', type: 'uuid' })
+  siteId!: string
+
+  /** SHA-256 (hex) of the 256-bit cookie token. */
+  @Property({ name: 'token_hash', type: 'text' })
+  tokenHash!: string
+
+  /** `active` or `converted` (Phase 4: the cart became an order). */
+  @Property({ type: 'text', default: 'active' })
+  status: string = 'active'
+
+  /** Currency of the first priced line; a line priced in another currency is refused. */
+  @Property({ name: 'currency_code', type: 'text', nullable: true })
+  currencyCode?: string | null
+
+  /** Sales order id once converted (Phase 4). */
+  @Property({ name: 'converted_order_id', type: 'uuid', nullable: true })
+  convertedOrderId?: string | null
+
+  /** 30 days after the last write. */
+  @Property({ name: 'expires_at', type: Date })
+  expiresAt!: Date
+
+  @Property({ name: 'created_at', type: Date, onCreate: () => new Date() })
+  createdAt: Date = new Date()
+
+  @Property({ name: 'updated_at', type: Date, onCreate: () => new Date(), onUpdate: () => new Date() })
+  updatedAt: Date = new Date()
+}
+
+/**
+ * One line of a cart: a product (and variant) of the cart's store, a quantity
+ * and the buyer's personalization values. Unique per cart by `lineKey`, a hash
+ * of product, variant and personalization, so adding the same line again
+ * increases its quantity. Ids are re-validated against the catalog on every read.
+ */
+@Entity({ tableName: 'storefront_cart_lines' })
+@Index({ name: 'storefront_cart_lines_scope_idx', properties: ['tenantId', 'organizationId'] })
+@Index({ name: 'storefront_cart_lines_cart_idx', properties: ['cartId'] })
+@Unique({ name: 'storefront_cart_lines_key_uniq', properties: ['cartId', 'lineKey'] })
+export class StorefrontCartLine {
+  @PrimaryKey({ type: 'uuid', defaultRaw: 'gen_random_uuid()' })
+  id!: string
+
+  @Property({ name: 'tenant_id', type: 'uuid' })
+  tenantId!: string
+
+  @Property({ name: 'organization_id', type: 'uuid' })
+  organizationId!: string
+
+  @Property({ name: 'cart_id', type: 'uuid' })
+  cartId!: string
+
+  @Property({ name: 'product_id', type: 'uuid' })
+  productId!: string
+
+  @Property({ name: 'variant_id', type: 'uuid', nullable: true })
+  variantId?: string | null
+
+  @Property({ type: 'integer' })
+  quantity!: number
+
+  /** `{ optionCode: value }`; buyer free text, rendered as text only. */
+  @Property({ type: 'json', default: '{}' })
+  personalization: Record<string, string> = {}
+
+  @Property({ name: 'line_key', type: 'text' })
+  lineKey!: string
+
+  @Property({ name: 'created_at', type: Date, onCreate: () => new Date() })
+  createdAt: Date = new Date()
+
+  @Property({ name: 'updated_at', type: Date, onCreate: () => new Date(), onUpdate: () => new Date() })
+  updatedAt: Date = new Date()
+}

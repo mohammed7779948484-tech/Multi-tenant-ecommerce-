@@ -17,6 +17,10 @@ export const STOREFRONT_STRUCTURAL_CSS = [
   // Store shell (shopping-journey Phase 1). Logical properties only, so the shell mirrors with the page direction.
   '.sf-skip{position:absolute;inset-inline-start:calc(var(--sf-space) * 0.5);top:calc(var(--sf-space) * -3);z-index:60;background:var(--sf-color-background);color:var(--sf-color-text) !important;border:1px solid var(--sf-color-border);border-radius:var(--sf-radius);padding:calc(var(--sf-space) * 0.5) var(--sf-space)}',
   '.sf-skip:focus{top:calc(var(--sf-space) * 0.5)}',
+  '.sf-cart-layout{display:grid;gap:calc(var(--sf-space) * 2);grid-template-columns:minmax(0,1fr)}',
+  '@media (min-width: 64rem){.sf-cart-layout{grid-template-columns:minmax(0,1fr) 22rem}.sf-cart-summary{position:sticky;top:calc(var(--sf-space) * 1.5);align-self:start}}',
+  '.sf-root .sf-cart-trigger{color:var(--sf-color-text);border-color:var(--sf-color-border)}',
+  '.sf-root .sf-split-text [data-slot=product-buy-box]{margin-block:calc(var(--sf-space) * 1.25)}',
   '.sf-header-actions{display:flex;align-items:center;gap:calc(var(--sf-space) * 0.25);margin-inline-start:auto}',
   '.sf-listing{display:grid;gap:calc(var(--sf-space) * 2);grid-template-columns:minmax(0,1fr)}',
   '.sf-listing-filters{display:none}',
@@ -57,7 +61,9 @@ export const STOREFRONT_STRUCTURAL_CSS = [
   '.sf-split{display:grid;gap:calc(var(--sf-space) * 2);align-items:center}',
   // Unlayered rules beat Tailwind's layered utilities: frames that crop their image say so here.
   '.sf-root [data-slot=category-rail] [data-slot=carousel-content]>div{background:transparent}',
-  '.sf-root [data-slot=product-card-image] img,.sf-root [data-slot=category-rail-tile] img{width:100%;height:100%;object-fit:cover}',
+  '.sf-root [data-slot=product-card-image] img,.sf-root [data-slot=category-rail-tile] img,.sf-root [data-slot^=product-gallery] img{width:100%;height:100%;object-fit:cover}',
+  '.sf-product-gallery{min-width:0}',
+  '.sf-split:has(.sf-product-gallery){align-items:start}',
   '.sf-media img{width:100%;border-radius:var(--sf-radius);object-fit:cover;aspect-ratio:4/3}',
   '.sf-split-text{display:flex;flex-direction:column;gap:var(--sf-space);align-items:flex-start}',
   '.sf-split-text p{margin:0;color:var(--sf-color-muted-text)}',

@@ -226,6 +226,36 @@ export async function productPrices(deps: CatalogDataDeps, scope: CatalogScope, 
   return prices
 }
 
+/**
+ * Price of each purchasable target of one product through the platform pricing
+ * engine: a variant gets its own rows plus the product's, the product itself
+ * (key `''`) its product-level rows. Missing keys have no price.
+ */
+export async function purchasePrices(deps: CatalogDataDeps, scope: CatalogScope, productId: string, variantIds: string[]): Promise<Map<string, ShopPrice>> {
+  const result = new Map<string, ShopPrice>()
+  const { em, container } = deps
+  const context = anonymousPricingContext()
+  const where = variantIds.length ? { $or: [{ product: productId }, { variant: { $in: variantIds } }] } : { product: productId }
+  const rows = (await findWithDecryption<CatalogProductPrice>(
+    em,
+    CatalogProductPrice,
+    { $and: [{ ...where, ...scope }, buildPriceRowFilter(context)] } as never,
+    { populate: ['offer', 'variant', 'product', 'priceKind'] },
+    scope,
+  )) as PriceRow[]
+  const variantOf = (row: PriceRow) => (row.variant ? (typeof row.variant === 'string' ? row.variant : row.variant.id) : null)
+  const targets = ['', ...variantIds]
+  const groups = targets.map((target) => rows.filter((row) => (target ? variantOf(row) === target || variantOf(row) === null : variantOf(row) === null)))
+  const pricing = container.resolve('catalogPricingService') as CatalogPricingService
+  const best = await pricing.resolvePriceMany(groups.map((group) => ({ rows: group, context })))
+  targets.forEach((target, index) => {
+    const row = groups[index]!.length ? best[index] : null
+    const price = row ? shopPriceOf(row) : null
+    if (price) result.set(target, price)
+  })
+  return result
+}
+
 export async function productCards(
   deps: CatalogDataDeps,
   scope: CatalogScope,

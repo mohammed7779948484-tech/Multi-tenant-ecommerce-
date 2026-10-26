@@ -15,8 +15,12 @@ export type ShopShell = {
   /** Client dictionary for `I18nProvider` (buyer keys only). */
   dict: Dict
   links: ShopNavLink[]
+  /** The store's slug: the shop API path segment. */
+  siteSlug: string
   /** The store's search page (header search entry). */
   searchHref: string
+  /** The store's cart page (the cart sheet's "view cart" link). */
+  cartHref: string
   /** False when the page already ends with the merchant's own Footer section. */
   footer: boolean
   year: number
@@ -49,7 +53,9 @@ export function buildShopShell(
       { href: `/${site.slug}/collections`, label: translate('storefront.shop.navCollections', 'All categories') },
       ...links,
     ],
+    siteSlug: site.slug,
     searchHref: `/${site.slug}/search`,
+    cartHref: `/${site.slug}/cart`,
     footer: options.footer,
     year,
     labels: {
