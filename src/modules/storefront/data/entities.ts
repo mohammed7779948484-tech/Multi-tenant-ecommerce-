@@ -218,7 +218,7 @@ export class StorefrontCart {
   @Property({ name: 'token_hash', type: 'text' })
   tokenHash!: string
 
-  /** `active` or `converted` (Phase 4: the cart became an order). */
+  /** `active`; `placing` while its order is created (a short claim); `converted` once it is an order. */
   @Property({ type: 'text', default: 'active' })
   status: string = 'active'
 
@@ -285,4 +285,52 @@ export class StorefrontCartLine {
 
   @Property({ name: 'updated_at', type: Date, onCreate: () => new Date(), onUpdate: () => new Date() })
   updatedAt: Date = new Date()
+}
+
+/**
+ * A guest's key to one order (shopping-journey spec REQ-009, S-11): the
+ * SHA-256 of a random 256-bit token the buyer holds in a per-store cookie and
+ * in the confirmation link. One row per sales order and per cart: `cart_id`
+ * unique is the placement's idempotency key (a second submit of the same cart
+ * finds this row). `order_number` copies the sales number for URL lookups.
+ * Append-only except `proof_submitted_at` (Phase 5).
+ */
+@Entity({ tableName: 'storefront_order_access' })
+@Index({ name: 'storefront_order_access_scope_idx', properties: ['tenantId', 'organizationId', 'siteId'] })
+@Unique({ name: 'storefront_order_access_order_uniq', properties: ['orderId'] })
+@Unique({ name: 'storefront_order_access_number_uniq', properties: ['siteId', 'orderNumber'] })
+@Unique({ name: 'storefront_order_access_cart_uniq', properties: ['cartId'] })
+export class StorefrontOrderAccess {
+  @PrimaryKey({ type: 'uuid', defaultRaw: 'gen_random_uuid()' })
+  id!: string
+
+  @Property({ name: 'tenant_id', type: 'uuid' })
+  tenantId!: string
+
+  @Property({ name: 'organization_id', type: 'uuid' })
+  organizationId!: string
+
+  @Property({ name: 'site_id', type: 'uuid' })
+  siteId!: string
+
+  /** The sales order (scalar id; no cross-module relation). */
+  @Property({ name: 'order_id', type: 'uuid' })
+  orderId!: string
+
+  @Property({ name: 'order_number', type: 'text' })
+  orderNumber!: string
+
+  /** SHA-256 (hex) of the 256-bit access token. */
+  @Property({ name: 'token_hash', type: 'text' })
+  tokenHash!: string
+
+  @Property({ name: 'cart_id', type: 'uuid' })
+  cartId!: string
+
+  /** Set once when the buyer submits a transfer proof (Phase 5). */
+  @Property({ name: 'proof_submitted_at', type: Date, nullable: true })
+  proofSubmittedAt?: Date | null
+
+  @Property({ name: 'created_at', type: Date, onCreate: () => new Date() })
+  createdAt: Date = new Date()
 }

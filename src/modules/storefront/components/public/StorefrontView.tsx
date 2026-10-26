@@ -122,7 +122,7 @@ export function StorefrontFrame(props: StorefrontFrameProps) {
                     <SearchIcon aria-hidden="true" />
                   </a>
                 </Button>
-                <StoreCartSheet cartHref={shell.cartHref} shopHref={props.basePath || '/'} />
+                <StoreCartSheet cartHref={shell.cartHref} checkoutHref={`${props.basePath}/checkout`} shopHref={props.basePath || '/'} />
               </div>
             ) : null}
           </div>

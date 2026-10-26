@@ -109,3 +109,49 @@ export const cartLineUpdateSchema = z
 
 export type CartLineAddInput = z.infer<typeof cartLineAddSchema>
 export type CartLineUpdateInput = z.infer<typeof cartLineUpdateSchema>
+
+/**
+ * Checkout bodies (shopping-journey spec REQ-007/REQ-008). Strict: no price,
+ * total, currency or scope is accepted; codes are checked against the bundled
+ * Yemen dataset and methods against the store's own by the service. Messages
+ * are storefront keys so the route can name each field in Arabic.
+ */
+const checkoutKey = (field: string) => `storefront.shop.checkout.errors.${field}`
+
+export const checkoutDestinationSchema = z
+  .object({
+    governorate: z.string().trim().regex(/^YE\d{2}$/, checkoutKey('governorate')),
+    district: z.string().trim().regex(/^YE\d{4}$/, checkoutKey('district')),
+    area: z.string().trim().min(1, checkoutKey('area')).max(200, checkoutKey('tooLong')),
+    landmark: z.string().trim().max(200, checkoutKey('tooLong')).nullable().optional(),
+    note: z.string().trim().max(500, checkoutKey('tooLong')).nullable().optional(),
+    gps: z
+      .object({ latitude: z.number().finite(), longitude: z.number().finite() })
+      .strict()
+      .nullable()
+      .optional(),
+  })
+  .strict()
+
+export const checkoutQuoteSchema = z
+  .object({
+    destination: checkoutDestinationSchema,
+    shippingMethodId: z.string().uuid(checkoutKey('shipping')),
+    paymentMethodId: z.string().uuid(checkoutKey('payment')),
+  })
+  .strict()
+
+export const checkoutPlaceSchema = checkoutQuoteSchema
+  .extend({
+    contact: z
+      .object({
+        name: z.string().trim().min(2, checkoutKey('name')).max(120, checkoutKey('tooLong')),
+        phone: z.string().trim().min(1, checkoutKey('phone')).max(24, checkoutKey('phone')),
+      })
+      .strict(),
+    quoteHash: z.string().regex(/^[0-9a-f]{32}$/),
+  })
+  .strict()
+
+export type CheckoutQuoteInput = z.infer<typeof checkoutQuoteSchema>
+export type CheckoutPlaceInput = z.infer<typeof checkoutPlaceSchema>

@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { useRouter } from 'next/navigation'
 import { ShoppingBag } from 'lucide-react'
 import { apiCall } from '@open-mercato/ui/backend/utils/apiCall'
 import { useT } from '@open-mercato/shared/lib/i18n/context'
@@ -162,8 +163,9 @@ export function toCartLine(line: CartLineView, t: ReturnType<typeof useT>): Cart
 }
 
 /** The header bag button with the cart sheet (opens from the end edge: left in Arabic). */
-export function StoreCartSheet({ cartHref, shopHref }: { cartHref: string; shopHref: string }) {
+export function StoreCartSheet({ cartHref, checkoutHref, shopHref }: { cartHref: string; checkoutHref?: string; shopHref: string }) {
   const t = useT()
+  const router = useRouter()
   const { cart, ready, failed, reload, open, setOpen, update, remove } = useShopCart()
   const lines = React.useMemo(() => cart.lines.map((line) => toCartLine(line, t)), [cart.lines, t])
   return (
@@ -176,6 +178,8 @@ export function StoreCartSheet({ cartHref, shopHref }: { cartHref: string; shopH
       onQuantityChange={(id, quantity) => update(id, { quantity })}
       onRemove={(id) => remove(id)}
       viewBagHref={cartHref}
+      checkoutLabel={t('storefront.shop.cart.checkout', 'Checkout')}
+      onCheckout={checkoutHref && !cart.lines.some((line) => line.issues.length) ? () => router.push(checkoutHref) : undefined}
       countLabel={(count) => t('storefront.shop.cart.button', 'Cart: {items}', { items: shopCountLabel(t, 'items', count) })}
       title={t('storefront.shop.cart.title', 'Your cart')}
       note={t('storefront.shop.cart.note', 'Delivery is priced at checkout for your address.')}

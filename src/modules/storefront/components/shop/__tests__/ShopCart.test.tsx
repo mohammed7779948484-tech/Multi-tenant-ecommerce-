@@ -8,6 +8,8 @@ import type { CartView } from '../../../lib/shopCart'
 type Call = { ok: boolean; status: number; result: unknown }
 const pending: Array<{ url: string; method: string; resolve: (call: Call) => void }> = []
 
+jest.mock('next/navigation', () => ({ useRouter: () => ({ push: jest.fn() }) }))
+
 jest.mock('@open-mercato/ui/backend/utils/apiCall', () => ({
   apiCall: (url: string, init: { method?: string } = {}) =>
     new Promise<Call>((resolve) => {

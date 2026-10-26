@@ -114,7 +114,7 @@ function EditPersonalization({ line }: { line: CartLineView }) {
   )
 }
 
-export function ShopCartPage({ shopHref, title }: { shopHref: string; title: string }) {
+export function ShopCartPage({ shopHref, checkoutHref, title }: { shopHref: string; checkoutHref: string; title: string }) {
   const t = useT()
   const { cart, ready, failed, reload, update, remove } = useShopCart()
   const [failure, setFailure] = React.useState<string | null>(null)
@@ -193,7 +193,11 @@ export function ShopCartPage({ shopHref, title }: { shopHref: string; title: str
               <p className="mt-2 text-sm text-muted-foreground">{t('storefront.shop.cart.note', 'Delivery is priced at checkout for your address.')}</p>
               {blocked ? (
                 <p className="mt-3 text-sm text-destructive">{t('storefront.shop.cart.blocked', 'Some items cannot be ordered. Remove them first.')}</p>
-              ) : null}
+              ) : (
+                <Button asChild size="lg" className="mt-4 w-full">
+                  <a href={checkoutHref}>{t('storefront.shop.cart.checkout', 'Checkout')}</a>
+                </Button>
+              )}
             </aside>
           </div>
         )}

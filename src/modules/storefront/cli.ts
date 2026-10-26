@@ -4,6 +4,7 @@ import type { EntityManager } from '@mikro-orm/postgresql'
 import { Organization } from '@open-mercato/core/modules/directory/data/entities'
 import { parseTenantArgs } from './lib/cliArgs'
 import { ensureStorefrontSite } from './lib/seeding'
+import { ensureDevZoneShippingMethod } from './lib/shopFixtures'
 import { StorefrontPage, StorefrontSite } from './data/entities'
 import { HOME_PAGE_SLUG_VALUE, RESERVED_PAGE_SLUGS } from './lib/slug'
 
@@ -94,6 +95,37 @@ const reservedSlugs: ModuleCli = {
   },
 }
 
-const cli: ModuleCli[] = [ensureSites, reservedSlugs]
+/**
+ * `yarn mercato storefront shop-fixtures --tenant <uuid>`
+ *
+ * DEVELOPMENT DATA ONLY: gives every store of the tenant a Yemen-zones delivery
+ * method with sample rates (see `lib/shopFixtures.ts`), so checkout works
+ * locally. Idempotent; never touches real delivery or payment methods.
+ */
+const shopFixtures: ModuleCli = {
+  command: 'shop-fixtures',
+  async run(argv) {
+    const args = parseTenantArgs(argv)
+    if (!args.ok || !args.tenantId) {
+      console.error(args.ok ? '--tenant <uuid> is required' : args.error)
+      process.exitCode = 1
+      return
+    }
+    const container = await createRequestContainer()
+    const em = (container.resolve('em') as EntityManager).fork()
+    const sites = await em.find(StorefrontSite, { tenantId: args.tenantId, deletedAt: null }, { fields: ['id', 'slug', 'tenantId', 'organizationId'] })
+    if (!sites.length) {
+      console.log('No storefronts in this tenant.')
+      return
+    }
+    for (const site of sites) {
+      const status = await ensureDevZoneShippingMethod({ em: em.fork(), container }, { tenantId: site.tenantId, organizationId: site.organizationId })
+      console.log(`- /${site.slug}: development delivery method ${status}`)
+    }
+    console.log('Development data only: sample rates, not for selling.')
+  },
+}
+
+const cli: ModuleCli[] = [ensureSites, reservedSlugs, shopFixtures]
 
 export default cli

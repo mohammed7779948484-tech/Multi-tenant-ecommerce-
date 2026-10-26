@@ -198,7 +198,8 @@ test.describe('TC-STOREFRONT-009: product page and persisted cart', () => {
     await expect(sheet).toBeVisible()
     await expect(sheet).toContainText('كبير · اسم المهدى إليه: أحمد')
     expect(await sheet.evaluate((element) => Boolean(element.closest('.sf-root.sf-shop')))).toBe(true)
-    await expect(sheet.getByRole('button', { name: 'إتمام الطلب' })).toHaveCount(0)
+    // Checkout arrives with Phase 4: the sheet's button leads there.
+    await expect(sheet.getByRole('button', { name: 'إتمام الطلب' })).toBeVisible()
     await page.keyboard.press('Escape')
     await page.goto(`/${siteSlug}/cart`)
     await expect(page.locator('[data-slot=cart-line-item]')).toHaveCount(1)

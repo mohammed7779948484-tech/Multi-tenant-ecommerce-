@@ -8,7 +8,9 @@ import { checkRateLimit, getClientIp } from '@open-mercato/shared/lib/ratelimit/
 import type { RateLimiterService } from '@open-mercato/shared/lib/ratelimit/service'
 import { buildShopCommandContext } from '../commands/cart'
 import { resolvePublicSite } from './publicSite'
+import type { ZodError } from 'zod'
 import { CART_TTL_MS, cartCookieName, hashCartToken, ShopError, type CartSite } from './shopCart'
+import { ORDER_ACCESS_TTL_MS, orderCookieName } from './shopOrders'
 import { shopTranslations, type ShopTranslate } from './shopLocale'
 
 /**
@@ -54,10 +56,10 @@ export function noStore(body: unknown, init: { status?: number } = {}) {
   return NextResponse.json(body, { status: init.status ?? 200, headers: { 'Cache-Control': 'no-store' } })
 }
 
-export async function errorResponse(status: number, code: string, fieldErrors?: Record<string, string>, translate?: ShopTranslate) {
+export async function errorResponse(status: number, code: string, fieldErrors?: Record<string, string>, translate?: ShopTranslate, details?: Record<string, unknown>) {
   const t = translate ?? (await shopTranslations()).translate
   const translated = fieldErrors ? Object.fromEntries(Object.entries(fieldErrors).map(([field, key]) => [field, t(key, key)])) : undefined
-  return noStore({ error: t(`storefront.shop.errors.${code}`, code), code, ...(translated ? { fieldErrors: translated } : {}) }, { status })
+  return noStore({ ...(details ?? {}), error: t(`storefront.shop.errors.${code}`, code), code, ...(translated ? { fieldErrors: translated } : {}) }, { status })
 }
 
 /** The store and the cart cookie of a shop request, or `null` (answer 404) for an unknown or offline store. */
@@ -120,6 +122,33 @@ export function withCartCookie(res: NextResponse, req: Request, site: CartSite, 
   return res
 }
 
+/** The cookie that keeps one order reachable from this browser: HttpOnly, SameSite=Lax, 90 days. */
+export function withOrderCookie(res: NextResponse, req: Request, site: CartSite, orderNumber: string, token: string) {
+  res.cookies.set(orderCookieName(site.id, orderNumber), token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: new URL(req.url).protocol === 'https:' || req.headers.get('x-forwarded-proto') === 'https',
+    path: '/',
+    maxAge: Math.floor(ORDER_ACCESS_TTL_MS / 1000),
+  })
+  return res
+}
+
+/** Field errors of a strict body (`contact.phone` → its storefront message key); other issues give no field. */
+export function zodFieldErrors(error: ZodError): Record<string, string> {
+  const fields: Record<string, string> = {}
+  for (const issue of error.issues) {
+    const path = issue.path.join('.')
+    if (path && !fields[path] && issue.message.startsWith('storefront.')) fields[path] = issue.message
+  }
+  return fields
+}
+
+/** Reads a per-request cookie by name. */
+export function requestCookie(req: Request, name: string): string | null {
+  return readCookie(req, name)
+}
+
 export function runShopCommand<TInput, TResult>(shop: ShopRequest, commandId: string, input: TInput) {
   const commandBus = shop.container.resolve('commandBus') as CommandBus
   return commandBus.execute<TInput, TResult>(commandId, { input, ctx: buildShopCommandContext(shop.container, shop.site) })
@@ -127,7 +156,7 @@ export function runShopCommand<TInput, TResult>(shop: ShopRequest, commandId: st
 
 /** Maps a refusal to its answer; anything unexpected is logged (ids only) and answers 500. */
 export async function shopFailure(err: unknown, shop: ShopRequest) {
-  if (err instanceof ShopError) return errorResponse(err.status, err.code, err.fieldErrors, shop.translate)
+  if (err instanceof ShopError) return errorResponse(err.status, err.code, err.fieldErrors, shop.translate, err.details)
   logger.error('Storefront shop request failed', { err, siteId: shop.site.id })
   return errorResponse(500, 'failed', undefined, shop.translate)
 }

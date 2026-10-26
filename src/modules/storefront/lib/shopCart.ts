@@ -35,6 +35,8 @@ export class ShopError extends Error {
     readonly status: number,
     readonly code: string,
     readonly fieldErrors?: Record<string, string>,
+    /** Extra answer fields, e.g. the refreshed `quote` of a 409. */
+    readonly details?: Record<string, unknown>,
   ) {
     super(code)
   }
@@ -67,9 +69,15 @@ export async function findActiveCart(em: EntityManager, site: CartSite, tokenHas
   if (!tokenHash) return null
   return em.findOne(
     StorefrontCart,
-    { tokenHash, siteId: site.id, ...scopeOf(site), status: 'active', expiresAt: { $gt: now } },
+    // `placing`: an order is being created from it; it still shows, but takes no writes (see `refuseWhilePlacing`).
+    { tokenHash, siteId: site.id, ...scopeOf(site), status: { $in: ['active', 'placing'] }, expiresAt: { $gt: now } },
     options.lock ? { lockMode: LockMode.PESSIMISTIC_WRITE } : undefined,
   )
+}
+
+/** A cart whose order is being placed refuses edits, so the order gets exactly the lines that were quoted. */
+function refuseWhilePlacing(cart: StorefrontCart | null) {
+  if (cart?.status === 'placing') throw new ShopError(409, 'orderInProgress')
 }
 
 function lineKeyOf(productId: string, variantId: string | null, personalization: Record<string, string>): string {
@@ -155,6 +163,7 @@ async function writeLine(rootEm: EntityManager, site: CartSite, tokenHash: strin
   return rootEm.transactional(async (em) => {
     const now = new Date()
     let cart = await findActiveCart(em, site, tokenHash, now, { lock: true })
+    refuseWhilePlacing(cart)
     const created = !cart
     const lines = cart ? await findWithDecryption(em, StorefrontCartLine, { cartId: cart.id, ...scopeOf(site) }, undefined, scopeOf(site)) : []
     if (cart?.currencyCode && lines.length && cart.currencyCode !== purchasable.price.currencyCode) throw new ShopError(422, 'currencyMismatch')
@@ -193,6 +202,7 @@ async function writeLine(rootEm: EntityManager, site: CartSite, tokenHash: strin
 
 async function lineOf(em: EntityManager, site: CartSite, tokenHash: string | null, lineId: string, now: Date) {
   const cart = await findActiveCart(em, site, tokenHash, now, { lock: true })
+  refuseWhilePlacing(cart)
   const line = cart && isUuid(lineId) ? await findOneWithDecryption(em, StorefrontCartLine, { id: lineId, cartId: cart.id, ...scopeOf(site) }, undefined, scopeOf(site)) : null
   // Another browser's or another store's line answers like an unknown one.
   if (!cart || !line) throw new ShopError(404, 'lineNotFound')
@@ -286,8 +296,11 @@ function money(amount: number, currencyCode: string): ShopPrice | null {
   return formatted ? { amount, currencyCode, formatted } : null
 }
 
-/** The cart as the buyer sees it now: live prices, stock and labels; problems per line instead of failures. */
-export async function buildCartView(deps: Deps, site: CartSite, cart: StorefrontCart | null): Promise<CartView> {
+/**
+ * The cart as the buyer sees it now: live prices, stock and labels; problems
+ * per line instead of failures. `bypassCache` asks for live stock (placement).
+ */
+export async function buildCartView(deps: Deps, site: CartSite, cart: StorefrontCart | null, options: { bypassCache?: boolean } = {}): Promise<CartView> {
   if (!cart) return EMPTY_CART
   const scope = scopeOf(site)
   const lines = await findWithDecryption(deps.em, StorefrontCartLine, { cartId: cart.id, ...scope }, { orderBy: { createdAt: 'asc' } }, scope)
@@ -302,7 +315,7 @@ export async function buildCartView(deps: Deps, site: CartSite, cart: Storefront
   const models = new Map<string, PurchaseModel>(
     await Promise.all(
       wanted.map(async (line) => {
-        const model = await loadPurchaseModel({ ...deps, em: deps.em.fork() }, scope, products.get(line.productId)!, { quantity: line.quantity })
+        const model = await loadPurchaseModel({ ...deps, em: deps.em.fork() }, scope, products.get(line.productId)!, { quantity: line.quantity, bypassCache: options.bypassCache })
         return [modelKey(line.productId, line.quantity), model] as const
       }),
     ),

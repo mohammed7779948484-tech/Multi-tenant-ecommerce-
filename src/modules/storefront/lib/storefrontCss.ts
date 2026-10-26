@@ -19,6 +19,11 @@ export const STOREFRONT_STRUCTURAL_CSS = [
   '.sf-skip:focus{top:calc(var(--sf-space) * 0.5)}',
   '.sf-cart-layout{display:grid;gap:calc(var(--sf-space) * 2);grid-template-columns:minmax(0,1fr)}',
   '@media (min-width: 64rem){.sf-cart-layout{grid-template-columns:minmax(0,1fr) 22rem}.sf-cart-summary{position:sticky;top:calc(var(--sf-space) * 1.5);align-self:start}}',
+  // Checkout: one column with a collapsible summary on phones; the summary pinned beside the steps from 1024px.
+  '.sf-checkout-layout{display:grid;gap:calc(var(--sf-space) * 2);grid-template-columns:minmax(0,1fr)}.sf-checkout-summary{display:none}',
+  '@media (min-width: 64rem){.sf-checkout-layout{grid-template-columns:minmax(0,1fr) 22rem}.sf-checkout-summary{display:block;position:sticky;top:calc(var(--sf-space) * 1.5);align-self:start;border:1px solid var(--border);padding:calc(var(--sf-space) * 1.25)}.sf-checkout-summary-mobile{display:none}}',
+  '.sf-order-layout{display:grid;gap:calc(var(--sf-space) * 2.5);grid-template-columns:minmax(0,1fr)}',
+  '@media (min-width: 64rem){.sf-order-layout{grid-template-columns:minmax(0,1fr) 20rem}}',
   '.sf-root .sf-cart-trigger{color:var(--sf-color-text);border-color:var(--sf-color-border)}',
   '.sf-root .sf-split-text [data-slot=product-buy-box]{margin-block:calc(var(--sf-space) * 1.25)}',
   '.sf-header-actions{display:flex;align-items:center;gap:calc(var(--sf-space) * 0.25);margin-inline-start:auto}',

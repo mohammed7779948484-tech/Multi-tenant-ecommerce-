@@ -3,7 +3,7 @@ import { expect, request as playwrightRequest, type APIRequestContext } from '@p
 import { apiRequest, getAuthToken } from '@open-mercato/core/helpers/integration/api'
 import { createOrganizationInDb, deleteOrganizationInDb, withClient } from '@open-mercato/core/helpers/integration/dbFixtures'
 import { readJsonSafe } from '@open-mercato/core/helpers/integration/generalFixtures'
-import { DEFAULT_THEME_TOKENS } from '../../lib/theme'
+import { DEFAULT_THEME_TOKENS, THEME_PRESETS } from '../../lib/theme'
 
 /**
  * Shared, self-contained fixtures for the shop integration tests: the
@@ -102,7 +102,7 @@ export class ShopFixtures {
    * A second store: a new organization of the same tenant with its own site and
    * theme (the rows `ensureStorefrontSite` would create), removed by `cleanup()`.
    */
-  async secondStore(run: string): Promise<{ organizationId: string; orgCookie: string; siteSlug: string; siteId: string }> {
+  async secondStore(run: string, options: { preset?: keyof typeof THEME_PRESETS } = {}): Promise<{ organizationId: string; orgCookie: string; siteSlug: string; siteId: string }> {
     const organizationId = await createOrganizationInDb({ name: `Store B ${run}`, tenantId: this.session.tenantId })
     const siteSlug = `store-b-${run}`.toLowerCase().slice(0, 40)
     const siteId = randomUUID()
@@ -115,7 +115,7 @@ export class ShopFixtures {
       await client.query(
         `insert into storefront_themes (id, tenant_id, organization_id, site_id, tokens, created_at, updated_at)
          values (gen_random_uuid(), $1, $2, $3, $4::jsonb, now(), now())`,
-        [this.session.tenantId, organizationId, siteId, JSON.stringify(DEFAULT_THEME_TOKENS)],
+        [this.session.tenantId, organizationId, siteId, JSON.stringify({ ...DEFAULT_THEME_TOKENS, ...(options.preset ? { colors: THEME_PRESETS[options.preset], radius: 'lg' } : {}) })],
       )
     })
     this.stores.push({ organizationId, siteId })

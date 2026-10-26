@@ -36,7 +36,7 @@ export async function renderCartPage(siteSlug: string) {
     <>
       <StorefrontJsonLd data={view.head.jsonLd} />
       <StorefrontFrame {...view}>
-        <ShopCartPage title={view.title} shopHref={view.basePath || '/'} />
+        <ShopCartPage title={view.title} shopHref={view.basePath || '/'} checkoutHref={`${view.basePath}/checkout`} />
       </StorefrontFrame>
     </>
   )

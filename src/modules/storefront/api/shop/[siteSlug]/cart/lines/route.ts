@@ -35,6 +35,7 @@ export async function POST(req: Request, context: { params: Promise<{ siteSlug: 
     if (!(await findActiveCart(shop.em, shop.site, tokenHash))) {
       // The previous answer set a cookie this request does not carry: the browser blocks cookies.
       if (!token && req.headers.get(CART_EXPECTED_HEADER) === '1') return errorResponse(400, 'cookiesRequired', undefined, shop.translate)
+      // No active cart behind the cookie (none yet, expired, or already an order): start a new one with a new token.
       ;({ token, hash: tokenHash } = newCartToken())
     }
     await runShopCommand<CartAddLineCommandInput, unknown>(shop, CART_ADD_LINE_COMMAND, { site: shop.site, tokenHash: tokenHash!, ...parsed.data })

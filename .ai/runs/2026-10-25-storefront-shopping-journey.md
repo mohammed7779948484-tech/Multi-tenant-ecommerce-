@@ -98,13 +98,39 @@ PR review fixes (CodeRabbit, 2026-10-26):
 - Integration cleanup reports failed deletions.
 - Gates: typecheck, lint (0 errors), ds:check, unit 219/219, integration 36/36 (includes the build). Local check: the stored value is ciphertext after add, merge, quantity change and edit.
 
+Second review round (2026-10-26) — b91bdd2:
+- Search narrows by text, collection and category in SQL over light columns, up to 2,000 matches (L16 amended); prices, stock and paging run on that set.
+- A selected category always shows as a removable option; a collection page drops a `category` parameter.
+- Arabic-Indic digits work in quantities, the price filter, numeric personalization and listing URLs (`src/lib/digits.ts`).
+- preview-data keeps `price` as text and adds `priceDetail` (backward compatible).
+- Cart writes lock the cart row; merges are checked against stock; lines are priced at their quantity; purchase models load in parallel; PATCH and DELETE renew the cookie.
+- The client ignores an older cart answer; the cart sheet and page show a failed read with a retry; a variant priced in another currency shows that currency.
+- ecomcn MIT notice added (THIRD_PARTY_NOTICES.md).
+- Regression tests: unit (search cap and paging, facets, digits, preview wire, client cart ordering, sheet error, buy-box currency) and TC-STOREFRONT-010 (concurrency, cookie, quantity tiers, WMS tracked stock, a second store, collection filter).
+
 ### Phase 4: Checkout, order placement and tracking
 
-- [ ] 4.1 Yemen regions dataset and checkout options endpoint
-- [ ] 4.2 Yemen-zones shipping provider and the shop-fixtures CLI
-- [ ] 4.3 Quote and placement services, order access, idempotency
-- [ ] 4.4 Checkout page and confirmation
-- [ ] 4.5 Tracking API and page
+- [x] 4.1 Yemen regions dataset and checkout options endpoint
+- [x] 4.2 Yemen-zones shipping provider and the shop-fixtures CLI
+- [x] 4.3 Quote and placement services, order access, idempotency
+- [x] 4.4 Checkout page and confirmation
+- [x] 4.5 Tracking API and page
+
+Phase 4 notes (decisions L20–L26 on the spec branch):
+- Dataset: OCHA COD-AB Yemen v01, 22 governorates and 335 districts (`lib/yemen`), attribution in THIRD_PARTY_NOTICES.md.
+- Delivery: provider `suqna-yemen-zones` registered from `storefront/di.ts`; the destination rides in the order's shipping-method snapshot.
+- Quote = order: the quote runs the live cart lines and both methods through `salesCalculationService`; placement re-quotes with live stock and answers 409 with the new quote on any change.
+- Placement claims the cart, creates the order with `sales.orders.create` outside storefront transactions, then records access (one order per cart; a double submit returns the same order).
+- Order access: token derived from the cart token, SHA-256 at rest, one HttpOnly cookie per order; new table `storefront_order_access` (`Migration20261026033409_storefront`, with a `down`).
+- UI: ecomcn address form (district list follows the governorate), checkout stepper, delivery options, payment selector, order confirmation; shadcn combobox, radio group, field, input group, collapsible. New dependency: `@base-ui/react` (shadcn combobox).
+- Dev data: `yarn mercato storefront shop-fixtures --tenant <id>` adds a sample delivery method.
+- Owner items: personalization on order lines is not encrypted by the sales module (L23 ⚠); record-updating workflows do not run on buyer orders without a user (L26 ⚠).
+- Deployment: run the new migration; existing tenants also need `yarn mercato entities seed-encryption --tenant <id>` (cart personalization, Phase 3 review).
+
+Phase 4 closed (2026-10-26). Exit gate evidence:
+- Gates: generate, typecheck, lint (0 errors, 8 pre-existing warnings), ds:check, unit 248/248, build, integration 50/50 (ephemeral, no retries), `db:generate` probe with no changes.
+- TC-STOREFRONT-011: options and refusals; quote = sales order totals; one order for a double submit; 409 with a new quote after a price change; bank transfer with field errors; another store's methods and token answer like unknown ones; a 390 px buyer flow (classic theme) and a 1280 px flow on a second store (midnight theme) from cart to tracking page, with the governorate list portalled in the themed root and no English UI text.
+- Code review (om-code-review): approve, three minor findings and one nit (direct sales/dictionary reads by scalar id; stale-claim takeover after a failed access write; fixtures command context; checkout file size).
 
 ### Phase 5: Transfer proof and the full journey
 
