@@ -311,7 +311,7 @@ The closest installed references are:
 | `/{site}/search` | Text search, filters (sheet on mobile, sidebar ≥1024 px), sort, paging | Search service; GET form, URL state | — | `Input`, `Select`, `Checkbox`, `Sheet`, `Accordion`, `Pagination`, `Badge` | empty, no results, invalid params clamp | REQ-004 |
 | `/{site}/products/{key}` | Gallery, variant axes, personalization, quantity, add to cart | Product loader; `POST …/cart/lines` | `CatalogViews` | `Carousel`, `ToggleGroup`, `Input`, `Textarea`, `Button`, `Badge`, `Alert` | unavailable, out of stock, no price, submitting, server error | REQ-005 |
 | Cart sheet + `/{site}/cart` | Lines, quantity stepper, edit personalization, remove (confirm), subtotal, checkout | `GET …/cart`, `PATCH/DELETE …/cart/lines/{lineId}` | — | `Sheet`, `Button`, `Input`, `AlertDialog`, `Skeleton`, `Alert` | loading, empty, stale price/stock notices, error | REQ-006 |
-| `/{site}/checkout` | Contact and address, delivery, payment, review, place | `GET …/checkout/options`, `POST …/checkout/quote`, `POST …/checkout/place` | — | `Form` (RHF+Zod), `Input`, `Textarea`, `Command`+`Popover` (searchable selects), `RadioGroup`, `Card`, `Collapsible`, `Alert`, `Button` | empty cart redirect, loading quote, unavailable destination, 409 price change, 422 field errors, submitting | REQ-007, REQ-008 |
+| `/{site}/checkout` | Contact and address, delivery, payment, review, place | `GET …/checkout/options`, `POST …/checkout/quote`, `POST …/checkout/place` | — | ecomcn address form, checkout stepper, delivery options, payment selector; shadcn `Combobox` (searchable selects, L20), `RadioGroup`, `Textarea`, `Collapsible`, `Alert`, `Button` | empty cart redirect, loading quote, unavailable destination, 409 price change, 422 field errors, submitting | REQ-007, REQ-008 |
 | `/{site}/orders/{number}` | Confirmation + tracking, transfer proof form | `GET …/orders/{number}`, `POST …/orders/{number}/proof` | — | `Card`, `Badge`, `Separator`, `Form`, `Input`, `Button`, `Alert` | 404, proof submitted, proof error, upload too large | REQ-009, REQ-010 |
 
 ### UI architecture
@@ -368,7 +368,7 @@ The closest installed references are:
 | `id` | uuid | pk | no | immutable |
 | `tenant_id`, `organization_id`, `site_id` | uuid, required | index (`tenant_id`, `organization_id`, `site_id`) | no | from the store row |
 | `token_hash` | text, required | unique | no (SHA-256 of a 256-bit secret) | set on create |
-| `status` | text: `active` / `converted` | index (`site_id`, `status`) | no | `converted` on placement |
+| `status` | text: `active` / `placing` / `converted` | index (`site_id`, `status`) | no | `placing` while its order is created (L22), `converted` on placement |
 | `currency_code` | text, nullable | — | no | first priced line |
 | `converted_order_id` | uuid, nullable | — | no | sales order id; derived (set in the same transaction as the order-access row) |
 | `expires_at` | timestamptz | index | no | now + 30 days on each write |
@@ -383,7 +383,7 @@ The closest installed references are:
 | `cart_id` | uuid → `storefront_carts` (same module) | index | no | cascade on cart delete |
 | `product_id`, `variant_id` | uuid; variant nullable | — | no | catalog ids, re-validated on every read |
 | `quantity` | int 1–99 | — | no | |
-| `personalization` | jsonb `{ code: string }` | — | buyer free text (non-PII by contract; not encrypted) | validated against the schema |
+| `personalization` | jsonb `{ code: string }` | — | buyer free text; encrypted at rest (`storefront/encryption.ts`, added after PR review) | validated against the schema |
 | `line_key` | text | unique (`cart_id`, `line_key`) | no | hash of product/variant/personalization |
 | `created_at`, `updated_at` | timestamptz | — | no | |
 
@@ -523,7 +523,7 @@ Cart writes are not undoable from the buyer UI; the commands declare `isUndoable
 - **Implementation notes (2026-10-25):**
   - The public catalog rule S-2 is DECISIONS L13; it also governs product images on the media route.
   - Blocks come from the ecomcn registry, adapted in place (L14). The collections index reuses the CollectionList section cards; ecomcn's collection grid holds only three editorial tiles.
-  - Prices are formatted on the server in `ar-YE` (L15). Search reads at most 500 candidates (L16).
+  - Prices are formatted on the server in `ar-YE` (L15). Search narrows by text, collection and category in SQL and reads at most 2,000 matching products (L16, amended after PR review).
   - `orders` joined the reserved page slugs; `yarn mercato storefront reserved-slugs` reports pages that now clash.
 
 ### Phase 3 — Product page and persisted cart
@@ -571,6 +571,15 @@ Cart writes are not undoable from the buyer UI; the commands declare `isUndoable
 - **Requirements closed:** REQ-007, REQ-008, REQ-009; REQ-011 for checkout and orders.
 - **Tests:** TEST-J06, TEST-J07, TEST-J08.
 - **Exit gate:** a guest places COD and transfer orders on two stores; the orders appear in the sales admin with the same totals shown at checkout; a price change answers 409; a double submit makes one order; the confirmation's link opens the tracking page; another store's token is 404.
+
+- **Implementation notes (2026-10-26):**
+  - Dataset: OCHA COD-AB Yemen v01 (valid 2019-11-22), 22 governorates and 335 districts, bundled as `lib/yemen/regions.json` with Arabic names as the dataset spells them; attribution in `THIRD_PARTY_NOTICES.md`.
+  - Delivery provider `suqna-yemen-zones` is registered from `storefront/di.ts`; rates are `{ currencyCode, rates[{ governorate, district?, amount }], defaultAmount? }` on the sales shipping method. Only methods whose rate currency equals the cart's are offered.
+  - The UI uses the ecomcn checkout blocks with shadcn `combobox` (`@base-ui/react`) and `radio-group`, `field`, `input-group`, `collapsible`; no React Hook Form (L20).
+  - Placement claims the cart, creates the order outside storefront transactions, then records access (L22). The order token is derived from the cart token; one order cookie per order (L21).
+  - Personalization reaches the order line's comment and configuration; sales order lines are not encrypted (L23, ⚠). The buyer subtotal is the sum of lines (L24).
+  - Orders are placed as `pending_approval` with payment `pending`; the tracking page labels known status values in Arabic and shows a merchant-added status by its own value.
+  - `storefront shop-fixtures` creates only a development delivery method (L25).
 
 ### Phase 5 — Transfer proof and the full journey
 
@@ -773,3 +782,4 @@ Verdict: Ready for implementation
 | 2026-10-25 | Phase 1 implemented; implementation notes added under Phase 1 (decisions L8–L12) |
 | 2026-10-25 | Phases 2 and 3 implemented; implementation notes under each (decisions L13–L19); deferred dashboard work extended (store price channel, personalization fields, stock badges) |
 | 2026-10-25 | Fresh-context scope review applied: tracking moved into Phase 4 (no dead confirmation link); each phase closes its own isolation and deferred-control checks; migration count, cart routes, idempotency source, placement 409 rule, error codes, reserved-slug report and the builder-preview boundary made consistent |
+| 2026-10-26 | PR review fixes (search in SQL with a 2,000 cap, category filter always removable, Arabic digits, preview-data compatibility, cart concurrency and quantity pricing, encrypted personalization); Phase 4 implemented, notes under Phase 4 (decisions L20–L25) |
