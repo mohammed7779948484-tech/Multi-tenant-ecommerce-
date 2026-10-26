@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import type { AwilixContainer } from 'awilix'
+import { UniqueConstraintViolationException } from '@mikro-orm/core'
 import type { EntityManager } from '@mikro-orm/postgresql'
 import { CatalogProduct } from '@open-mercato/core/modules/catalog/data/entities'
 import { findWithDecryption } from '@open-mercato/shared/lib/encryption/find'
@@ -127,7 +128,17 @@ export async function addCartLine(
   input: { productId: string; variantId?: string | null; quantity: number; personalization?: unknown },
 ): Promise<{ cartId: string; created: boolean }> {
   const purchasable = await resolvePurchasable(deps, site, input, input.quantity)
-  return deps.em.transactional(async (em) => {
+  try {
+    return await writeLine(deps.em, site, tokenHash, input.quantity, purchasable)
+  } catch (err) {
+    // A simultaneous add of the same line (double tap) inserted it first: once more merges into it.
+    if (!(err instanceof UniqueConstraintViolationException)) throw err
+    return writeLine(deps.em.fork(), site, tokenHash, input.quantity, purchasable)
+  }
+}
+
+async function writeLine(rootEm: EntityManager, site: CartSite, tokenHash: string, addQuantity: number, purchasable: Purchasable) {
+  return rootEm.transactional(async (em) => {
     const now = new Date()
     let cart = await findActiveCart(em, site, tokenHash, now)
     const created = !cart
@@ -135,7 +146,7 @@ export async function addCartLine(
     if (cart?.currencyCode && lines.length && cart.currencyCode !== purchasable.price.currencyCode) throw new ShopError(422, 'currencyMismatch')
     const lineKey = lineKeyOf(purchasable.product.id, purchasable.variantId, purchasable.personalization)
     const existing = lines.find((line) => line.lineKey === lineKey)
-    const quantity = (existing?.quantity ?? 0) + input.quantity
+    const quantity = (existing?.quantity ?? 0) + addQuantity
     if (quantity > MAX_LINE_QUANTITY) throw new ShopError(422, 'quantityLimit')
     if (purchasable.stock?.available !== null && purchasable.stock?.available !== undefined && quantity > purchasable.stock.available) throw new ShopError(422, 'unavailable')
     if (!existing && lines.length >= MAX_CART_LINES) throw new ShopError(422, 'lineLimit')

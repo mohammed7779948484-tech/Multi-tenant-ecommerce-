@@ -20,8 +20,15 @@ import { shopTranslations, type ShopTranslate } from './shopLocale'
 
 const logger = createLogger('storefront').child({ component: 'shop-route' })
 
-/** Writes per IP and store per minute; generous enough for a buyer, tight enough for a script. */
+/** Writes per buyer (IP, else cart) and store per minute; generous enough for a buyer, tight enough for a script. */
 const WRITE_LIMIT = { points: 120, duration: 60, keyPrefix: 'storefront-shop-write' }
+/**
+ * Without a trusted proxy depth the client IP is unknown. Buyers are then told
+ * apart by their cart token; first writes (no cart yet) share one per-store
+ * bucket with a higher ceiling, so one busy store never throttles every buyer
+ * at 120 a minute. Production should set the trusted proxy depth.
+ */
+const NEW_CART_LIMIT = { points: 600, duration: 60, keyPrefix: 'storefront-shop-new-cart' }
 
 /** Set by the client after an answer set the cart cookie: a later write without the cookie means cookies are blocked. */
 export const CART_EXPECTED_HEADER = 'x-sf-cart-expected'
@@ -93,8 +100,9 @@ export async function guardShopWrite(req: Request, shop: ShopRequest): Promise<N
     limiter = null
   }
   if (!limiter) return null
-  const ip = getClientIp(req, limiter.trustProxyDepth) ?? 'unknown'
-  return checkRateLimit(limiter, WRITE_LIMIT, `${shop.site.id}:${ip}`, shop.translate('storefront.shop.errors.rateLimited', 'Too many requests. Try again in a minute.'), {
+  const ip = getClientIp(req, limiter.trustProxyDepth)
+  const [config, buyerKey] = ip ? [WRITE_LIMIT, `ip:${ip}`] : shop.tokenHash ? [WRITE_LIMIT, `cart:${shop.tokenHash}`] : [NEW_CART_LIMIT, 'new-cart']
+  return checkRateLimit(limiter, config, `${shop.site.id}:${buyerKey}`, shop.translate('storefront.shop.errors.rateLimited', 'Too many requests. Try again in a minute.'), {
     failClosed: true,
     unavailableMessage: shop.translate('storefront.shop.errors.busy', 'The store is busy. Try again in a moment.'),
   })
