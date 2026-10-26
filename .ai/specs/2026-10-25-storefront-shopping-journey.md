@@ -520,6 +520,12 @@ Cart writes are not undoable from the buyer UI; the commands declare `isUndoable
 - **Tests:** TEST-J03, TEST-J02 (search/category).
 - **Exit gate:** search with q/category/price/in-stock/sort/page returns correct, scoped results on two stores; empty states shown.
 
+- **Implementation notes (2026-10-25):**
+  - The public catalog rule S-2 is DECISIONS L13; it also governs product images on the media route.
+  - Blocks come from the ecomcn registry, adapted in place (L14). The collections index reuses the CollectionList section cards; ecomcn's collection grid holds only three editorial tiles.
+  - Prices are formatted on the server in `ar-YE` (L15). Search reads at most 500 candidates (L16).
+  - `orders` joined the reserved page slugs; `yarn mercato storefront reserved-slugs` reports pages that now clash.
+
 ### Phase 3 — Product page and persisted cart
 
 - **Depends on:** Phase 2.
@@ -536,6 +542,13 @@ Cart writes are not undoable from the buyer UI; the commands declare `isUndoable
 - **Requirements closed:** REQ-005, REQ-006; REQ-011 for cart ids (foreign line ids 404).
 - **Tests:** TEST-J04, TEST-J05.
 - **Exit gate:** on two stores a buyer adds a configured personalized product, edits and removes lines, and reloads with the cart intact; foreign ids are 404; prices come from the server.
+
+- **Implementation notes (2026-10-25):**
+  - Cart tables come from one additive migration (`Migration20261025230155_storefront`, with a `down`). Lines reference the cart by scalar id; expired carts are purged in batches of 50 when a new cart is created.
+  - The cart cookie is `sf_cart_<12 hex of the site id>`, HttpOnly, SameSite=Lax, 30 days, path `/`; the per-site name keeps carts apart. Writes check Origin and are rate-limited per IP and store (120 per minute, fail closed).
+  - A simple product with variants but no axes sells its default variant; a configurable product needs an active variant.
+  - Add-to-cart names the missing step instead of being disabled; line removal uses ecomcn's undo bar instead of a confirmation dialog (L17). Cart commands are not audited (L18).
+  - The cart sheet's checkout button is not rendered (no checkout action yet); the sheet links to `/{site}/cart`.
 
 ### Phase 4 — Checkout, order placement and tracking
 
@@ -709,6 +722,9 @@ Each buyer feature here that needs merchant UI later:
 | Buyer order statuses | Mapping of order/fulfilment statuses to buyer-visible Arabic labels | Status dictionaries | `sales.settings.manage` | — |
 | Public catalog control | Per-product "hidden from store" or per-store assortment beyond `isActive` | catalog | `catalog.products.manage` | S-2 |
 | Abandoned carts | List and analytics | `storefront_carts` | `storefront.view` | Phase 3 |
+| Store prices without a channel | Choose the sales channel (or price kind) store prices come from; today only channel-less prices reach buyers, and the seeded example prices are all channel-bound | catalog prices, site settings | `storefront.brand.manage`, `catalog.products.manage` | Phase 2 |
+| Personalization fields | Edit a product's buyer fields (label, required, length) in Arabic in the product form; today they are option-schema `text`/`textarea`/`number` options | `CatalogOptionSchemaTemplate.schema` | `catalog.products.manage` | Phase 3 |
+| Stock badges | Low-stock threshold per store ("only a few left"); today the availability provider's `low_stock` state | availability policy | `catalog.products.manage` | Phase 2 |
 | Store language | Later languages (English, Kurdish) | site settings | `storefront.brand.manage` | Locale work |
 
 ## Acceptance Criteria
@@ -755,4 +771,5 @@ Verdict: Ready for implementation
 |---|---|
 | 2026-10-25 | Initial specification (autonomous, owner brief of 2026-10-25) |
 | 2026-10-25 | Phase 1 implemented; implementation notes added under Phase 1 (decisions L8–L12) |
+| 2026-10-25 | Phases 2 and 3 implemented; implementation notes under each (decisions L13–L19); deferred dashboard work extended (store price channel, personalization fields, stock badges) |
 | 2026-10-25 | Fresh-context scope review applied: tracking moved into Phase 4 (no dead confirmation link); each phase closes its own isolation and deferred-control checks; migration count, cart routes, idempotency source, placement 409 rule, error codes, reserved-slug report and the builder-preview boundary made consistent |
