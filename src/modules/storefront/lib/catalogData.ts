@@ -68,9 +68,9 @@ export function storeCatalogLinks(basePath: string): CatalogLinks {
 
 export type CatalogDataDeps = { em: EntityManager; container: AwilixContainer }
 
-/** Anonymous buyer: no channel, customer, user or group, one unit, now. */
-export function anonymousPricingContext(now = new Date()): PricingContext {
-  return { channelId: null, offerId: null, userId: null, userGroupId: null, customerId: null, customerGroupId: null, quantity: 1, date: now }
+/** Anonymous buyer: no channel, customer, user or group, `quantity` units (one by default), now. */
+export function anonymousPricingContext(now = new Date(), quantity = 1): PricingContext {
+  return { channelId: null, offerId: null, userId: null, userGroupId: null, customerId: null, customerGroupId: null, quantity, date: now }
 }
 
 /** A resolved price as the buyer sees it: the amount (gross when set, else net), its currency and the Arabic text. */
@@ -229,12 +229,13 @@ export async function productPrices(deps: CatalogDataDeps, scope: CatalogScope, 
 /**
  * Price of each purchasable target of one product through the platform pricing
  * engine: a variant gets its own rows plus the product's, the product itself
- * (key `''`) its product-level rows. Missing keys have no price.
+ * (key `''`) its product-level rows. Missing keys have no price. `quantity`
+ * selects quantity tiers (`minQuantity`/`maxQuantity`), as an order line would.
  */
-export async function purchasePrices(deps: CatalogDataDeps, scope: CatalogScope, productId: string, variantIds: string[]): Promise<Map<string, ShopPrice>> {
+export async function purchasePrices(deps: CatalogDataDeps, scope: CatalogScope, productId: string, variantIds: string[], quantity = 1): Promise<Map<string, ShopPrice>> {
   const result = new Map<string, ShopPrice>()
   const { em, container } = deps
-  const context = anonymousPricingContext()
+  const context = anonymousPricingContext(new Date(), quantity)
   const where = variantIds.length ? { $or: [{ product: productId }, { variant: { $in: variantIds } }] } : { product: productId }
   const rows = (await findWithDecryption<CatalogProductPrice>(
     em,

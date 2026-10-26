@@ -620,7 +620,7 @@
   "storefront.shop.cart.editTitle": "Your details for {name}",
   "storefront.shop.cart.empty": "Your cart is empty.",
   "storefront.shop.cart.goneProduct": "A product that is no longer sold",
-  "storefront.shop.cart.loadFailed": "Your cart could not be loaded. Refresh the page to try again.",
+  "storefront.shop.cart.loadFailed": "Your cart could not be loaded.",
   "storefront.shop.cart.loading": "Loading your cart",
   "storefront.shop.cart.note": "Delivery is priced at checkout for your address.",
   "storefront.shop.cart.pageTitle": "Your cart",
@@ -663,5 +663,6 @@
   "ecomcn.cart.close": "Close",
   "storefront.shop.cart.closeDialog": "Close",
   "ecomcn.filters.close": "Close",
-  "ecomcn.cartLine.each": "{price} each"
+  "ecomcn.cartLine.each": "{price} each",
+  "storefront.shop.cart.retry": "Try again"
 }

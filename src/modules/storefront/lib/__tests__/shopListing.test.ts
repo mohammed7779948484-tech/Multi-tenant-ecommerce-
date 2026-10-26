@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals'
 import type { CatalogProduct, CatalogProductCategory } from '@open-mercato/core/modules/catalog/data/entities'
 import { COLLECTION_SORTS, SEARCH_SORTS, listingHref, parseListingQuery } from '../shopListingQuery'
-import { dominantCurrency, priceFacet, selectedTree, sortProducts, textFilter } from '../shopCatalog'
+import { categoryFacetOptions, dominantCurrency, priceFacet, selectedTree, sortProducts, textFilter } from '../shopCatalog'
 import { formatShopNumber, formatShopPrice, shopCountLabel } from '../shopFormat'
 import { visiblePages } from '../../components/shop/ShopListingViews'
 import type { ShopPrice } from '../catalogData'
@@ -111,5 +111,43 @@ describe('TEST-J03 Arabic numbers and pages', () => {
     expect(visiblePages(1, 1)).toEqual([1])
     expect(visiblePages(5, 10)).toEqual([1, 'gap', 4, 5, 6, 'gap', 10])
     expect(visiblePages(2, 4)).toEqual([1, 2, 3, 4])
+  })
+})
+
+describe('listing URL with Arabic digits', () => {
+  it('reads a price range and page typed with Arabic-Indic digits', () => {
+    const query = parseListingQuery({ price: '١٠-٥٠٫٥', page: '٢' }, { sorts: SEARCH_SORTS })
+    expect(query.price).toEqual({ min: 10, max: 50.5 })
+    expect(query.page).toBe(2)
+  })
+})
+
+describe('category filter options always show what the URL selects', () => {
+  const category = (id: string, slug: string | null, depth: number, descendantIds: string[] = []) =>
+    ({ id, slug, name: `name-${id}`, depth, descendantIds }) as unknown as CatalogProductCategory
+  // Roots have depth 0; the facet lists two levels.
+  const categories = [category('c1', 'coffee', 0, ['c2', 'c4']), category('c2', 'arabica', 1, ['c4']), category('c4', 'mocha', 2), category('c3', null, 0)]
+  const counts: Record<string, number> = { c1: 4, c2: 0, c4: 2, c3: 0 }
+  const countIn = (tree: Set<string>) => [...tree].reduce((sum, id) => sum + (counts[id] ?? 0), 0)
+
+  it('lists the first two levels with products', () => {
+    expect(categoryFacetOptions(categories, [], countIn)).toEqual([
+      { value: 'coffee', label: 'name-c1', count: 6 },
+      { value: 'arabica', label: 'name-c2', count: 2 },
+    ])
+  })
+
+  it('adds a selected deeper category, a selected empty category and an unknown key, so each can be removed', () => {
+    expect(categoryFacetOptions(categories, ['mocha', 'c3', 'gone'], countIn)).toEqual([
+      { value: 'coffee', label: 'name-c1', count: 6 },
+      { value: 'arabica', label: 'name-c2', count: 2 },
+      { value: 'c3', label: 'name-c3', count: 0 },
+      { value: 'mocha', label: 'name-c4', count: 2 },
+      { value: 'gone', label: 'gone', count: 0 },
+    ])
+  })
+
+  it("keeps the URL's own key when a category is selected by id", () => {
+    expect(categoryFacetOptions(categories, ['c1'], countIn)[0]).toEqual({ value: 'c1', label: 'name-c1', count: 6 })
   })
 })

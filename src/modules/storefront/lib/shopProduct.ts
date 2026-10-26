@@ -50,7 +50,12 @@ async function optionSchemaOf(em: EntityManager, scope: ShopScope, product: Cata
   return (product.metadata as Record<string, unknown> | null | undefined)?.optionSchema ?? null
 }
 
-export async function loadPurchaseModel(deps: Deps, scope: ShopScope, product: CatalogProduct, options: { bypassCache?: boolean } = {}): Promise<PurchaseModel> {
+/**
+ * `quantity` prices the product as a line of that many units (quantity tiers)
+ * and asks stock for that many; the product page uses one.
+ */
+export async function loadPurchaseModel(deps: Deps, scope: ShopScope, product: CatalogProduct, options: { bypassCache?: boolean; quantity?: number } = {}): Promise<PurchaseModel> {
+  const quantity = options.quantity ?? 1
   const { em, container } = deps
   const { axes, fields } = readOptionDefinitions(await optionSchemaOf(em, scope, product))
   const rows = await findWithDecryption(
@@ -66,11 +71,11 @@ export async function loadPurchaseModel(deps: Deps, scope: ShopScope, product: C
   const implicit = !configurable && refs.length ? refs[0]!.id : null
 
   const quoteOnly = Boolean(product.isQuoteOnly)
-  const prices = quoteOnly ? new Map<string, ShopPrice>() : await purchasePrices(deps, scope, product.id, refs.map((ref) => ref.id))
+  const prices = quoteOnly ? new Map<string, ShopPrice>() : await purchasePrices(deps, scope, product.id, refs.map((ref) => ref.id), quantity)
   const stock = await resolveShopAvailability(
     container,
     scope,
-    [{ productId: product.id, variantId: implicit }, ...(configurable ? refs.map((ref) => ({ productId: product.id, variantId: ref.id })) : [])],
+    [{ productId: product.id, variantId: implicit, quantity }, ...(configurable ? refs.map((ref) => ({ productId: product.id, variantId: ref.id, quantity })) : [])],
     { bypassCache: options.bypassCache },
   )
   // From-price before a pick: the product's own price, else its cheapest variant.

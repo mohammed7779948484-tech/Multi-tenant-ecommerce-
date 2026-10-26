@@ -95,6 +95,8 @@ export interface CartSheetContextValue {
   viewBagHref?: string
   empty: React.ReactNode
   loading: boolean
+  /** Shown instead of the lines when the bag could not be read (a message and a retry). */
+  error: React.ReactNode
   /** The bag button's accessible name for a count; languages differ in plural forms. */
   countLabel?: (count: number) => string
 }
@@ -154,6 +156,8 @@ export interface CartSheetProps {
   /** What an empty bag says — a "Continue shopping" link, say. */
   empty?: React.ReactNode
   loading?: boolean
+  /** Set when the bag could not be read: shown in place of the lines, so a failure never reads as an empty bag. */
+  error?: React.ReactNode
   countLabel?: (count: number) => string
   /** Trigger and content parts. Omit for the default layout. */
   children?: React.ReactNode
@@ -178,6 +182,7 @@ export function CartSheet({
   empty,
   countLabel,
   loading = false,
+  error = null,
   children,
 }: CartSheetProps) {
   const t = useT()
@@ -229,9 +234,10 @@ export function CartSheet({
       viewBagHref,
       empty: empty ?? <p className="text-sm text-muted-foreground">{t("ecomcn.cart.nothingYet", "Nothing in it yet.")}</p>,
       loading,
+      error,
       countLabel,
     }),
-    [lines, count, subtotal, formatMoney, currency, locale, open, setOpen, freeShippingThreshold, title, note, checkoutLabel, onCheckout, viewBagHref, empty, loading, countLabel, t]
+    [lines, count, subtotal, formatMoney, currency, locale, open, setOpen, freeShippingThreshold, title, note, checkoutLabel, onCheckout, viewBagHref, empty, loading, error, countLabel, t]
   )
   const internals = React.useMemo<Internals>(
     () => ({ onQuantityChange, onRemove, onSaveForLater, preview, originRef, closing, finishClose }),
@@ -385,7 +391,7 @@ export function CartSheetContent({ className, children }: { className?: string; 
 /** The lines: the only part of the sheet that scrolls, with soft edges instead of a scrollbar. */
 export function CartSheetLines({ className }: { className?: string }) {
   const t = useT()
-  const { lines, currency, locale, empty, loading } = useCartSheet()
+  const { lines, currency, locale, empty, loading, error } = useCartSheet()
   const { onQuantityChange, onRemove, onSaveForLater, preview } = useInternals()
   const [scroller, edges] = useOverflow()
 
@@ -402,6 +408,10 @@ export function CartSheetLines({ className }: { className?: string }) {
               <CartLineItem key={i} line={{ id: String(i), name: "", unitPrice: 0, quantity: 1 }} density="compact" loading />
             ))}
           </ul>
+        ) : error ? (
+          <div data-slot="cart-sheet-error" role="alert" className="py-10">
+            {error}
+          </div>
         ) : lines.length ? (
           <ul>
             {lines.map((line) => (
@@ -451,10 +461,10 @@ function EdgeFade({ side, visible }: { side: "top" | "bottom"; visible: boolean 
  */
 export function CartSheetFooter({ className }: { className?: string }) {
   const t = useT()
-  const { lines, subtotal, formatMoney, freeShippingThreshold, note, checkoutLabel, onCheckout, viewBagHref, setOpen, loading } =
+  const { lines, subtotal, formatMoney, freeShippingThreshold, note, checkoutLabel, onCheckout, viewBagHref, setOpen, loading, error } =
     useCartSheet()
   const reduce = useReducedMotion()
-  if (!lines.length && !loading) return null
+  if ((!lines.length && !loading) || error) return null
   const left = freeShippingThreshold !== undefined ? Math.max(0, freeShippingThreshold - subtotal) : undefined
   const share = freeShippingThreshold ? Math.min(1, subtotal / freeShippingThreshold) : 0
 

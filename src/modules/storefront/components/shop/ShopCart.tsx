@@ -5,6 +5,7 @@ import { ShoppingBag } from 'lucide-react'
 import { apiCall } from '@open-mercato/ui/backend/utils/apiCall'
 import { useT } from '@open-mercato/shared/lib/i18n/context'
 import { CartSheet, CartSheetContent, CartSheetTrigger } from '@/components/ecomcn/cart-sheet'
+import { Button } from '@/components/ui/button'
 import type { CartLine } from '@/components/ecomcn/cart-line-item'
 import type { CartLineView, CartView } from '../../lib/shopCart'
 import { formatShopNumber, SHOP_NUMBER_LOCALE, shopCountLabel } from '../../lib/shopFormat'
@@ -35,8 +36,10 @@ type ShopCartContextValue = {
   cart: CartView
   /** False until the first read answered. */
   ready: boolean
-  /** Set when the cart could not be read; the count is hidden. */
+  /** Set when the cart could not be read; the count is hidden and the sheet offers a retry. */
   failed: boolean
+  /** Reads the cart again (the retry after a failed read). */
+  reload: () => Promise<void>
   open: boolean
   setOpen: (open: boolean) => void
   add: (input: AddLineInput) => Promise<void>
@@ -61,9 +64,13 @@ export function ShopCartProvider({ siteSlug, children }: { siteSlug: string; chi
   const [open, setOpen] = React.useState(false)
   // Once an answer set the cart cookie, a later write without it means cookies are blocked.
   const cookieSet = React.useRef(false)
+  // Answers can arrive out of order (a slow first read after a quick add): only a newer request's answer is shown.
+  const issued = React.useRef(0)
+  const shown = React.useRef(0)
 
   const request = React.useCallback(
     async (path: string, init: RequestInit = {}) => {
+      const sequence = ++issued.current
       const headers: Record<string, string> = { 'x-om-unauthorized-redirect': '0', 'content-type': 'application/json' }
       if (cookieSet.current) headers['x-sf-cart-expected'] = '1'
       const call = await apiCall<CartView & { error?: string; code?: string; fieldErrors?: Record<string, string> }>(`${base}${path}`, {
@@ -76,28 +83,38 @@ export function ShopCartProvider({ siteSlug, children }: { siteSlug: string; chi
         throw new ShopCartError(body?.error ?? t('storefront.shop.errors.failed', 'Something went wrong. Try again.'), body?.code ?? null, body?.fieldErrors ?? {})
       }
       if (init.method && init.method !== 'GET') cookieSet.current = true
-      setCart(body)
+      if (sequence > shown.current) {
+        shown.current = sequence
+        setCart(body)
+        setFailed(false)
+      }
       return body
     },
     [base, t],
   )
 
-  React.useEffect(() => {
-    let alive = true
-    request('')
-      .then(() => alive && setFailed(false))
-      .catch(() => alive && setFailed(true))
-      .finally(() => alive && setReady(true))
-    return () => {
-      alive = false
+  const reload = React.useCallback(async () => {
+    const sequence = issued.current + 1
+    try {
+      await request('')
+    } catch {
+      // A failed read only matters when nothing newer answered meanwhile.
+      if (shown.current < sequence) setFailed(true)
+    } finally {
+      setReady(true)
     }
   }, [request])
+
+  React.useEffect(() => {
+    void reload()
+  }, [reload])
 
   const value = React.useMemo<ShopCartContextValue>(
     () => ({
       cart,
       ready,
       failed,
+      reload,
       open,
       setOpen,
       add: async (input) => {
@@ -111,7 +128,7 @@ export function ShopCartProvider({ siteSlug, children }: { siteSlug: string; chi
         await request(`/lines/${encodeURIComponent(lineId)}`, { method: 'DELETE' })
       },
     }),
-    [cart, ready, failed, open, request],
+    [cart, ready, failed, reload, open, request],
   )
   return <ShopCartContext.Provider value={value}>{children}</ShopCartContext.Provider>
 }
@@ -147,7 +164,7 @@ export function toCartLine(line: CartLineView, t: ReturnType<typeof useT>): Cart
 /** The header bag button with the cart sheet (opens from the end edge: left in Arabic). */
 export function StoreCartSheet({ cartHref, shopHref }: { cartHref: string; shopHref: string }) {
   const t = useT()
-  const { cart, ready, failed, open, setOpen, update, remove } = useShopCart()
+  const { cart, ready, failed, reload, open, setOpen, update, remove } = useShopCart()
   const lines = React.useMemo(() => cart.lines.map((line) => toCartLine(line, t)), [cart.lines, t])
   return (
     <CartSheet
@@ -163,6 +180,16 @@ export function StoreCartSheet({ cartHref, shopHref }: { cartHref: string; shopH
       title={t('storefront.shop.cart.title', 'Your cart')}
       note={t('storefront.shop.cart.note', 'Delivery is priced at checkout for your address.')}
       loading={!ready}
+      error={
+        failed ? (
+          <div className="flex flex-col items-start gap-3">
+            <p className="text-sm">{t('storefront.shop.cart.loadFailed', 'Your cart could not be loaded.')}</p>
+            <Button type="button" variant="outline" size="sm" onClick={() => void reload()}>
+              {t('storefront.shop.cart.retry', 'Try again')}
+            </Button>
+          </div>
+        ) : null
+      }
       empty={
         <a href={shopHref} className="text-sm underline underline-offset-4">
           {t('storefront.shop.cart.continue', 'Continue shopping')}

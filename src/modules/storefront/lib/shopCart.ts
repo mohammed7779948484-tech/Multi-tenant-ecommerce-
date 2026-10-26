@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import type { AwilixContainer } from 'awilix'
-import { UniqueConstraintViolationException } from '@mikro-orm/core'
+import { LockMode, UniqueConstraintViolationException } from '@mikro-orm/core'
 import type { EntityManager } from '@mikro-orm/postgresql'
 import { CatalogProduct } from '@open-mercato/core/modules/catalog/data/entities'
 import { findOneWithDecryption, findWithDecryption } from '@open-mercato/shared/lib/encryption/find'
@@ -58,9 +58,18 @@ function scopeOf(site: CartSite) {
   return { tenantId: site.tenantId, organizationId: site.organizationId }
 }
 
-export async function findActiveCart(em: EntityManager, site: CartSite, tokenHash: string | null, now = new Date()): Promise<StorefrontCart | null> {
+/**
+ * The active cart behind a token. `lock` (inside a transaction) takes the cart
+ * row `FOR UPDATE`, so writes to one cart run one after another: two taps on
+ * "add" both count, and an edit sees the quantity the previous write left.
+ */
+export async function findActiveCart(em: EntityManager, site: CartSite, tokenHash: string | null, now = new Date(), options: { lock?: boolean } = {}): Promise<StorefrontCart | null> {
   if (!tokenHash) return null
-  return em.findOne(StorefrontCart, { tokenHash, siteId: site.id, ...scopeOf(site), status: 'active', expiresAt: { $gt: now } })
+  return em.findOne(
+    StorefrontCart,
+    { tokenHash, siteId: site.id, ...scopeOf(site), status: 'active', expiresAt: { $gt: now } },
+    options.lock ? { lockMode: LockMode.PESSIMISTIC_WRITE } : undefined,
+  )
 }
 
 function lineKeyOf(productId: string, variantId: string | null, personalization: Record<string, string>): string {
@@ -102,8 +111,13 @@ async function resolvePurchasable(deps: Deps, site: CartSite, input: { productId
     throw new ShopError(422, 'personalizationInvalid', fieldErrors)
   }
   if (model.quoteOnly || !price) throw new ShopError(422, 'noPrice')
-  if (stock && (!stock.canFulfil || (stock.available !== null && quantity > stock.available))) throw new ShopError(422, 'unavailable')
+  if (stock && (!stock.canFulfil || exceedsStock(stock, quantity))) throw new ShopError(422, 'unavailable')
   return { product, variantId, personalization: personalization.value, price, stock }
+}
+
+/** True when stock is tracked and `quantity` units are more than it has. */
+function exceedsStock(stock: PurchaseStock | null, quantity: number): boolean {
+  return stock !== null && stock.available !== null && quantity > stock.available
 }
 
 /** Each new cart deletes at most a batch of this store's expired carts (no scheduler needed). */
@@ -140,7 +154,7 @@ export async function addCartLine(
 async function writeLine(rootEm: EntityManager, site: CartSite, tokenHash: string, addQuantity: number, purchasable: Purchasable) {
   return rootEm.transactional(async (em) => {
     const now = new Date()
-    let cart = await findActiveCart(em, site, tokenHash, now)
+    let cart = await findActiveCart(em, site, tokenHash, now, { lock: true })
     const created = !cart
     const lines = cart ? await findWithDecryption(em, StorefrontCartLine, { cartId: cart.id, ...scopeOf(site) }, undefined, scopeOf(site)) : []
     if (cart?.currencyCode && lines.length && cart.currencyCode !== purchasable.price.currencyCode) throw new ShopError(422, 'currencyMismatch')
@@ -148,7 +162,7 @@ async function writeLine(rootEm: EntityManager, site: CartSite, tokenHash: strin
     const existing = lines.find((line) => line.lineKey === lineKey)
     const quantity = (existing?.quantity ?? 0) + addQuantity
     if (quantity > MAX_LINE_QUANTITY) throw new ShopError(422, 'quantityLimit')
-    if (purchasable.stock?.available !== null && purchasable.stock?.available !== undefined && quantity > purchasable.stock.available) throw new ShopError(422, 'unavailable')
+    if (exceedsStock(purchasable.stock, quantity)) throw new ShopError(422, 'unavailable')
     if (!existing && lines.length >= MAX_CART_LINES) throw new ShopError(422, 'lineLimit')
     if (!cart) {
       await purgeExpiredCarts(em, site, now)
@@ -178,30 +192,34 @@ async function writeLine(rootEm: EntityManager, site: CartSite, tokenHash: strin
 }
 
 async function lineOf(em: EntityManager, site: CartSite, tokenHash: string | null, lineId: string, now: Date) {
-  const cart = await findActiveCart(em, site, tokenHash, now)
+  const cart = await findActiveCart(em, site, tokenHash, now, { lock: true })
   const line = cart && isUuid(lineId) ? await findOneWithDecryption(em, StorefrontCartLine, { id: lineId, cartId: cart.id, ...scopeOf(site) }, undefined, scopeOf(site)) : null
   // Another browser's or another store's line answers like an unknown one.
   if (!cart || !line) throw new ShopError(404, 'lineNotFound')
   return { cart, line }
 }
 
-/** Changes a line's quantity and/or personalization; an edit that makes it equal to another line merges them. */
+/**
+ * Changes a line's quantity and/or personalization; an edit that makes it equal
+ * to another line merges them. The line is read under the cart lock and the
+ * final quantity (merged lines included) is checked against stock.
+ */
 export async function updateCartLine(deps: Deps, site: CartSite, tokenHash: string | null, lineId: string, input: { quantity?: number; personalization?: unknown }) {
-  const now = new Date()
-  const { line: current } = await lineOf(deps.em, site, tokenHash, lineId, now)
-  const quantity = input.quantity ?? current.quantity
-  const purchasable = await resolvePurchasable(
-    deps,
-    site,
-    { productId: current.productId, variantId: current.variantId, personalization: input.personalization ?? current.personalization },
-    quantity,
-  )
   return deps.em.transactional(async (em) => {
+    const now = new Date()
     const { cart, line } = await lineOf(em, site, tokenHash, lineId, now)
+    const quantity = input.quantity ?? line.quantity
+    const purchasable = await resolvePurchasable(
+      { ...deps, em },
+      site,
+      { productId: line.productId, variantId: line.variantId, personalization: input.personalization ?? line.personalization },
+      quantity,
+    )
     const lineKey = lineKeyOf(line.productId, line.variantId ?? null, purchasable.personalization)
     const twin = lineKey === line.lineKey ? null : await findOneWithDecryption(em, StorefrontCartLine, { cartId: cart.id, lineKey, ...scopeOf(site) }, undefined, scopeOf(site))
     const merged = quantity + (twin?.quantity ?? 0)
     if (merged > MAX_LINE_QUANTITY) throw new ShopError(422, 'quantityLimit')
+    if (exceedsStock(purchasable.stock, merged)) throw new ShopError(422, 'unavailable')
     if (twin) {
       twin.quantity = merged
       twin.updatedAt = now
@@ -278,8 +296,17 @@ export async function buildCartView(deps: Deps, site: CartSite, cart: Storefront
   const products = new Map(
     (await findWithDecryption(deps.em, CatalogProduct, { id: { $in: productIds }, ...scope, deletedAt: null }, undefined, scope)).map((product) => [product.id, product]),
   )
-  const models = new Map<string, PurchaseModel>()
-  for (const product of products.values()) if (product.isActive) models.set(product.id, await loadPurchaseModel(deps, scope, product))
+  // One purchase model per product and line quantity (quantity tiers), loaded side by side on forked managers.
+  const modelKey = (productId: string, quantity: number) => `${productId}|${quantity}`
+  const wanted = [...new Map(lines.filter((line) => products.get(line.productId)?.isActive).map((line) => [modelKey(line.productId, line.quantity), line])).values()]
+  const models = new Map<string, PurchaseModel>(
+    await Promise.all(
+      wanted.map(async (line) => {
+        const model = await loadPurchaseModel({ ...deps, em: deps.em.fork() }, scope, products.get(line.productId)!, { quantity: line.quantity })
+        return [modelKey(line.productId, line.quantity), model] as const
+      }),
+    ),
+  )
   const images = await productImages(deps.em, scope, [...products.values()])
   const links = storeCatalogLinks(`/${site.slug}`)
 
@@ -287,7 +314,7 @@ export async function buildCartView(deps: Deps, site: CartSite, cart: Storefront
   let count = 0
   const views = lines.map((line): CartLineView => {
     const product = products.get(line.productId)
-    const model = models.get(line.productId)
+    const model = models.get(modelKey(line.productId, line.quantity))
     const issues: CartLineIssue[] = []
     const variant = model?.configurable ? model.variants.find((row) => row.id === line.variantId) : null
     const target = model ? (model.configurable ? variant : line.variantId === model.base.variantId ? model.base : null) : null

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useT } from "@open-mercato/shared/lib/i18n/context"
 
+import { digitsOnly } from "@/lib/digits"
 import { cn } from "@/lib/utils"
 
 /*
@@ -522,7 +523,7 @@ export function CartLineItemQuantity({ className }: { className?: string }) {
         pattern="[0-9]*"
         disabled={loading}
         value={typed ?? String(quantity)}
-        onChange={(event) => setTyped(event.target.value.replace(/\D/g, "").slice(0, 2))}
+        onChange={(event) => setTyped(digitsOnly(event.target.value).slice(0, 2))}
         onBlur={commit}
         onKeyDown={(event) => {
           if (event.key === "Enter") commit()

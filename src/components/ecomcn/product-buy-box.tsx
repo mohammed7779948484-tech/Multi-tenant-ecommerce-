@@ -16,6 +16,7 @@ import {
 } from "@/components/ecomcn/variant-swatches"
 import { useT } from "@open-mercato/shared/lib/i18n/context"
 
+import { digitsOnly } from "@/lib/digits"
 import { cn } from "@/lib/utils"
 
 /*
@@ -46,6 +47,8 @@ export interface BuyBoxVariant extends Variant {
   /** This variant's price, when it differs from the product's. */
   price?: number
   compareAt?: number
+  /** The currency of this variant's price, when it differs from the box's `currency`. */
+  currency?: string
 }
 
 export interface BuyBoxProduct {
@@ -205,7 +208,7 @@ export interface ProductBuyBoxProps
 
 export function ProductBuyBox({
   product,
-  currency = "USD",
+  currency: baseCurrency = "USD",
   locale: localeProp,
   value: valueProp,
   defaultValue = {},
@@ -258,6 +261,8 @@ export function ProductBuyBox({
   const maxQuantity = Math.max(1, Math.min(maxQuantityProp, stockCap))
   const clampedQuantity = Math.min(Math.max(1, quantity), maxQuantity)
   const unitPrice = variant?.price ?? product.price
+  // A variant priced in its own currency shows that currency, never the product's.
+  const currency = variant?.price !== undefined && variant.currency ? variant.currency : baseCurrency
   const compareAt = variant?.price !== undefined ? variant.compareAt : (variant?.compareAt ?? product.compareAt)
 
   const formatMoney = React.useMemo(() => {
@@ -524,7 +529,7 @@ export function ProductBuyBoxQuantity({ className, ...props }: React.HTMLAttribu
         pattern="[0-9]*"
         disabled={off}
         value={draft ?? String(quantity)}
-        onChange={(event) => setDraft(event.target.value.replace(/\D/g, "").slice(0, 3))}
+        onChange={(event) => setDraft(digitsOnly(event.target.value).slice(0, 3))}
         onBlur={commit}
         onKeyDown={(event) => {
           if (event.key === "Enter") commit()

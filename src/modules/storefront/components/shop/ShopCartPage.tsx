@@ -116,7 +116,7 @@ function EditPersonalization({ line }: { line: CartLineView }) {
 
 export function ShopCartPage({ shopHref, title }: { shopHref: string; title: string }) {
   const t = useT()
-  const { cart, ready, failed, update, remove } = useShopCart()
+  const { cart, ready, failed, reload, update, remove } = useShopCart()
   const [failure, setFailure] = React.useState<string | null>(null)
   const report = (err: unknown) => {
     setFailure(err instanceof Error ? err.message : t('storefront.shop.errors.failed', 'Something went wrong. Try again.'))
@@ -136,7 +136,12 @@ export function ShopCartPage({ shopHref, title }: { shopHref: string; title: str
           </div>
         ) : failed ? (
           <Alert variant="destructive">
-            <AlertDescription>{t('storefront.shop.cart.loadFailed', 'Your cart could not be loaded. Refresh the page to try again.')}</AlertDescription>
+            <AlertDescription className="flex flex-col items-start gap-3">
+              {t('storefront.shop.cart.loadFailed', 'Your cart could not be loaded.')}
+              <Button type="button" variant="outline" size="sm" onClick={() => void reload()}>
+                {t('storefront.shop.cart.retry', 'Try again')}
+              </Button>
+            </AlertDescription>
           </Alert>
         ) : !cart.lines.length ? (
           <div className="flex flex-col items-start gap-4 py-8">

@@ -26,6 +26,7 @@ import {
 } from "@/lib/filter-params"
 import { useT } from "@open-mercato/shared/lib/i18n/context"
 
+import { toLatinDigits } from "@/lib/digits"
 import { cn } from "@/lib/utils"
 
 const subscribeNothing = () => () => {}
@@ -555,7 +556,7 @@ function RangeControl({ facet }: { facet: RangeFacet }) {
     const parse = (raw: string | undefined, shown: number, edge: number) => {
       if (raw === undefined) return shown
       if (raw.trim() === "") return edge
-      const n = Number(raw.replace(/[^\d.-]/g, ""))
+      const n = Number(toLatinDigits(raw).replace(/[^\d.-]/g, ""))
       return Number.isFinite(n) ? n : shown
     }
     setText(null)

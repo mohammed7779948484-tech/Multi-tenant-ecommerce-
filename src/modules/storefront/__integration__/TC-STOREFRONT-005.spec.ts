@@ -344,10 +344,15 @@ test.describe('TC-STOREFRONT-005b: commerce sections and catalog pages', () => {
       },
     })
     expect(res.status()).toBe(200)
-    const body = (await readJsonSafe<{ sections: Record<string, { products?: Array<{ title: string; image: { attachmentId: string } | null }> }> }>(res))!
+    const body = (await readJsonSafe<{ sections: Record<string, { products?: Array<{ title: string; image: { attachmentId: string } | null; price: unknown; priceDetail?: unknown }> }> }>(res))!
     expect(Object.keys(body.sections).sort()).toEqual(['ghost', 'tea'])
     expect(body.sections.tea.products!.map((item) => item.title)).toEqual([`Product hidden ${RUN}`])
     expect(body.sections.tea.products![0].image?.attachmentId).toBe(images.hidden)
+    // The original contract: `price` is the formatted text (or null); the structured price is the additive `priceDetail`.
+    for (const item of body.sections.tea.products!) {
+      expect(item.price === null || typeof item.price === 'string').toBe(true)
+      expect('priceDetail' in item).toBe(true)
+    }
     expect(body.sections.ghost.products).toEqual([])
     const tooMany = await apiRequest(request, 'POST', '/api/storefront/preview-data', {
       token,

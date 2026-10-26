@@ -1,3 +1,5 @@
+import { toLatinDigits } from '@/lib/digits'
+
 /**
  * The URL is the state of a search or collection listing (spec REQ-004), so a
  * result list is shareable. Client-safe and pure: the server parses it to run
@@ -48,7 +50,7 @@ export function parseListingQuery(params: RawSearchParams, options: { sorts: rea
   const rawQ = (first(params, LISTING_PARAMS.q) ?? '').replace(/\s+/g, ' ').trim().slice(0, MAX_QUERY_LENGTH)
   const categories = [...new Set(all(params, LISTING_PARAMS.category).map((value) => value.trim()).filter((value) => value && value.length <= 200))].slice(0, MAX_CATEGORY_FILTERS)
   let price: ListingQuery['price'] = null
-  const range = RANGE.exec(first(params, LISTING_PARAMS.price) ?? '')
+  const range = RANGE.exec(toLatinDigits(first(params, LISTING_PARAMS.price) ?? ''))
   if (range && (range[1] !== undefined || range[2] !== undefined)) {
     let min = range[1] === undefined ? undefined : Number(range[1])
     let max = range[2] === undefined ? undefined : Number(range[2])
@@ -59,7 +61,8 @@ export function parseListingQuery(params: RawSearchParams, options: { sorts: rea
   const rawSort = first(params, LISTING_PARAMS.sort) as ShopSort | null
   const sort = rawSort && options.sorts.includes(rawSort) ? rawSort : options.sorts[0]!
   const rawPage = first(params, LISTING_PARAMS.page)
-  const page = rawPage && /^\d{1,6}$/.test(rawPage.trim()) ? Math.max(1, Number.parseInt(rawPage, 10)) : 1
+  const pageText = rawPage ? toLatinDigits(rawPage.trim()) : ''
+  const page = /^\d{1,6}$/.test(pageText) ? Math.max(1, Number.parseInt(pageText, 10)) : 1
   return { q: rawQ || null, categories, price, inStock, sort, page }
 }
 

@@ -51,6 +51,7 @@ function toBuyBoxProduct(title: string, model: PurchaseModel): BuyBoxProduct {
           options: Object.fromEntries(model.axes.map((axis) => [axis.label, variant.values[axis.code] ?? ''])),
           stock: stockUnits(variant.stock),
           price: variant.price?.amount,
+          currency: variant.price?.currencyCode,
         }))
       : undefined,
   }

@@ -66,3 +66,18 @@ describe('TEST-J05 cart token', () => {
     expect(cartCookieName('3f2b2a52-6a5b-4f8a-9c11-2f3e4d5c6b7a')).not.toBe(cartCookieName('4f2b2a52-6a5b-4f8a-9c11-2f3e4d5c6b7a'))
   })
 })
+
+describe('personalization numbers typed with Arabic digits', () => {
+  const { fields } = readOptionDefinitions(SCHEMA)
+
+  it('accepts Arabic-Indic digits and stores them as ASCII, so the same number is the same line', () => {
+    const arabic = validatePersonalization(fields, { recipient: 'سارة', count: '١٢٫٥' })
+    expect(arabic).toEqual({ ok: true, value: { recipient: 'سارة', count: '12.5' } })
+    const latin = validatePersonalization(fields, { recipient: 'سارة', count: '12.5' })
+    expect(stablePersonalization((arabic as { value: Record<string, string> }).value)).toBe(stablePersonalization((latin as { value: Record<string, string> }).value))
+  })
+
+  it('still refuses text in a number field', () => {
+    expect(validatePersonalization(fields, { recipient: 'سارة', count: 'عشرة' })).toEqual({ ok: false, errors: { count: 'notNumber' } })
+  })
+})

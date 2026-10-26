@@ -4,6 +4,7 @@ import type { OpenApiRouteDoc } from '@open-mercato/shared/lib/openapi'
 import { STOREFRONT_BLOCKS } from '../../lib/blocks/catalog'
 import { MAX_SECTIONS_PER_PAGE, type ValidatedSection } from '../../lib/blocks/pageSpec'
 import { loadSectionData, storeCatalogLinks } from '../../lib/catalogData'
+import { toPreviewWire } from '../../lib/previewDataWire'
 import { resolveStaffSite } from '../../lib/routeContext'
 import { storefrontErrorSchema, storefrontTag } from '../openapi'
 
@@ -29,7 +30,17 @@ const bodySchema = z.object({
 const imageSchema = z.object({ attachmentId: z.string().uuid(), alt: z.string() }).nullable()
 const sectionDataSchema = z.object({
   products: z
-    .array(z.object({ id: z.string().uuid(), title: z.string(), subtitle: z.string().nullable(), href: z.string(), image: imageSchema, price: z.object({ amount: z.number(), currencyCode: z.string(), formatted: z.string() }).nullable() }))
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        title: z.string(),
+        subtitle: z.string().nullable(),
+        href: z.string(),
+        image: imageSchema,
+        price: z.string().nullable().describe('Formatted price text'),
+        priceDetail: z.object({ amount: z.number(), currencyCode: z.string(), formatted: z.string() }).nullable().optional().describe('The same price as amount, currency and text (additive)'),
+      }),
+    )
     .optional(),
   categories: z
     .array(z.object({ id: z.string().uuid(), name: z.string(), description: z.string().nullable(), href: z.string(), image: imageSchema }))
@@ -67,7 +78,7 @@ export async function POST(req: Request) {
         links: storeCatalogLinks(`/${site.slug}`),
       })
     : {}
-  return NextResponse.json({ sections: data })
+  return NextResponse.json({ sections: Object.fromEntries(Object.entries(data).map(([id, section]) => [id, toPreviewWire(section)])) })
 }
 
 export const openApi: OpenApiRouteDoc = {

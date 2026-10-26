@@ -2,6 +2,7 @@
 import * as React from 'react'
 import { apiCall } from '@open-mercato/ui/backend/utils/apiCall'
 import { STOREFRONT_BLOCKS } from '../../lib/blocks/catalog'
+import { fromPreviewWire, type PreviewSectionWire } from '../../lib/previewDataWire'
 import type { SectionData } from '../../lib/sectionDataTypes'
 import type { BuilderSection } from './builderSpec'
 import { stableStringify } from './builderSpec'
@@ -49,7 +50,7 @@ export function usePreviewSectionData(sections: readonly BuilderSection[]): Prev
     let cancelled = false
     const timer = window.setTimeout(async () => {
       try {
-        const call = await apiCall<{ sections?: Record<string, SectionData> }>(PREVIEW_DATA_PATH, {
+        const call = await apiCall<{ sections?: Record<string, PreviewSectionWire> }>(PREVIEW_DATA_PATH, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ sections: request.map(({ id, type, props }) => ({ id, type, props })) }),
@@ -61,7 +62,7 @@ export function usePreviewSectionData(sections: readonly BuilderSection[]): Prev
         }
         const byId = call.result?.sections ?? {}
         const data = new Map<string, SectionData>()
-        for (const item of request) if (byId[item.id]) data.set(item.key, byId[item.id])
+        for (const item of request) if (byId[item.id]) data.set(item.key, fromPreviewWire(byId[item.id]))
         setState({ data, problem: null })
       } catch {
         if (!cancelled) setState({ data: new Map(), problem: 'failed' })

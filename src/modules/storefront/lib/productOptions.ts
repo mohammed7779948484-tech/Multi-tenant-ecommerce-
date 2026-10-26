@@ -1,3 +1,5 @@
+import { toLatinDigits } from '@/lib/digits'
+
 /**
  * How a buyer configures a product (shopping-journey spec, Domain Vocabulary):
  * the option schema's `select` options are variant axes, its `text`, `textarea`
@@ -60,7 +62,8 @@ export function matchVariant<T extends PurchaseVariantRef>(axes: PurchaseAxis[],
 
 /**
  * Trimmed personalization values, or a field error per code. Unknown codes are
- * refused; empty optional values are dropped; numbers must be finite.
+ * refused; empty optional values are dropped; numbers must be finite and are
+ * stored with ASCII digits.
  */
 export function validatePersonalization(
   fields: PersonalizationField[],
@@ -78,9 +81,11 @@ export function validatePersonalization(
       if (field.required) errors[field.code] = 'required'
       continue
     }
-    if (text.length > field.maxLength) errors[field.code] = 'tooLong'
-    else if (field.inputType === 'number' && !Number.isFinite(Number(text))) errors[field.code] = 'notNumber'
-    else value[field.code] = text
+    // Numbers typed with Arabic-Indic digits are kept in ASCII digits, so ٣ and 3 are the same line.
+    const stored = field.inputType === 'number' ? toLatinDigits(text) : text
+    if (stored.length > field.maxLength) errors[field.code] = 'tooLong'
+    else if (field.inputType === 'number' && !Number.isFinite(Number(stored))) errors[field.code] = 'notNumber'
+    else value[field.code] = stored
   }
   return Object.keys(errors).length ? { ok: false, errors } : { ok: true, value }
 }

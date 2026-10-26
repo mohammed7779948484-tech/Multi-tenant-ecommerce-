@@ -220,6 +220,8 @@ export const loadCollectionPage = cache(async (rawSiteSlug: string, rawKey: stri
   if (rawSiteSlug !== site.slug || key !== canonicalKey) return { kind: 'redirect', path: search ? `${path}?${search}` : path }
 
   const query = parseListingQuery(fromSearchString(search), { sorts: COLLECTION_SORTS })
+  // The collection is the category: a `category` filter here has no control to remove it, so it is dropped.
+  if (query.categories.length) return { kind: 'redirect', path: listingHref(path, { ...query, categories: [] }, { sort: COLLECTION_SORTS[0]! }) }
   const result = await searchShopCatalog({ em, container }, site, query, { links: storeCatalogLinks(frame.basePath), within: category })
   const children = (await loadPublicCategories(em, site)).filter((row) => row.parentId === category.id)
   return {

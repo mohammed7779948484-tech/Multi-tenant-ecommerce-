@@ -7,7 +7,7 @@ import {
 } from '../../../../../../commands/cart'
 import { cartLineUpdateSchema } from '../../../../../../data/validators'
 import { buildCartView, findActiveCart } from '../../../../../../lib/shopCart'
-import { errorResponse, guardShopWrite, noStore, resolveShopRequest, runShopCommand, shopFailure, type ShopRequest } from '../../../../../../lib/shopRoute'
+import { errorResponse, guardShopWrite, noStore, resolveShopRequest, runShopCommand, shopFailure, withCartCookie, type ShopRequest } from '../../../../../../lib/shopRoute'
 import { storefrontTag } from '../../../../../openapi'
 import { cartViewSchema, shopErrorSchema } from '../../schemas'
 
@@ -19,9 +19,11 @@ export const metadata = {
 
 type Context = { params: Promise<{ siteSlug: string; lineId: string }> }
 
-async function respondWithCart(shop: ShopRequest) {
+/** The cart after a write; the write moved its expiry 30 days on, so the cookie is renewed to match. */
+async function respondWithCart(req: Request, shop: ShopRequest) {
   const em = shop.em.fork()
-  return noStore(await buildCartView({ ...shop, em }, shop.site, await findActiveCart(em, shop.site, shop.tokenHash)))
+  const res = noStore(await buildCartView({ ...shop, em }, shop.site, await findActiveCart(em, shop.site, shop.tokenHash)))
+  return shop.token ? withCartCookie(res, req, shop.site, shop.token) : res
 }
 
 export async function PATCH(req: Request, context: Context) {
@@ -34,7 +36,7 @@ export async function PATCH(req: Request, context: Context) {
   if (!parsed.success) return errorResponse(422, 'invalidRequest', undefined, shop.translate)
   try {
     await runShopCommand<CartUpdateLineCommandInput, unknown>(shop, CART_UPDATE_LINE_COMMAND, { site: shop.site, tokenHash: shop.tokenHash, lineId, ...parsed.data })
-    return respondWithCart(shop)
+    return respondWithCart(req, shop)
   } catch (err) {
     return shopFailure(err, shop)
   }
@@ -48,7 +50,7 @@ export async function DELETE(req: Request, context: Context) {
   if (blocked) return blocked
   try {
     await runShopCommand<CartRemoveLineCommandInput, unknown>(shop, CART_REMOVE_LINE_COMMAND, { site: shop.site, tokenHash: shop.tokenHash, lineId })
-    return respondWithCart(shop)
+    return respondWithCart(req, shop)
   } catch (err) {
     return shopFailure(err, shop)
   }
