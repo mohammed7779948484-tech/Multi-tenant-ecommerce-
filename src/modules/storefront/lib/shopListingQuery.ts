@@ -40,7 +40,8 @@ function first(params: RawSearchParams, key: string): string | null {
   return all(params, key)[0] ?? null
 }
 
-const RANGE = /^(\d+(?:\.\d+)?)?-(\d+(?:\.\d+)?)?$/
+/** `min-max`, either side optional; at most nine integer digits a side, so a bound never parses to `Infinity`. */
+const RANGE = /^(\d{1,9}(?:\.\d{1,4})?)?-(\d{1,9}(?:\.\d{1,4})?)?$/
 
 /** Invalid values never fail the page: they are dropped or clamped (spec "invalid params clamp"). */
 export function parseListingQuery(params: RawSearchParams, options: { sorts: readonly ShopSort[] }): ListingQuery {

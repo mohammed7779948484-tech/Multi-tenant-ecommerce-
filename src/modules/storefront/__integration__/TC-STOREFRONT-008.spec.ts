@@ -68,7 +68,17 @@ test.describe('TC-STOREFRONT-008: browse and search', () => {
   })
 
   test.afterAll(async ({ request }) => {
-    for (const { path, id } of created.reverse()) await catalog(request, 'DELETE', `${path}?id=${id}`).catch(() => null)
+    // Try every deletion, then report the ones that failed, so leftover fixtures never go unnoticed.
+    const failures: string[] = []
+    for (const { path, id } of created.reverse()) {
+      try {
+        const res = await catalog(request, 'DELETE', `${path}?id=${id}`)
+        if (!res.ok()) failures.push(`${path}?id=${id}: ${res.status()}`)
+      } catch (err) {
+        failures.push(`${path}?id=${id}: ${err instanceof Error ? err.message : String(err)}`)
+      }
+    }
+    expect(failures, 'fixture cleanup').toEqual([])
   })
 
   test('text search lists active products only, newest first, with every word in any order', async ({ request }) => {

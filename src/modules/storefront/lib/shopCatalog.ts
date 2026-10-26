@@ -85,12 +85,34 @@ export function selectedTree(categories: CatalogProductCategory[], keys: string[
   return tree
 }
 
-export function sortProducts(products: CatalogProduct[], sort: ListingQuery['sort'], prices: Map<string, ShopPrice>, featuredRank: Map<string, number>) {
+/** The currency most candidates are priced in: price filters and price sorts compare amounts in it only. */
+export function dominantCurrency(products: CatalogProduct[], prices: Map<string, ShopPrice>): string | null {
+  const counts = new Map<string, number>()
+  for (const product of products) {
+    const code = prices.get(product.id)?.currencyCode
+    if (code) counts.set(code, (counts.get(code) ?? 0) + 1)
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? null
+}
+
+/** A product's amount in `currencyCode`; a price in another currency counts as no price. */
+function amountIn(prices: Map<string, ShopPrice>, productId: string, currencyCode: string | null): number | undefined {
+  const price = prices.get(productId)
+  return price && price.currencyCode === currencyCode ? price.amount : undefined
+}
+
+export function sortProducts(
+  products: CatalogProduct[],
+  sort: ListingQuery['sort'],
+  prices: Map<string, ShopPrice>,
+  featuredRank: Map<string, number>,
+  currencyCode: string | null = dominantCurrency(products, prices),
+) {
   const newest = (a: CatalogProduct, b: CatalogProduct) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0)
   const byPrice = (direction: 1 | -1) => (a: CatalogProduct, b: CatalogProduct) => {
-    const pa = prices.get(a.id)?.amount
-    const pb = prices.get(b.id)?.amount
-    // Products without a price go last in both directions.
+    const pa = amountIn(prices, a.id, currencyCode)
+    const pb = amountIn(prices, b.id, currencyCode)
+    // Products without a price (or priced in another currency) go last in both directions.
     if (pa === undefined || pb === undefined) return pa === undefined ? (pb === undefined ? newest(a, b) : 1) : -1
     return pa === pb ? newest(a, b) : (pa - pb) * direction
   }
@@ -104,17 +126,14 @@ export function sortProducts(products: CatalogProduct[], sort: ListingQuery['sor
   return [...products].sort(comparators[sort])
 }
 
-export function priceFacet(products: CatalogProduct[], prices: Map<string, ShopPrice>): ListingResult['facets']['price'] {
-  const byCurrency = new Map<string, number[]>()
-  for (const product of products) {
-    const price = prices.get(product.id)
-    if (!price) continue
-    const list = byCurrency.get(price.currencyCode) ?? []
-    list.push(price.amount)
-    byCurrency.set(price.currencyCode, list)
-  }
-  const [currencyCode, amounts] = [...byCurrency.entries()].sort((a, b) => b[1].length - a[1].length)[0] ?? []
-  if (!currencyCode || !amounts) return null
+export function priceFacet(
+  products: CatalogProduct[],
+  prices: Map<string, ShopPrice>,
+  currencyCode: string | null = dominantCurrency(products, prices),
+): ListingResult['facets']['price'] {
+  if (!currencyCode) return null
+  const amounts = products.map((product) => amountIn(prices, product.id, currencyCode)).filter((amount): amount is number => amount !== undefined)
+  if (!amounts.length) return null
   const min = Math.floor(Math.min(...amounts))
   const max = Math.ceil(Math.max(...amounts))
   return max > min ? { min, max, currencyCode } : null
@@ -191,9 +210,11 @@ export async function searchShopCatalog(
     candidates = candidates.filter((product) => stock.get(product.id) !== 'out_of_stock')
   }
 
+  // One currency for the price filter, the price sorts and the price facet.
+  const currencyCode = dominantCurrency(candidates, prices)
   const inPriceRange = (product: CatalogProduct) => {
     if (!query.price) return true
-    const amount = prices.get(product.id)?.amount
+    const amount = amountIn(prices, product.id, currencyCode)
     if (amount === undefined) return false
     return (query.price.min === undefined || amount >= query.price.min) && (query.price.max === undefined || amount <= query.price.max)
   }
@@ -218,7 +239,7 @@ export async function searchShopCatalog(
   const total = matching.length
   const pageCount = Math.max(1, Math.ceil(total / SHOP_PAGE_SIZE))
   const page = Math.min(query.page, pageCount)
-  const slice = sortProducts(matching, query.sort, prices, featuredRank).slice((page - 1) * SHOP_PAGE_SIZE, page * SHOP_PAGE_SIZE)
+  const slice = sortProducts(matching, query.sort, prices, featuredRank, currencyCode).slice((page - 1) * SHOP_PAGE_SIZE, page * SHOP_PAGE_SIZE)
 
   const images = await productImages(em, scope, slice)
   if (!query.inStock) {
@@ -239,7 +260,7 @@ export async function searchShopCatalog(
     total,
     page,
     pageCount,
-    facets: { categories: facetCategories, price: priceFacet(inCategory, prices) },
+    facets: { categories: facetCategories, price: priceFacet(inCategory, prices, currencyCode) },
     truncated,
   }
 }

@@ -596,6 +596,8 @@
   "ecomcn.cartLine.was": "Was",
   "ecomcn.gallery.choose": "{label}: choose an image",
   "ecomcn.gallery.close": "Close",
+  "ecomcn.gallery.description": "Full-screen photos. Use the arrow keys or swipe to move between them.",
+  "ecomcn.gallery.empty": "No photos yet",
   "ecomcn.gallery.fullScreen": "View image {index} of {count} full screen: {alt}",
   "ecomcn.gallery.image": "Image {index} of {count}: {alt}",
   "ecomcn.gallery.position": "{index} of {count}",

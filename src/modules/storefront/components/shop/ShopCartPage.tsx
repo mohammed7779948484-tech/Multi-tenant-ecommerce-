@@ -54,6 +54,9 @@ function EditPersonalization({ line }: { line: CartLineView }) {
       if (err instanceof ShopCartError) {
         setErrors(err.fieldErrors)
         setFailure(err.message)
+      } else {
+        setErrors({})
+        setFailure(t('storefront.shop.errors.failed', 'Something went wrong. Try again.'))
       }
     } finally {
       setSaving(false)

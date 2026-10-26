@@ -3,7 +3,7 @@ import type { AwilixContainer } from 'awilix'
 import { UniqueConstraintViolationException } from '@mikro-orm/core'
 import type { EntityManager } from '@mikro-orm/postgresql'
 import { CatalogProduct } from '@open-mercato/core/modules/catalog/data/entities'
-import { findWithDecryption } from '@open-mercato/shared/lib/encryption/find'
+import { findOneWithDecryption, findWithDecryption } from '@open-mercato/shared/lib/encryption/find'
 import { StorefrontCart, StorefrontCartLine, type StorefrontSite } from '../data/entities'
 import { productImages, storeCatalogLinks, type ShopPrice } from './catalogData'
 import { storefrontMediaPath } from './mediaUrls'
@@ -142,7 +142,7 @@ async function writeLine(rootEm: EntityManager, site: CartSite, tokenHash: strin
     const now = new Date()
     let cart = await findActiveCart(em, site, tokenHash, now)
     const created = !cart
-    const lines = cart ? await em.find(StorefrontCartLine, { cartId: cart.id, ...scopeOf(site) }) : []
+    const lines = cart ? await findWithDecryption(em, StorefrontCartLine, { cartId: cart.id, ...scopeOf(site) }, undefined, scopeOf(site)) : []
     if (cart?.currencyCode && lines.length && cart.currencyCode !== purchasable.price.currencyCode) throw new ShopError(422, 'currencyMismatch')
     const lineKey = lineKeyOf(purchasable.product.id, purchasable.variantId, purchasable.personalization)
     const existing = lines.find((line) => line.lineKey === lineKey)
@@ -179,7 +179,7 @@ async function writeLine(rootEm: EntityManager, site: CartSite, tokenHash: strin
 
 async function lineOf(em: EntityManager, site: CartSite, tokenHash: string | null, lineId: string, now: Date) {
   const cart = await findActiveCart(em, site, tokenHash, now)
-  const line = cart && isUuid(lineId) ? await em.findOne(StorefrontCartLine, { id: lineId, cartId: cart.id, ...scopeOf(site) }) : null
+  const line = cart && isUuid(lineId) ? await findOneWithDecryption(em, StorefrontCartLine, { id: lineId, cartId: cart.id, ...scopeOf(site) }, undefined, scopeOf(site)) : null
   // Another browser's or another store's line answers like an unknown one.
   if (!cart || !line) throw new ShopError(404, 'lineNotFound')
   return { cart, line }
@@ -199,7 +199,7 @@ export async function updateCartLine(deps: Deps, site: CartSite, tokenHash: stri
   return deps.em.transactional(async (em) => {
     const { cart, line } = await lineOf(em, site, tokenHash, lineId, now)
     const lineKey = lineKeyOf(line.productId, line.variantId ?? null, purchasable.personalization)
-    const twin = lineKey === line.lineKey ? null : await em.findOne(StorefrontCartLine, { cartId: cart.id, lineKey, ...scopeOf(site) })
+    const twin = lineKey === line.lineKey ? null : await findOneWithDecryption(em, StorefrontCartLine, { cartId: cart.id, lineKey, ...scopeOf(site) }, undefined, scopeOf(site))
     const merged = quantity + (twin?.quantity ?? 0)
     if (merged > MAX_LINE_QUANTITY) throw new ShopError(422, 'quantityLimit')
     if (twin) {
@@ -272,7 +272,7 @@ function money(amount: number, currencyCode: string): ShopPrice | null {
 export async function buildCartView(deps: Deps, site: CartSite, cart: StorefrontCart | null): Promise<CartView> {
   if (!cart) return EMPTY_CART
   const scope = scopeOf(site)
-  const lines = await deps.em.find(StorefrontCartLine, { cartId: cart.id, ...scope }, { orderBy: { createdAt: 'asc' } })
+  const lines = await findWithDecryption(deps.em, StorefrontCartLine, { cartId: cart.id, ...scope }, { orderBy: { createdAt: 'asc' } }, scope)
   if (!lines.length) return { ...EMPTY_CART, updatedAt: cart.updatedAt.toISOString() }
   const productIds = [...new Set(lines.map((line) => line.productId))]
   const products = new Map(
@@ -308,9 +308,8 @@ export async function buildCartView(deps: Deps, site: CartSite, cart: Storefront
       href: product?.isActive ? links.product(product) : null,
       image: image ? storefrontMediaPath(site.slug, image.attachmentId, 320) : null,
       variantLabel: variant && model ? model.axes.map((axis) => axis.choices.find((choice) => choice.code === variant.values[axis.code])?.label).filter(Boolean).join(' · ') || null : null,
-      personalization: (model?.fields ?? [])
-        .filter((field) => line.personalization?.[field.code] || field.required)
-        .map((field) => ({ code: field.code, label: field.label, value: line.personalization?.[field.code] ?? '', inputType: field.inputType, required: field.required })),
+      // Every field, blank ones included, so the buyer can fill an optional one in later.
+      personalization: (model?.fields ?? []).map((field) => ({ code: field.code, label: field.label, value: line.personalization?.[field.code] ?? '', inputType: field.inputType, required: field.required })),
       quantity: line.quantity,
       unitPrice: price,
       lineTotal,

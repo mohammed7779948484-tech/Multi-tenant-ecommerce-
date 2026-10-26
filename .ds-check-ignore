@@ -1419,70 +1419,70 @@
       "file": "src/components/ecomcn/cart-line-item.tsx",
       "rule": "arbitrary-tailwind",
       "match": "grid-cols-[4rem_minmax(0,1fr)]",
-      "line": 360,
+      "line": 366,
       "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     },
     {
       "file": "src/components/ecomcn/cart-line-item.tsx",
       "rule": "arbitrary-tailwind",
       "match": "grid-cols-[5rem_minmax(0,1fr)]",
-      "line": 361,
+      "line": 367,
       "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     },
     {
       "file": "src/components/ecomcn/cart-line-item.tsx",
       "rule": "arbitrary-tailwind",
       "match": "sm:grid-cols-[6rem_minmax(0,1fr)]",
-      "line": 361,
+      "line": 367,
       "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     },
     {
       "file": "src/components/ecomcn/cart-line-item.tsx",
       "rule": "arbitrary-tailwind",
       "match": "text-[var(--sale,var(--destructive))]",
-      "line": 377,
+      "line": 383,
       "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     },
     {
       "file": "src/components/ecomcn/cart-line-item.tsx",
       "rule": "arbitrary-tailwind",
       "match": "aspect-[4/5]",
-      "line": 405,
+      "line": 411,
       "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     },
     {
       "file": "src/components/ecomcn/cart-line-item.tsx",
       "rule": "arbitrary-tailwind",
       "match": "text-[11px]",
-      "line": 433,
+      "line": 439,
       "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     },
     {
       "file": "src/components/ecomcn/cart-line-item.tsx",
       "rule": "arbitrary-tailwind",
       "match": "tracking-[0.16em]",
-      "line": 433,
+      "line": 439,
       "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     },
     {
       "file": "src/components/ecomcn/cart-line-item.tsx",
       "rule": "arbitrary-tailwind",
       "match": "text-[var(--sale)]",
-      "line": 469,
+      "line": 475,
       "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     },
     {
       "file": "src/components/ecomcn/cart-line-item.tsx",
       "rule": "arbitrary-tailwind",
       "match": "text-[13px]",
-      "line": 545,
+      "line": 551,
       "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     },
     {
       "file": "src/components/ecomcn/cart-line-item.tsx",
       "rule": "arbitrary-tailwind",
       "match": "tracking-[0.14em]",
-      "line": 587,
+      "line": 593,
       "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     },
     {

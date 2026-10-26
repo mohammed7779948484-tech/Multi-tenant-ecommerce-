@@ -83,7 +83,17 @@ test.describe('TC-STOREFRONT-009: product page and persisted cart', () => {
   })
 
   test.afterAll(async ({ request }) => {
-    for (const { path, id } of created.reverse()) await catalog(request, 'DELETE', `${path}?id=${id}`).catch(() => null)
+    // Try every deletion, then report the ones that failed, so leftover fixtures never go unnoticed.
+    const failures: string[] = []
+    for (const { path, id } of created.reverse()) {
+      try {
+        const res = await catalog(request, 'DELETE', `${path}?id=${id}`)
+        if (!res.ok()) failures.push(`${path}?id=${id}: ${res.status()}`)
+      } catch (err) {
+        failures.push(`${path}?id=${id}: ${err instanceof Error ? err.message : String(err)}`)
+      }
+    }
+    expect(failures, 'fixture cleanup').toEqual([])
   })
 
   test('add, merge, re-price, edit and remove lines; prices always from the server', async () => {
@@ -100,7 +110,7 @@ test.describe('TC-STOREFRONT-009: product page and persisted cart', () => {
     expect(cookie.toLowerCase()).toContain('samesite=lax')
     let cart = (await first.json()) as Cart
     expect(cart.lines).toHaveLength(1)
-    expect(cart.lines[0]).toMatchObject({ variantId: ids.large, quantity: 2, variantLabel: 'كبير', personalization: [{ code: 'recipient', value: 'أحمد' }] })
+    expect(cart.lines[0]).toMatchObject({ variantId: ids.large, quantity: 2, variantLabel: 'كبير', personalization: [{ code: 'recipient', value: 'أحمد' }, { code: 'note', value: '' }] })
     expect(cart.subtotal).toMatchObject({ amount: 5000, formatted: YER(5000) })
 
     // The same line again raises its quantity; another personalization is another line.

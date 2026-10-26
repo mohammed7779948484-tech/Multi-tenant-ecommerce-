@@ -165,11 +165,15 @@ export function CartLineItem({
   // The quantity on show. It follows the prop until the shopper presses,
   // then leads it until the cart has caught up.
   const [draft, setDraft] = React.useState<number | null>(null)
+  // True while a press waits out the debounce, before it is sent.
+  const [debouncing, setDebouncing] = React.useState(false)
   const [seen, setSeen] = React.useState(line.quantity)
   if (seen !== line.quantity) {
-    // Your cart has caught up with the stepper: let the prop lead again.
+    // The cart changed: let the prop lead again, unless a press is still
+    // waiting to be sent. A cart that settled on another quantity (another
+    // tab, a server limit) wins over the stepper's last draft.
     setSeen(line.quantity)
-    if (draft === line.quantity) setDraft(null)
+    if (draft === line.quantity || !debouncing) setDraft(null)
   }
   const quantity = draft ?? line.quantity
   const draftRef = React.useRef<number | null>(null)
@@ -192,6 +196,7 @@ export function CartLineItem({
 
   const commitQuantity = React.useCallback((next: number) => {
     pending.current.quantity = null
+    setDebouncing(false)
     Promise.resolve()
       .then(() => handlers.current.onQuantityChange?.(next))
       // On success the stepper keeps showing the new quantity until your
@@ -218,6 +223,7 @@ export function CartLineItem({
       const clamped = Math.min(Math.max(1, Math.round(next) || 1), maxQuantity)
       setError(null)
       setDraft(clamped)
+      setDebouncing(true)
       window.clearTimeout(quantityTimer.current)
       pending.current.quantity = clamped
       quantityTimer.current = window.setTimeout(() => commitQuantity(clamped), debounceMs)

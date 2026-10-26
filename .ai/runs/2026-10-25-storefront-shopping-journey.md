@@ -90,6 +90,14 @@ Phase 2–3 notes (decisions L13–L19 on the spec branch, 1fab748):
 - Dashboard follow-ups recorded in the spec: store price channel, personalization field editor, stock badge threshold.
 - Carried to Phase 4: stock check on merged quantities; keep order access independent of purged carts; two-tenant integration probes (TEST-J11).
 
+PR review fixes (CodeRabbit, 2026-10-26):
+- Cart line personalization is encrypted at rest (`storefront/encryption.ts`); cart reads use the decryption helpers. Existing tenants need `yarn mercato entities seed-encryption --tenant <id>`.
+- The cart view returns blank optional personalization fields, so the buyer can fill them in from the cart.
+- Price filter, price sorts and the price facet compare amounts in one currency (the most common one); the price range accepts at most nine integer digits a side.
+- Lightbox description and empty-gallery text are translated; the cart edit dialog shows a message for unexpected failures; the stepper draft yields to a cart that settled on another quantity.
+- Integration cleanup reports failed deletions.
+- Gates: typecheck, lint (0 errors), ds:check, unit 219/219, integration 36/36 (includes the build). Local check: the stored value is ciphertext after add, merge, quantity change and edit.
+
 ### Phase 4: Checkout, order placement and tracking
 
 - [ ] 4.1 Yemen regions dataset and checkout options endpoint

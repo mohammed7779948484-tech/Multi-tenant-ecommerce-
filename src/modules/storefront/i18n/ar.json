@@ -69,6 +69,8 @@
   "ecomcn.filters.title": "تصفية",
   "ecomcn.gallery.choose": "{label}: اختر صورة",
   "ecomcn.gallery.close": "إغلاق",
+  "ecomcn.gallery.description": "صور بملء الشاشة. استخدم مفاتيح الأسهم أو اسحب للتنقل بينها.",
+  "ecomcn.gallery.empty": "لا توجد صور بعد",
   "ecomcn.gallery.fullScreen": "عرض الصورة {index} من {count} بملء الشاشة: {alt}",
   "ecomcn.gallery.image": "الصورة {index} من {count}: {alt}",
   "ecomcn.gallery.position": "{index} من {count}",

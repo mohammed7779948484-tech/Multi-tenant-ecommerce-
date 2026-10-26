@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals'
 import type { CatalogProduct, CatalogProductCategory } from '@open-mercato/core/modules/catalog/data/entities'
 import { COLLECTION_SORTS, SEARCH_SORTS, listingHref, parseListingQuery } from '../shopListingQuery'
-import { priceFacet, selectedTree, sortProducts, textFilter } from '../shopCatalog'
+import { dominantCurrency, priceFacet, selectedTree, sortProducts, textFilter } from '../shopCatalog'
 import { formatShopNumber, formatShopPrice, shopCountLabel } from '../shopFormat'
 import { visiblePages } from '../../components/shop/ShopListingViews'
 import type { ShopPrice } from '../catalogData'
@@ -27,6 +27,9 @@ describe('TEST-J03 listing URL state', () => {
     expect(query.page).toBe(1)
     expect(query.inStock).toBe(false)
     expect(parseListingQuery({ price: '-20' }, { sorts: SEARCH_SORTS }).price).toEqual({ min: undefined, max: 20 })
+    // A bound that would parse to Infinity is dropped, not written back into page links.
+    expect(parseListingQuery({ price: `5-${'9'.repeat(400)}` }, { sorts: SEARCH_SORTS }).price).toBeNull()
+    expect(parseListingQuery({ price: '0-999999999.5' }, { sorts: SEARCH_SORTS }).price).toEqual({ min: 0, max: 999999999.5 })
     expect(parseListingQuery({}, { sorts: COLLECTION_SORTS }).sort).toBe('featured')
   })
 
@@ -80,6 +83,17 @@ describe('TEST-J03 search rules', () => {
     const rows = ['a', 'b', 'c'].map((id) => product(id, id, '2026-10-01'))
     expect(priceFacet(rows, new Map([['a', price(12.5)], ['b', price(99.2)], ['c', price(5, 'USD')]]))).toEqual({ min: 12, max: 100, currencyCode: 'YER' })
     expect(priceFacet(rows, new Map([['a', price(10)]]))).toBeNull()
+  })
+
+  it('compares prices in one currency only: another currency sorts like no price', () => {
+    const a = product('a', 'a', '2026-10-01')
+    const b = product('b', 'b', '2026-10-02')
+    const c = product('c', 'c', '2026-10-03')
+    const prices = new Map([['a', price(30)], ['b', price(10)], ['c', price(5, 'USD')]])
+    expect(dominantCurrency([a, b, c], prices)).toBe('YER')
+    expect(sortProducts([a, b, c], 'price_asc', prices, new Map()).map((row) => row.id)).toEqual(['b', 'a', 'c'])
+    expect(sortProducts([a, b, c], 'price_desc', prices, new Map()).map((row) => row.id)).toEqual(['a', 'b', 'c'])
+    expect(priceFacet([a, b, c], prices, 'USD')).toBeNull()
   })
 })
 

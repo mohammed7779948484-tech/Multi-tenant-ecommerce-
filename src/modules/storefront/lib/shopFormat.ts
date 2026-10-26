@@ -7,11 +7,19 @@
 
 export const SHOP_NUMBER_LOCALE = 'ar-YE'
 
+/** One formatter per currency: a search page formats up to 500 prices. */
+const priceFormatters = new Map<string, Intl.NumberFormat>()
+
 /** A price as the buyer sees it, or `null` when the amount or currency is unusable. */
 export function formatShopPrice(amount: number | null | undefined, currencyCode: string | null | undefined): string | null {
   if (amount === null || amount === undefined || !Number.isFinite(amount) || !currencyCode) return null
   try {
-    return new Intl.NumberFormat(SHOP_NUMBER_LOCALE, { style: 'currency', currency: currencyCode }).format(amount)
+    let formatter = priceFormatters.get(currencyCode)
+    if (!formatter) {
+      formatter = new Intl.NumberFormat(SHOP_NUMBER_LOCALE, { style: 'currency', currency: currencyCode })
+      priceFormatters.set(currencyCode, formatter)
+    }
+    return formatter.format(amount)
   } catch {
     return null
   }

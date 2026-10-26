@@ -333,7 +333,7 @@ export function ProductGalleryMain({ className, ...props }: React.HTMLAttributes
       >
         <span className="flex flex-col items-center gap-2 text-sm">
           <ImageOff aria-hidden className="size-5" />
-          No photos yet
+          {t("ecomcn.gallery.empty", "No photos yet")}
         </span>
       </div>
     )
@@ -603,7 +603,7 @@ function ProductGalleryLightbox() {
         <LightboxPanel>
           <DialogTitle className="sr-only">{label}</DialogTitle>
           <DialogDescription className="sr-only">
-            Full-screen photos. Use the arrow keys or swipe to move between them.
+            {t("ecomcn.gallery.description", "Full-screen photos. Use the arrow keys or swipe to move between them.")}
           </DialogDescription>
           <Carousel
             setApi={setApi}
