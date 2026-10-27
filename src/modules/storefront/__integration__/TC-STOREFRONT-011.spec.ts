@@ -1,4 +1,5 @@
 import { expect, test, type APIRequestContext } from '@playwright/test'
+import { withClient } from '@open-mercato/core/helpers/integration/dbFixtures'
 import { readJsonSafe } from '@open-mercato/core/helpers/integration/generalFixtures'
 import { ShopFixtures } from './support/shopFixtures'
 
@@ -179,6 +180,50 @@ test.describe('TC-STOREFRONT-011: checkout, order placement and tracking', () =>
     const row = orders?.items.find((item) => (item.orderNumber ?? item.order_number) === a.orderNumber)
     expect(row, 'order in the sales admin').toBeTruthy()
     expect(Number(row!.grandTotalGrossAmount ?? row!.grand_total_gross_amount)).toBeCloseTo(q.grandTotal.amount, 2)
+    await ctx.dispose()
+  })
+
+  test('a submit that created the order but did not record it is finished by the next submit, never placed twice', async () => {
+    const ctx = await buyerWithCart(1)
+    const q = (await (await quote(ctx, { destination: destination(), shippingMethodId: ids.zones, paymentMethodId: ids.cod })).json()) as Quote
+    const body = { contact: { name: 'منى', phone: '771234567' }, destination: destination(), shippingMethodId: ids.zones, paymentMethodId: ids.cod, quoteHash: q.quoteHash }
+    const first = await place(ctx, body)
+    expect(first.status(), await first.text()).toBe(201)
+    const placed = (await first.json()) as { orderNumber: string; trackingUrl: string }
+    const cartId = await withClient(async (client) => {
+      const row = await client.query<{ cart_id: string }>('select cart_id from storefront_order_access where order_number = $1', [placed.orderNumber])
+      return row.rows[0]!.cart_id
+    })
+    // The state a crash leaves after `sales.orders.create`: the order exists, its access row and the cart's closing do not.
+    const crashAfterCreate = (claimAgeMinutes: number) =>
+      withClient(async (client) => {
+        await client.query('delete from storefront_order_access where cart_id = $1', [cartId])
+        await client.query(`update storefront_carts set status = 'placing', updated_at = now() - make_interval(mins => $2) where id = $1`, [cartId, claimAgeMinutes])
+      })
+    // Order metadata is encrypted; this file is the only one placing orders and runs serially, so count this store's orders since the first.
+    const storeOrdersSinceFirst = () =>
+      withClient(async (client) =>
+        Number(
+          (
+            await client.query<{ n: string }>(
+              `select count(*) as n from sales_orders o, sales_orders first
+               where first.order_number = $1 and o.organization_id = first.organization_id and o.tenant_id = first.tenant_id and o.created_at >= first.created_at`,
+              [placed.orderNumber],
+            )
+          ).rows[0]!.n,
+        ),
+      )
+
+    // A fresh claim and a stale one (its submit died) both finish the same order at once.
+    for (const age of [0, 10]) {
+      await crashAfterCreate(age)
+      const again = await place(ctx, body)
+      expect(again.status(), await again.text()).toBe(200)
+      expect(((await again.json()) as { orderNumber: string }).orderNumber).toBe(placed.orderNumber)
+      expect(await storeOrdersSinceFirst()).toBe(1)
+    }
+    // The recorded access is the buyer's: the original tracking link opens the order.
+    expect((await ctx.get(shop(`/orders/${encodeURIComponent(placed.orderNumber)}?k=${new URL(placed.trackingUrl, 'http://x').searchParams.get('k')}`))).status()).toBe(200)
     await ctx.dispose()
   })
 

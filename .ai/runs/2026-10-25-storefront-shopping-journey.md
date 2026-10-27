@@ -132,6 +132,18 @@ Phase 4 closed (2026-10-26). Exit gate evidence:
 - TC-STOREFRONT-011: options and refusals; quote = sales order totals; one order for a double submit; 409 with a new quote after a price change; bank transfer with field errors; another store's methods and token answer like unknown ones; a 390 px buyer flow (classic theme) and a 1280 px flow on a second store (midnight theme) from cart to tracking page, with the governorate list portalled in the themed root and no English UI text.
 - Code review (om-code-review): approve, three minor findings and one nit (direct sales/dictionary reads by scalar id; stale-claim takeover after a failed access write; fixtures command context; checkout file size).
 
+Third review round (CodeRabbit batch A, review 5675006784, 2026-10-27). Each finding was checked against the code:
+- Placement (major, held): an order created but not recorded (a failed access write, or a create slower than the claim TTL) let a later submit take the claim over and create a second order. Fixed: the order id is saved on the cart right after `sales.orders.create`; a later submit finds it and finishes the same order (access row, cart closed) instead of waiting or placing again; the claim is refreshed every 20 s while the create runs; the final write locks the cart, so two submits finishing the same order agree. Residual: a process crash between the create and saving its id on the cart is not covered (closing it would need a sales-order lookup by cart).
+- Checkout client (held): a network failure left "Confirm order", options and quote loading forever. Requests now answer a network failure like a failed request, so each step shows its error and can retry.
+- Order page (held): a stale `k` link with a valid order cookie put the stale token into the permalink. The permalink now uses the token that opened the order.
+- Search (held): the category intersection built a `Set` per element; now once.
+- TC-STOREFRONT-010 (held): the store A search now asserts 200 before the isolation check.
+- Seeded home text "upload the receipt" (not changed): Phase 5 on this PR ships the buyer's transfer-proof upload, so the text becomes true before merge.
+- `.coderabbit.yaml` batch filters: the owner's temporary review config, already restored in e3f411d.
+- Correction: `yarn ds:check` was failing at 5f487f8, not passing as reported: the 13 baseline entries for `ecomcn/order-confirmation.tsx` pointed 4 lines above their code (the file grew after they were recorded). Re-anchored; the entries are otherwise unchanged.
+- Regression evidence: the new TC-STOREFRONT-011 case fails on the old code (a fresh unfinished claim answered 409; a stale one created a second order, 201) and passes with the fix; unit test for the checkout request on a network failure.
+- Gates: typecheck, lint (0 errors, 8 pre-existing warnings), ds:check, unit 250/250, integration 51/51 with build (ephemeral, no retries). No entity change (the cart's existing `converted_order_id` column carries the order id).
+
 ### Phase 5: Transfer proof and the full journey
 
 - [ ] 5.1 Transfer proof route and form

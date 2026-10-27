@@ -2455,91 +2455,91 @@
       "file": "src/components/ecomcn/order-confirmation.tsx",
       "rule": "arbitrary-tailwind",
       "match": "lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]",
-      "line": 202,
+      "line": 206,
       "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     },
     {
       "file": "src/components/ecomcn/order-confirmation.tsx",
       "rule": "arbitrary-tailwind",
       "match": "print:grid-cols-[minmax(0,1fr)_16rem]",
-      "line": 202,
+      "line": 206,
       "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     },
     {
       "file": "src/components/ecomcn/order-confirmation.tsx",
       "rule": "arbitrary-tailwind",
       "match": "opacity-[0.12]",
-      "line": 235,
+      "line": 239,
       "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     },
     {
       "file": "src/components/ecomcn/order-confirmation.tsx",
       "rule": "arbitrary-tailwind",
       "match": "dark:opacity-[0.08]",
-      "line": 235,
+      "line": 239,
       "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     },
     {
       "file": "src/components/ecomcn/order-confirmation.tsx",
       "rule": "manual-dark-override",
       "match": "dark:",
-      "line": 235,
+      "line": 239,
       "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     },
     {
       "file": "src/components/ecomcn/order-confirmation.tsx",
       "rule": "manual-dark-override",
       "match": "dark:",
-      "line": 235,
+      "line": 239,
       "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     },
     {
       "file": "src/components/ecomcn/order-confirmation.tsx",
       "rule": "arbitrary-tailwind",
       "match": "tracking-[0.18em]",
-      "line": 238,
+      "line": 242,
       "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     },
     {
       "file": "src/components/ecomcn/order-confirmation.tsx",
       "rule": "arbitrary-tailwind",
       "match": "leading-[1.05]",
-      "line": 255,
+      "line": 259,
       "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     },
     {
       "file": "src/components/ecomcn/order-confirmation.tsx",
       "rule": "arbitrary-tailwind",
       "match": "tracking-[0.14em]",
-      "line": 301,
+      "line": 305,
       "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     },
     {
       "file": "src/components/ecomcn/order-confirmation.tsx",
       "rule": "arbitrary-tailwind",
       "match": "tracking-[0.14em]",
-      "line": 325,
+      "line": 329,
       "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     },
     {
       "file": "src/components/ecomcn/order-confirmation.tsx",
       "rule": "arbitrary-tailwind",
       "match": "tracking-[0.14em]",
-      "line": 357,
+      "line": 361,
       "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     },
     {
       "file": "src/components/ecomcn/order-confirmation.tsx",
       "rule": "arbitrary-tailwind",
       "match": "tracking-[0.14em]",
-      "line": 387,
+      "line": 391,
       "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     },
     {
       "file": "src/components/ecomcn/order-confirmation.tsx",
       "rule": "inline-style",
       "match": "style=",
-      "line": 236,
+      "line": 240,
       "reason": "ecomcn registry block (installed with `shadcn add @ecomcn/…`, RTL classes from the CLI); styling kept as published so registry updates diff cleanly. Store pages scope the dark variant away (globals.css)."
     },
     {

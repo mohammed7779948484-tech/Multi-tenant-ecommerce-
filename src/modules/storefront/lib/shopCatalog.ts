@@ -243,7 +243,11 @@ export async function searchShopCatalog(
     )
     return { rows: rows.slice(0, MAX_SEARCH_SCAN) as ScanRow[], truncated: rows.length > MAX_SEARCH_SCAN }
   }
-  const intersect = (a: string[] | null, b: string[] | null) => (a && b ? a.filter((id) => new Set(b).has(id)) : (a ?? b))
+  const intersect = (a: string[] | null, b: string[] | null) => {
+    if (!a || !b) return a ?? b
+    const inB = new Set(b)
+    return a.filter((id) => inB.has(id))
+  }
   const matched = await scan(intersect(withinIds, selectedIds))
   // The facet needs the products the category filter left out; without a filter it is the same scan.
   // The filtered rows join it, so a selected category counts exactly even when the wider scan hit the cap.

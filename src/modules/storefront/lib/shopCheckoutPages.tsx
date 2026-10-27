@@ -62,11 +62,13 @@ const loadOrderPage = cache(async (rawSiteSlug: string, rawNumber: string, linkT
   if (orderNumber === null) return null
   const site = { id: store.site.id, slug: store.site.slug, tenantId: store.site.tenantId, organizationId: store.site.organizationId }
   const cookieToken = (await cookies()).get(orderCookieName(site.id, orderNumber))?.value ?? null
-  const access = (await findOrderAccess(em, site, orderNumber, linkToken)) ?? (await findOrderAccess(em, site, orderNumber, cookieToken))
+  const linkAccess = await findOrderAccess(em, site, orderNumber, linkToken)
+  const access = linkAccess ?? (await findOrderAccess(em, site, orderNumber, cookieToken))
   const order = access ? await loadOrderView(em, site, access) : null
   if (!order) return null
   const title = store.translate('storefront.shop.order.title', 'Order {number}', { number: order.orderNumber })
-  const token = linkToken && access ? linkToken : cookieToken
+  // The permalink carries the token that opened the order (a stale link token falls back to the cookie's).
+  const token = linkAccess ? linkToken : cookieToken
   return {
     ...store.frame,
     title,

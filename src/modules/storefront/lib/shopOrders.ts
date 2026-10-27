@@ -120,12 +120,14 @@ async function findAccessByCart(em: EntityManager, site: CartSite, cartId: strin
 
 /** A claim this old belongs to a submit that died; another submit may take it over. */
 export const PLACING_CLAIM_TTL_MS = 2 * 60 * 1000
+/** How often a running submit refreshes its claim; well inside the TTL. */
+const CLAIM_HEARTBEAT_MS = 20_000
 const REPLAY_WAIT_MS = 15_000
 const REPLAY_POLL_MS = 250
 
 type Claim = { kind: 'claimed'; cartId: string } | { kind: 'replay'; access: StorefrontOrderAccess } | { kind: 'busy'; cartId: string }
 
-async function claimCart(em: EntityManager, site: CartSite, tokenHash: string): Promise<Claim> {
+async function claimCart(em: EntityManager, site: CartSite, tokenHash: string, orderTokenHash: string): Promise<Claim> {
   return em.transactional(async (tem) => {
     const cart = await tem.findOne(StorefrontCart, { tokenHash, siteId: site.id, ...scopeOf(site) }, { lockMode: LockMode.PESSIMISTIC_WRITE })
     if (!cart) throw new ShopError(422, 'cartEmpty')
@@ -135,7 +137,15 @@ async function claimCart(em: EntityManager, site: CartSite, tokenHash: string): 
       return { kind: 'replay', access }
     }
     const now = Date.now()
-    if (cart.status === 'placing' && now - cart.updatedAt.getTime() < PLACING_CLAIM_TTL_MS) return { kind: 'busy', cartId: cart.id }
+    if (cart.status === 'placing' && cart.convertedOrderId) {
+      // An earlier submit created the order but did not finish recording it: finish now, never place a second order.
+      const access = await recordOrderAccess(tem, site, cart, cart.convertedOrderId, orderTokenHash)
+      if (access) return { kind: 'replay', access }
+      // The order is gone (removed by the merchant): the cart may be placed again.
+      cart.convertedOrderId = null
+    } else if (cart.status === 'placing' && now - cart.updatedAt.getTime() < PLACING_CLAIM_TTL_MS) {
+      return { kind: 'busy', cartId: cart.id }
+    }
     if (cart.expiresAt.getTime() <= now) throw new ShopError(422, 'cartEmpty')
     cart.status = 'placing'
     cart.updatedAt = new Date(now)
@@ -144,9 +154,36 @@ async function claimCart(em: EntityManager, site: CartSite, tokenHash: string): 
   })
 }
 
+/**
+ * Records the buyer's access to the cart's order and closes the cart, inside a
+ * transaction that holds the cart row lock. Returns `null` when the order no
+ * longer exists.
+ */
+async function recordOrderAccess(tem: EntityManager, site: CartSite, cart: StorefrontCart, orderId: string, orderTokenHash: string): Promise<StorefrontOrderAccess | null> {
+  const existing = await findAccessByCart(tem, site, cart.id)
+  const order = existing ? null : await findOneWithDecryption(tem, SalesOrder, { id: orderId, ...scopeOf(site) }, { fields: ['id', 'orderNumber'] }, scopeOf(site))
+  if (!existing && !order) return null
+  const access =
+    existing ??
+    tem.create(StorefrontOrderAccess, {
+      ...scopeOf(site),
+      siteId: site.id,
+      orderId: order!.id,
+      orderNumber: order!.orderNumber,
+      tokenHash: orderTokenHash,
+      cartId: cart.id,
+      createdAt: new Date(),
+    })
+  cart.status = 'converted'
+  cart.convertedOrderId = access.orderId
+  cart.updatedAt = new Date()
+  await tem.flush()
+  return access
+}
+
 /** Gives a claimed cart back to the buyer when its order was not created. */
 async function releaseClaim(em: EntityManager, site: CartSite, cartId: string) {
-  await em.nativeUpdate(StorefrontCart, { id: cartId, ...scopeOf(site), status: 'placing' }, { status: 'active', updatedAt: new Date() })
+  await em.nativeUpdate(StorefrontCart, { id: cartId, ...scopeOf(site), status: 'placing', convertedOrderId: null }, { status: 'active', updatedAt: new Date() })
 }
 
 /** Waits for another submit of the same cart to finish, then answers with its order. */
@@ -172,7 +209,7 @@ async function awaitOtherSubmit(em: EntityManager, site: CartSite, cartId: strin
 export async function placeOrder(deps: Deps, site: CartSite, cartToken: string, input: PlaceInput): Promise<PlaceResult> {
   const tokenHash = createHash('sha256').update(cartToken).digest('hex')
   const token = orderTokenFor(cartToken)
-  const claim = await claimCart(deps.em.fork(), site, tokenHash)
+  const claim = await claimCart(deps.em.fork(), site, tokenHash, hashOrderToken(token))
   if (claim.kind !== 'claimed') {
     const access = claim.kind === 'replay' ? claim.access : await awaitOtherSubmit(deps.em, site, claim.cartId)
     return { orderId: access.orderId, orderNumber: access.orderNumber, token, replay: true }
@@ -180,6 +217,13 @@ export async function placeOrder(deps: Deps, site: CartSite, cartToken: string, 
 
   const em = deps.em.fork()
   let orderId: string | null = null
+  // While the order is being created, the claim stays fresh so no other submit takes it over.
+  const heartbeat = setInterval(() => {
+    deps.em
+      .fork()
+      .nativeUpdate(StorefrontCart, { id: claim.cartId, ...scopeOf(site), status: 'placing' }, { updatedAt: new Date() })
+      .catch((err: unknown) => logger.warn('Refreshing a checkout claim failed', { err, cartId: claim.cartId }))
+  }, CLAIM_HEARTBEAT_MS)
   try {
     const cart = await em.findOneOrFail(StorefrontCart, { id: claim.cartId, ...scopeOf(site) })
     const quote = await buildQuote({ ...deps, em: em.fork() }, site, cart, input, { bypassCache: true })
@@ -191,32 +235,31 @@ export async function placeOrder(deps: Deps, site: CartSite, cartToken: string, 
       ctx: buildShopCommandContext(deps.container, site),
     })
     orderId = result.orderId
-    const order = await findOneWithDecryption(em.fork(), SalesOrder, { id: result.orderId, ...scopeOf(site) }, undefined, scopeOf(site))
-    if (!order) throw new Error('[internal] created order not found')
-    if (Number(order.grandTotalGrossAmount) !== quote.grandTotal.amount) {
+    // First thing after the create: a later submit finds this order instead of placing another.
+    await deps.em.fork().nativeUpdate(StorefrontCart, { id: claim.cartId, ...scopeOf(site), status: 'placing' }, { convertedOrderId: orderId, updatedAt: new Date() })
+    clearInterval(heartbeat)
+    const access = await deps.em.fork().transactional(async (tem) => {
+      const locked = await tem.findOneOrFail(StorefrontCart, { id: claim.cartId, ...scopeOf(site) }, { lockMode: LockMode.PESSIMISTIC_WRITE })
+      // Another submit may already have recorded it (after a slow write here).
+      if (locked.status === 'converted') return findAccessByCart(tem, site, claim.cartId)
+      return recordOrderAccess(tem, site, locked, orderId!, hashOrderToken(token))
+    })
+    if (!access) throw new Error('[internal] created order not found')
+    const order = await findOneWithDecryption(em.fork(), SalesOrder, { id: access.orderId, ...scopeOf(site) }, { fields: ['id', 'grandTotalGrossAmount'] }, scopeOf(site))
+    if (order && Number(order.grandTotalGrossAmount) !== quote.grandTotal.amount) {
       logger.warn('Order total differs from the checkout quote', { orderId: order.id, siteId: site.id })
     }
-    await em.fork().transactional(async (tem) => {
-      tem.create(StorefrontOrderAccess, {
-        ...scopeOf(site),
-        siteId: site.id,
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-        tokenHash: hashOrderToken(token),
-        cartId: claim.cartId,
-        createdAt: new Date(),
-      })
-      await tem.nativeUpdate(StorefrontCart, { id: claim.cartId, ...scopeOf(site) }, { status: 'converted', convertedOrderId: order.id, updatedAt: new Date() })
-    })
-    return { orderId: order.id, orderNumber: order.orderNumber, token, replay: false }
+    return { orderId: access.orderId, orderNumber: access.orderNumber, token, replay: false }
   } catch (err) {
     if (orderId) {
-      // The order exists but its access key could not be recorded: keep the claim (no second order) and say which order.
+      // The order exists: keep the claim; the next submit of this cart records it (no second order).
       logger.error('Order placed but its buyer access was not recorded', { err, orderId, siteId: site.id, cartId: claim.cartId })
     } else {
       await releaseClaim(deps.em.fork(), site, claim.cartId).catch((releaseErr: unknown) => logger.warn('Releasing a checkout claim failed', { err: releaseErr, cartId: claim.cartId }))
     }
     throw err
+  } finally {
+    clearInterval(heartbeat)
   }
 }
 

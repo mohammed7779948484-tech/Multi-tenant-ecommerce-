@@ -52,14 +52,20 @@ const SERVER_FIELDS: Record<string, keyof AddressErrors> = {
   'destination.landmark': 'line2',
 }
 
-async function call<T>(url: string, init: RequestInit = {}): Promise<{ ok: boolean; status: number; body: (T & FailureBody) | null }> {
-  const res = await apiCall<T & FailureBody>(url, {
-    ...init,
-    headers: { 'x-om-unauthorized-redirect': '0', 'content-type': 'application/json' },
-    credentials: 'same-origin',
-  })
-  return { ok: res.ok, status: res.status, body: res.result ?? null }
+/** A checkout request; a network failure answers like a failed request (status 0) so every step can recover. */
+export async function checkoutCall<T>(url: string, init: RequestInit = {}): Promise<{ ok: boolean; status: number; body: (T & FailureBody) | null }> {
+  try {
+    const res = await apiCall<T & FailureBody>(url, {
+      ...init,
+      headers: { 'x-om-unauthorized-redirect': '0', 'content-type': 'application/json' },
+      credentials: 'same-origin',
+    })
+    return { ok: res.ok, status: res.status, body: res.result ?? null }
+  } catch {
+    return { ok: false, status: 0, body: null }
+  }
 }
+const call = checkoutCall
 
 export function ShopCheckout({ siteSlug, cartHref, shopHref }: { siteSlug: string; cartHref: string; shopHref: string }) {
   const t = useT()

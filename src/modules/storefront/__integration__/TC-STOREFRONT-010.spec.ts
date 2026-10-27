@@ -124,6 +124,7 @@ test.describe('TC-STOREFRONT-010: cart concurrency, cookie, quantity tiers, stoc
     expect(((await (await ctx.get(cartPath())).json()) as Cart).lines.map((line) => line.quantity)).toEqual([1])
     // Search and product pages stay in their own store.
     const searchA = await ctx.get(`/${fx.session.siteSlug}/search?q=${encodeURIComponent(`B only ${RUN}`)}`)
+    expect(searchA.status()).toBe(200)
     // The page names the query; it must not link to store B's product.
     expect(await searchA.text()).not.toContain(`/products/${RUN}-b-only`)
     expect((await ctx.get(`/${fx.session.siteSlug}/products/${RUN}-b-only`)).status()).toBe(404)
