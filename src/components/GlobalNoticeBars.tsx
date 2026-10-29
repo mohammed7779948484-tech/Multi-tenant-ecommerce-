@@ -55,7 +55,7 @@ export function GlobalNoticeBars({ demoModeEnabled }: { demoModeEnabled: boolean
   }
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-banner flex flex-col items-center gap-3 px-4">
+    <div data-om-notice-bars="" className="pointer-events-none fixed inset-x-0 bottom-4 z-banner flex flex-col items-center gap-3 px-4">
       {showDemoNotice ? (
         <div className="pointer-events-auto w-full max-w-[calc(100vw-2rem)] sm:max-w-4xl rounded-lg border border-status-warning-border bg-status-warning-bg/90 p-4 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-status-warning-bg/80">
           <div className="flex items-start gap-3">

@@ -109,7 +109,7 @@ export type BuilderPreviewProps = {
   basePath: string
   logoSrc: string | null
   tokens: ThemeTokens
-  labels: { home: string; signIn: string; unavailable: string; sections: SectionLabels }
+  labels: { home: string; unavailable: string; sections: SectionLabels }
   sectionData?: ReadonlyMap<string, SectionData>
 }
 
@@ -128,9 +128,8 @@ export function BuilderPreview({ spec, siteId, storeName, basePath, logoSrc, tok
         basePath={basePath}
         logoSrc={logoSrc}
         tokens={tokens}
-        signInHref={null}
         preview
-        labels={{ home: labels.home, signIn: labels.signIn }}
+        labels={{ home: labels.home }}
       >
         <JSONUIProvider registry={previewRegistry}>
           <Renderer spec={spec} registry={previewRegistry} />

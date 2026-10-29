@@ -23,6 +23,12 @@ reviews:
     # docs: DECISIONS.md and UPSTREAM_DIVERGENCES.md are review context (path instructions cite them).
     - "!docs/LOCAL_EMAIL.md"
     - "!yarn.lock"
+    # Generated/baseline/progress/licence files checked separately; keep this full review within 150 files.
+    - "!.ai/runs/2026-10-25-storefront-shopping-journey.md"
+    - "!.ds-check-ignore"
+    - "!src/modules/storefront/migrations/.snapshot-open-mercato.json"
+    - "!THIRD_PARTY_NOTICES.md"
+    - "!third_party/licenses/ecomcn-LICENSE.txt"
   path_instructions:
     - path: "src/modules/storefront/**"
       instructions: |

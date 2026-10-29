@@ -14,6 +14,10 @@ const events = [
   { id: 'storefront.page.published', label: 'Storefront Page Published', entity: 'page', category: 'lifecycle' },
   { id: 'storefront.page.rolled_back', label: 'Storefront Page Rolled Back', entity: 'page', category: 'lifecycle' },
   { id: 'storefront.template.applied', label: 'Storefront Template Applied', entity: 'site', category: 'lifecycle' },
+  // Buyer activity (shopping-journey spec): payloads carry ids only, never buyer text.
+  { id: 'storefront.cart.updated', label: 'Storefront Cart Updated', entity: 'cart', category: 'custom' },
+  { id: 'storefront.order.placed', label: 'Storefront Order Placed', entity: 'order', category: 'custom' },
+  { id: 'storefront.order.proof_submitted', label: 'Storefront Transfer Proof Submitted', entity: 'order', category: 'custom' },
 ] as const
 
 export const eventsConfig = createModuleEvents({ moduleId: 'storefront', events })

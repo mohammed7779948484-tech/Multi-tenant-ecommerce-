@@ -2,12 +2,13 @@ import type { PageSpec } from './pageSpec'
 
 /**
  * The home page every new store publishes at signup (owner default: new stores
- * publish immediately). It is merchant content in the store's default locale,
- * seeded once and edited later in the builder — not UI copy.
+ * publish immediately). It is merchant content in the store's language — Arabic,
+ * as buyer pages are Arabic (shopping-journey spec REQ-001) — seeded once and
+ * edited later in the builder, not UI copy. Stores created earlier keep theirs.
  */
 export function buildDefaultHomeSpec(input: { storeName: string; description?: string | null }): PageSpec {
-  const storeName = input.storeName.trim().slice(0, 120) || 'Our store'
-  const tagline = input.description?.trim().slice(0, 200) || `Welcome to ${storeName}.`.slice(0, 200)
+  const storeName = input.storeName.trim().slice(0, 120) || 'متجرنا'
+  const tagline = input.description?.trim().slice(0, 200) || `أهلاً بكم في ${storeName}.`.slice(0, 200)
   return {
     root: 'page',
     elements: {
@@ -20,11 +21,11 @@ export function buildDefaultHomeSpec(input: { storeName: string; description?: s
       features: {
         type: 'Features',
         props: {
-          heading: 'Why shop with us',
+          heading: 'لماذا تتسوق معنا',
           items: [
-            { title: 'Cash on delivery', body: 'Pay in cash when your order arrives at your door.' },
-            { title: 'Bank transfer', body: 'Prefer to pay ahead? Transfer and upload your receipt.' },
-            { title: 'Personal service', body: 'Questions about an order? We answer every message.' },
+            { title: 'الدفع عند الاستلام', body: 'ادفع نقداً عند وصول طلبك إلى باب منزلك.' },
+            { title: 'تحويل بنكي', body: 'تفضّل الدفع مسبقاً؟ حوّل المبلغ وارفع صورة الإيصال.' },
+            { title: 'خدمة شخصية', body: 'لديك سؤال عن طلبك؟ نردّ على كل رسالة.' },
           ],
         },
         children: [],
@@ -32,15 +33,18 @@ export function buildDefaultHomeSpec(input: { storeName: string; description?: s
       about: {
         type: 'RichText',
         props: {
-          heading: 'About us',
+          heading: 'من نحن',
           content: {
             type: 'doc',
             blocks: [
               {
                 type: 'paragraph',
+                // Opens with an Arabic word: the paragraph takes its direction from its first letter,
+                // and a store name in Latin letters would otherwise turn it left to right.
                 children: [
+                  { type: 'text', text: 'متجر ' },
                   { type: 'text', text: storeName, marks: ['bold'] },
-                  { type: 'text', text: ' is getting ready. Our full catalogue is on its way — check back soon.' },
+                  { type: 'text', text: ' يستعد للافتتاح. تشكيلتنا الكاملة في الطريق — زورونا قريباً.' },
                 ],
               },
             ],

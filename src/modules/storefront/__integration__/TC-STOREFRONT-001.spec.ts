@@ -116,6 +116,10 @@ test.describe('TC-STOREFRONT-001: storefront brand and public page', () => {
     expect(html.match(/<title>/g)).toHaveLength(1)
     expect(html).toContain('application/ld+json')
     expect(html.toLowerCase()).not.toContain('json-render')
+    // Shopping-journey Phase 1: the buyer page is Arabic, right to left, with the store menu.
+    expect(html).toMatch(/class="sf-root sf-shop"[^>]*dir="rtl"[^>]*lang="ar"/)
+    expect(html).toContain('aria-label="فتح القائمة"')
+    expect(html).not.toContain('/portal/login')
 
     // The store name in the header uses the text colour, not the link (primary) colour.
     await browserPage.goto(`/${brand.slug}`)

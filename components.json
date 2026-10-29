@@ -18,5 +18,8 @@
     "lib": "@/lib",
     "hooks": "@/hooks"
   },
-  "registries": {}
+  "registries": {
+    "@ecomcn": "https://ecomcn.vercel.app/r/{name}.json"
+  },
+  "rtl": true
 }

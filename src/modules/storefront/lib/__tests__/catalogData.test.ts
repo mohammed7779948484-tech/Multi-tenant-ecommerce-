@@ -1,22 +1,21 @@
 import { describe, expect, it } from '@jest/globals'
-import { anonymousPricingContext, clampCollectionPage, collectionPagePath, formatPrice, productGridLimit, storeCatalogLinks } from '../catalogData'
+import { anonymousPricingContext, clampCollectionPage, collectionPagePath, productGridLimit, shopPriceOf, storeCatalogLinks } from '../catalogData'
 
 describe('TEST-020 store catalog helpers', () => {
-  it('formats the gross price, else the net price, in the store locale', () => {
-    expect(formatPrice({ unitPriceGross: '12.50', unitPriceNet: '10.00', currencyCode: 'EUR' }, 'de')).toBe(
-      new Intl.NumberFormat('de', { style: 'currency', currency: 'EUR' }).format(12.5),
-    )
-    expect(formatPrice({ unitPriceGross: null, unitPriceNet: '10', currencyCode: 'USD' }, 'en')).toBe('$10.00')
+  it('prices with the gross amount, else the net amount, formatted for Arabic buyers (ar-YE)', () => {
+    expect(shopPriceOf({ unitPriceGross: '12.50', unitPriceNet: '10.00', currencyCode: 'EUR' })).toEqual({
+      amount: 12.5,
+      currencyCode: 'EUR',
+      formatted: new Intl.NumberFormat('ar-YE', { style: 'currency', currency: 'EUR' }).format(12.5),
+    })
+    expect(shopPriceOf({ unitPriceGross: null, unitPriceNet: '1500', currencyCode: 'YER' })?.amount).toBe(1500)
   })
 
   it('shows no price rather than a wrong one', () => {
-    expect(formatPrice({ unitPriceGross: null, unitPriceNet: null, currencyCode: 'EUR' }, 'en')).toBeNull()
-    expect(formatPrice({ unitPriceGross: 'abc', unitPriceNet: null, currencyCode: 'EUR' }, 'en')).toBeNull()
-    expect(formatPrice({ unitPriceGross: '5', unitPriceNet: null, currencyCode: null }, 'en')).toBeNull()
-  })
-
-  it('falls back to English formatting for a locale the runtime rejects', () => {
-    expect(formatPrice({ unitPriceGross: '5', unitPriceNet: null, currencyCode: 'EUR' }, 'not a locale!')).toBe('€5.00')
+    expect(shopPriceOf({ unitPriceGross: null, unitPriceNet: null, currencyCode: 'EUR' })).toBeNull()
+    expect(shopPriceOf({ unitPriceGross: 'abc', unitPriceNet: null, currencyCode: 'EUR' })).toBeNull()
+    expect(shopPriceOf({ unitPriceGross: '5', unitPriceNet: null, currencyCode: null })).toBeNull()
+    expect(shopPriceOf({ unitPriceGross: '5', unitPriceNet: null, currencyCode: 'not-a-currency' })).toBeNull()
   })
 
   it('prices as an anonymous buyer: no channel, customer, user or group, one unit', () => {

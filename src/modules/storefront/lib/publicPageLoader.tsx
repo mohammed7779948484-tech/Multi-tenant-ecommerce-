@@ -3,7 +3,6 @@ import type { Metadata } from 'next'
 import { notFound, permanentRedirect } from 'next/navigation'
 import type { EntityManager } from '@mikro-orm/postgresql'
 import { createRequestContainer } from '@open-mercato/shared/lib/di/container'
-import { resolveTranslations } from '@open-mercato/shared/lib/i18n/server'
 import { createLogger } from '@open-mercato/shared/lib/logger'
 import { resolveSectionLabels } from '../components/public/blocks'
 import { StorefrontUnavailable, StorefrontView, type StorefrontViewProps } from '../components/public/StorefrontView'
@@ -13,13 +12,15 @@ import { pagePublicPath } from './pages'
 import { buildStorefrontMetadata, buildUnavailableMetadata } from './publicMetadata'
 import { HOME_PAGE_SLUG, resolvePublicStorefrontPage, storefrontMediaPath, storefrontPublicUrl } from './publicSite'
 import { buildStorefrontJsonLd } from './structuredData'
+import { SHOP_LOCALE, shopTranslations } from './shopLocale'
+import { loadShopShell } from './shopShell'
 
 const logger = createLogger('storefront').child({ component: 'public-page' })
 
 export type LoadedStorefrontPage =
   | { kind: 'not-found' }
   | { kind: 'redirect'; path: string }
-  | { kind: 'unavailable'; title: string; message: string }
+  | { kind: 'unavailable'; title: string; message: string; lang: string }
   | { kind: 'ok'; view: StorefrontViewProps }
 
 /**
@@ -33,13 +34,14 @@ export const loadStorefrontPage = cache(async (rawSiteSlug: string, rawPageSlug:
   const em = (container.resolve('em') as EntityManager).fork()
   const resolved = await resolvePublicStorefrontPage(em, rawSiteSlug, rawPageSlug ?? HOME_PAGE_SLUG)
   if (!resolved) return { kind: 'not-found' }
-  const { site, tokens, page, revision, organizationSlug } = resolved
+  const { site, tokens, page, revision } = resolved
   const unavailable = async (): Promise<LoadedStorefrontPage> => {
-    const { translate } = await resolveTranslations()
+    const { translate, locale } = await shopTranslations()
     return {
       kind: 'unavailable',
       title: translate('storefront.public.unavailableTitle', 'This store is unavailable'),
       message: translate('storefront.public.unavailableMessage', 'Please check back later.'),
+      lang: locale,
     }
   }
   // A live store without its home page (a partial seed that `ensure-sites` repairs) shows the neutral page.
@@ -55,7 +57,6 @@ export const loadStorefrontPage = cache(async (rawSiteSlug: string, rawPageSlug:
   const requestedPath = rawPageSlug === null ? `/${rawSiteSlug}` : `/${rawSiteSlug}/${rawPageSlug}`
   if (requestedPath !== canonicalPath) return { kind: 'redirect', path: canonicalPath }
 
-  const { translate } = await resolveTranslations()
   const validation = validatePageSpec(page.publishedSpec)
   if (!validation.ok) {
     logger.error('Published page failed validation; serving the unavailable page', {
@@ -63,16 +64,13 @@ export const loadStorefrontPage = cache(async (rawSiteSlug: string, rawPageSlug:
       pageId: page.id,
       issues: validation.issues.slice(0, 10),
     })
-    return {
-      kind: 'unavailable',
-      title: translate('storefront.public.unavailableTitle', 'This store is unavailable'),
-      message: translate('storefront.public.unavailableMessage', 'Please check back later.'),
-    }
+    return unavailable()
   }
+  // The shell footer stands in only where the merchant's page has no Footer section.
+  const { translate, shell } = await loadShopShell(em, site, { footer: !validation.sections.some((section) => section.type === 'Footer') })
 
   const sectionData = await loadSectionData({ em, container }, { tenantId: site.tenantId, organizationId: site.organizationId }, validation.sections, {
     links: storeCatalogLinks(`/${site.slug}`),
-    locale: site.defaultLocale || 'en',
   })
   const storeUrl = storefrontPublicUrl(site.slug)
   const canonicalUrl = storefrontPublicUrl(site.slug, isHome ? '' : `/${page.slug}`)
@@ -98,14 +96,11 @@ export const loadStorefrontPage = cache(async (rawSiteSlug: string, rawPageSlug:
         canonicalUrl,
         siteName: site.name,
         imageUrl: logoUrl,
-        locale: site.defaultLocale || 'en',
+        locale: SHOP_LOCALE,
         jsonLd: buildStorefrontJsonLd({ storeName: site.name, description: site.description ?? null, url: storeUrl, logoUrl }),
       },
-      signInHref: organizationSlug ? `/${encodeURIComponent(organizationSlug)}/portal/login` : null,
-      labels: {
-        signIn: translate('storefront.public.signIn', 'Sign in'),
-        home: translate('storefront.public.home', '{store} home', { store: site.name }),
-      },
+      labels: { home: translate('storefront.public.home', '{store} home', { store: site.name }) },
+      shell,
       sectionLabels: resolveSectionLabels(translate),
       sectionData,
     },
@@ -123,6 +118,6 @@ export async function renderStorefrontPage(siteSlug: string, pageSlug: string | 
   const loaded = await loadStorefrontPage(siteSlug, pageSlug)
   if (loaded.kind === 'not-found') notFound()
   if (loaded.kind === 'redirect') permanentRedirect(loaded.path)
-  if (loaded.kind === 'unavailable') return <StorefrontUnavailable title={loaded.title} message={loaded.message} />
+  if (loaded.kind === 'unavailable') return <StorefrontUnavailable title={loaded.title} message={loaded.message} lang={loaded.lang} />
   return <StorefrontView {...loaded.view} />
 }

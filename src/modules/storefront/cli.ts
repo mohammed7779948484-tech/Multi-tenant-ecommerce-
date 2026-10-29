@@ -4,6 +4,9 @@ import type { EntityManager } from '@mikro-orm/postgresql'
 import { Organization } from '@open-mercato/core/modules/directory/data/entities'
 import { parseTenantArgs } from './lib/cliArgs'
 import { ensureStorefrontSite } from './lib/seeding'
+import { ensureDevZoneShippingMethod } from './lib/shopFixtures'
+import { StorefrontPage, StorefrontSite } from './data/entities'
+import { HOME_PAGE_SLUG_VALUE, RESERVED_PAGE_SLUGS } from './lib/slug'
 
 /**
  * `yarn mercato storefront ensure-sites [--tenant <uuid>]`
@@ -53,6 +56,76 @@ const ensureSites: ModuleCli = {
   },
 }
 
-const cli: ModuleCli[] = [ensureSites]
+/**
+ * `yarn mercato storefront reserved-slugs [--tenant <uuid>]`
+ *
+ * Read-only report: pages whose slug is now reserved for a shop route (for
+ * example a page created as `search` before the search page existed). Such a
+ * page is shadowed by the shop route; the merchant renames it in the page
+ * editor. Changes nothing (shopping-journey spec Phase 2, no migration).
+ */
+const reservedSlugs: ModuleCli = {
+  command: 'reserved-slugs',
+  async run(argv) {
+    const args = parseTenantArgs(argv)
+    if (!args.ok) {
+      console.error(args.error)
+      process.exitCode = 1
+      return
+    }
+    const container = await createRequestContainer()
+    const em = container.resolve('em') as EntityManager
+    const pages = await em.find(
+      StorefrontPage,
+      { deletedAt: null, slug: { $in: [...RESERVED_PAGE_SLUGS] }, ...(args.tenantId ? { tenantId: args.tenantId } : {}) },
+      { fields: ['id', 'slug', 'siteId', 'tenantId', 'organizationId'], orderBy: { createdAt: 'asc' } },
+    )
+    // `index` is the home page's own fixed slug, never a conflict.
+    const conflicts = pages.filter((page) => page.slug !== HOME_PAGE_SLUG_VALUE)
+    if (!conflicts.length) {
+      console.log('No pages use a reserved slug.')
+      return
+    }
+    const sites = await em.find(StorefrontSite, { id: { $in: [...new Set(conflicts.map((page) => page.siteId))] } }, { fields: ['id', 'slug'] })
+    const siteSlugs = new Map(sites.map((site) => [site.id, site.slug]))
+    for (const page of conflicts) {
+      console.log(`- /${siteSlugs.get(page.siteId) ?? page.siteId}/${page.slug} (page ${page.id}, tenant ${page.tenantId}, organization ${page.organizationId})`)
+    }
+    console.log(`${conflicts.length} page(s) use a reserved slug; rename them in the page editor.`)
+  },
+}
+
+/**
+ * `yarn mercato storefront shop-fixtures --tenant <uuid>`
+ *
+ * DEVELOPMENT DATA ONLY: gives every store of the tenant a Yemen-zones delivery
+ * method with sample rates (see `lib/shopFixtures.ts`), so checkout works
+ * locally. Idempotent; never touches real delivery or payment methods.
+ */
+const shopFixtures: ModuleCli = {
+  command: 'shop-fixtures',
+  async run(argv) {
+    const args = parseTenantArgs(argv)
+    if (!args.ok || !args.tenantId) {
+      console.error(args.ok ? '--tenant <uuid> is required' : args.error)
+      process.exitCode = 1
+      return
+    }
+    const container = await createRequestContainer()
+    const em = (container.resolve('em') as EntityManager).fork()
+    const sites = await em.find(StorefrontSite, { tenantId: args.tenantId, deletedAt: null }, { fields: ['id', 'slug', 'tenantId', 'organizationId'] })
+    if (!sites.length) {
+      console.log('No storefronts in this tenant.')
+      return
+    }
+    for (const site of sites) {
+      const status = await ensureDevZoneShippingMethod({ em: em.fork(), container }, { tenantId: site.tenantId, organizationId: site.organizationId })
+      console.log(`- /${site.slug}: development delivery method ${status}`)
+    }
+    console.log('Development data only: sample rates, not for selling.')
+  },
+}
+
+const cli: ModuleCli[] = [ensureSites, reservedSlugs, shopFixtures]
 
 export default cli

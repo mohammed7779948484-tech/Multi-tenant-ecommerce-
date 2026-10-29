@@ -6,99 +6,84 @@ import {
 } from '@open-mercato/core/modules/catalog/data/entities'
 import { findOneWithDecryption, findWithDecryption } from '@open-mercato/shared/lib/encryption/find'
 import type { StorefrontSite } from '../data/entities'
-import { collectSectionReferences } from './blocks/references'
-import { loadPublishedSections } from './publishedSections'
 
 /**
- * Which products and categories a live store shows publicly (spec Q12).
+ * Which products and categories a live store shows publicly (shopping-journey
+ * spec S-2, superseding DECISIONS K2 for the shop).
  *
- * - Visible categories: those a published ProductGrid or CollectionList of the
- *   store references, plus their descendants, when active and not deleted.
- * - Visible products: those a published ProductGrid picks, plus products
- *   assigned to a visible category, when active and not deleted.
+ * - A product is public when it is active and not deleted in the store's
+ *   organization.
+ * - A category is public when it is active and not deleted in the store's
+ *   organization.
  *
- * Everything else, including every product of another tenant or organization,
- * answers 404 on the product, collection and media routes. Marking a product
- * active in the back office does not publish it; a published section does.
+ * The merchant controls visibility with the product's and category's active
+ * flag in the catalog admin. Everything else, including every row of another
+ * tenant or organization, answers 404 on the product, collection and media
+ * routes, exactly like an unknown id.
  */
 
-type SiteScope = Pick<StorefrontSite, 'id' | 'tenantId' | 'organizationId' | 'logoAttachmentId'>
+type SiteScope = Pick<StorefrontSite, 'id' | 'tenantId' | 'organizationId'>
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export type CatalogVisibility = { categoryIds: Set<string>; pickedProductIds: Set<string> }
+export function isUuid(value: string): boolean {
+  return UUID.test(value)
+}
+
+function publicWhere(site: SiteScope) {
+  return { tenantId: site.tenantId, organizationId: site.organizationId, deletedAt: null, isActive: true }
+}
 
 function scopeOf(site: SiteScope) {
   return { tenantId: site.tenantId, organizationId: site.organizationId }
 }
 
-export async function resolveCatalogVisibility(em: EntityManager, site: SiteScope): Promise<CatalogVisibility> {
-  const references = collectSectionReferences(await loadPublishedSections(em, site))
-  const pickedProductIds = new Set(references.filter((reference) => reference.kind === 'product').map((reference) => reference.id))
-  const referencedCategories = [...new Set(references.filter((reference) => reference.kind === 'category').map((reference) => reference.id))]
-  const categoryIds = new Set<string>()
-  if (referencedCategories.length) {
-    const scope = scopeOf(site)
-    const roots = await findWithDecryption(
-      em,
-      CatalogProductCategory,
-      { id: { $in: referencedCategories }, ...scope, deletedAt: null, isActive: true },
-      { fields: ['id', 'descendantIds'] },
-      scope,
-    )
-    const candidates = [...new Set(roots.flatMap((root) => [root.id, ...(Array.isArray(root.descendantIds) ? root.descendantIds : [])]))]
-    const active = await findWithDecryption(
-      em,
-      CatalogProductCategory,
-      { id: { $in: candidates }, ...scope, deletedAt: null, isActive: true },
-      { fields: ['id'] },
-      scope,
-    )
-    for (const category of active) categoryIds.add(category.id)
-  }
-  return { categoryIds, pickedProductIds }
-}
-
-/** Visible categories a product is assigned to, in assignment order. */
-export async function visibleCategoriesOf(em: EntityManager, site: SiteScope, productId: string, visibility: CatalogVisibility): Promise<string[]> {
-  if (!visibility.categoryIds.size) return []
+/** Public categories a product is assigned to, in assignment order. */
+export async function publicCategoriesOf(em: EntityManager, site: SiteScope, productId: string): Promise<CatalogProductCategory[]> {
+  const scope = scopeOf(site)
   const assignments = await em.find(
     CatalogProductCategoryAssignment,
-    { product: productId, category: { $in: [...visibility.categoryIds] }, ...scopeOf(site) },
+    { product: productId, ...scope },
     { fields: ['category', 'position'], orderBy: { position: 'asc' } },
   )
-  return assignments.map((assignment) => (typeof assignment.category === 'string' ? assignment.category : assignment.category.id))
+  const ids = assignments.map((assignment) => (typeof assignment.category === 'string' ? assignment.category : assignment.category.id))
+  if (!ids.length) return []
+  const rows = await findWithDecryption(em, CatalogProductCategory, { id: { $in: ids }, ...publicWhere(site) }, undefined, scope)
+  const byId = new Map(rows.map((row) => [row.id, row]))
+  return ids.map((id) => byId.get(id)).filter((row): row is CatalogProductCategory => Boolean(row))
 }
 
-/** Active, in-scope product that a published section shows (picked, or in a visible category). */
-export async function isProductPublic(em: EntityManager, site: SiteScope, productId: string, visibility?: CatalogVisibility): Promise<boolean> {
+/** Active, in-scope product. */
+export async function isProductPublic(em: EntityManager, site: SiteScope, productId: string): Promise<boolean> {
   if (!UUID.test(productId)) return false
-  const scope = scopeOf(site)
-  const product = await findOneWithDecryption(em, CatalogProduct, { id: productId, ...scope, deletedAt: null, isActive: true }, { fields: ['id'] }, scope)
-  if (!product) return false
-  const resolved = visibility ?? (await resolveCatalogVisibility(em, site))
-  if (resolved.pickedProductIds.has(productId)) return true
-  return (await visibleCategoriesOf(em, site, productId, resolved)).length > 0
+  const product = await findOneWithDecryption(em, CatalogProduct, { id: productId, ...publicWhere(site) }, { fields: ['id'] }, scopeOf(site))
+  return Boolean(product)
 }
 
 /** The public product behind a URL key (its handle, else its id), or `null` for anything not public. */
-export async function findPublicProduct(em: EntityManager, site: SiteScope, key: string): Promise<{ product: CatalogProduct; visibility: CatalogVisibility } | null> {
+export async function findPublicProduct(em: EntityManager, site: SiteScope, key: string): Promise<CatalogProduct | null> {
   const scope = scopeOf(site)
-  const where = { ...scope, deletedAt: null, isActive: true }
-  let product = await findOneWithDecryption(em, CatalogProduct, { ...where, handle: key }, undefined, scope)
-  if (!product && UUID.test(key)) product = await findOneWithDecryption(em, CatalogProduct, { ...where, id: key }, undefined, scope)
-  if (!product) return null
-  const visibility = await resolveCatalogVisibility(em, site)
-  if (!(await isProductPublic(em, site, product.id, visibility))) return null
-  return { product, visibility }
+  const where = publicWhere(site)
+  const byHandle = await findOneWithDecryption(em, CatalogProduct, { ...where, handle: key }, undefined, scope)
+  if (byHandle) return byHandle
+  return UUID.test(key) ? findOneWithDecryption(em, CatalogProduct, { ...where, id: key }, undefined, scope) : null
 }
 
 /** The public category behind a URL key (its slug, else its id), or `null`. */
-export async function findPublicCategory(em: EntityManager, site: SiteScope, key: string): Promise<{ category: CatalogProductCategory; visibility: CatalogVisibility } | null> {
+export async function findPublicCategory(em: EntityManager, site: SiteScope, key: string): Promise<CatalogProductCategory | null> {
   const scope = scopeOf(site)
-  const where = { ...scope, deletedAt: null, isActive: true }
-  let category = await findOneWithDecryption(em, CatalogProductCategory, { ...where, slug: key }, undefined, scope)
-  if (!category && UUID.test(key)) category = await findOneWithDecryption(em, CatalogProductCategory, { ...where, id: key }, undefined, scope)
-  if (!category) return null
-  const visibility = await resolveCatalogVisibility(em, site)
-  return visibility.categoryIds.has(category.id) ? { category, visibility } : null
+  const where = publicWhere(site)
+  const bySlug = await findOneWithDecryption(em, CatalogProductCategory, { ...where, slug: key }, undefined, scope)
+  if (bySlug) return bySlug
+  return UUID.test(key) ? findOneWithDecryption(em, CatalogProductCategory, { ...where, id: key }, undefined, scope) : null
+}
+
+/** Every public category of the store, by depth then name (the collections index and the category filter). */
+export async function loadPublicCategories(em: EntityManager, site: SiteScope): Promise<CatalogProductCategory[]> {
+  return findWithDecryption(
+    em,
+    CatalogProductCategory,
+    publicWhere(site),
+    { fields: ['id', 'name', 'slug', 'description', 'parentId', 'depth', 'descendantIds', 'childIds'], orderBy: { depth: 'asc', name: 'asc' }, limit: 500 },
+    scopeOf(site),
+  )
 }

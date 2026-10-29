@@ -1,7 +1,17 @@
-import { describe, expect, it } from '@jest/globals'
+import { describe, expect, it, jest } from '@jest/globals'
+
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({ push: () => undefined, replace: () => undefined }),
+  usePathname: () => '/acme',
+}))
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { StorefrontView } from '../StorefrontView'
+import { StorefrontFrame, StorefrontView } from '../StorefrontView'
+import { ProductPageView } from '../CatalogViews'
+import { CollectionPageView } from '../../shop/ShopListingViews'
+import { buildShopShell } from '../../../lib/shopShell'
+import { createFallbackTranslator } from '@open-mercato/shared/lib/i18n/translate'
+import ar from '../../../i18n/ar.json'
 import { validatePageSpec } from '../../../lib/blocks/pageSpec'
 import { buildDefaultHomeSpec } from '../../../lib/blocks/defaultHome'
 import { DEFAULT_THEME_TOKENS } from '../../../lib/theme'
@@ -11,7 +21,17 @@ import { buildStorefrontMetadata, buildUnavailableMetadata } from '../../../lib/
 const SITE_ID = '3f2b2a52-6a5b-4f8a-9c11-2f3e4d5c6b7a'
 const EVIL = '</script><script>alert(1)</script><img src=x onerror=alert(2)>'
 
-function render(storeName: string) {
+function shell(storeName: string, footer = false) {
+  const dict = ar as Record<string, string>
+  return buildShopShell(
+    { id: SITE_ID, slug: 'acme', name: storeName, tenantId: 't', organizationId: 'o' },
+    [{ href: '/acme/about', label: 'من نحن' }],
+    { locale: 'ar', translate: createFallbackTranslator(dict), clientDict: dict },
+    { footer, now: new Date('2026-10-25T00:00:00Z') },
+  )
+}
+
+function render(storeName: string, footer = false) {
   const validation = validatePageSpec(buildDefaultHomeSpec({ storeName }))
   if (!validation.ok) throw new Error('default template invalid')
   return renderToStaticMarkup(
@@ -32,8 +52,8 @@ function render(storeName: string) {
         locale: 'en',
         jsonLd: buildStorefrontJsonLd({ storeName, description: 'Desc', url: 'https://suqna.example/acme', logoUrl: null }),
       }}
-      signInHref="/acme-org/portal/login"
-      labels={{ signIn: 'Sign in', home: 'Home' }}
+      labels={{ home: 'Home' }}
+      shell={shell(storeName, footer)}
       sectionLabels={{
         contactAddress: 'Address',
         contactPhone: 'Phone',
@@ -46,13 +66,79 @@ function render(storeName: string) {
   )
 }
 
+describe('TEST-J02 Arabic store shell', () => {
+  it('renders the public page right to left in Arabic with the store menu', () => {
+    const html = render('Acme Store')
+    expect(html).toMatch(/class="sf-root sf-shop"[^>]*dir="rtl"[^>]*lang="ar"/)
+    expect(html).toContain('aria-label="فتح القائمة"')
+    expect(html).toContain('href="#sf-main"')
+    expect(html).toContain('انتقل إلى المحتوى')
+    expect(html).toContain('data-sf-portal=""')
+    expect(html).not.toContain('portal/login')
+  })
+
+  it('adds the shell footer only when asked (pages without their own Footer section)', () => {
+    expect(render('Acme Store')).not.toContain('<footer class="sf-footer sf-shell-footer"')
+    const html = render('Acme Store', true)
+    expect(html).toContain('<footer class="sf-footer sf-shell-footer"')
+    expect(html).toContain('© 2026 Acme Store. جميع الحقوق محفوظة.')
+    expect(html).toContain('href="/acme/about"')
+  })
+
+  it('wraps product and collection pages in the same Arabic shell, with the shell footer', () => {
+    const frame = {
+      siteId: SITE_ID,
+      siteSlug: 'acme',
+      storeName: 'Acme',
+      basePath: '/acme',
+      logoSrc: null,
+      tokens: DEFAULT_THEME_TOKENS,
+      labels: { home: 'Home' },
+      shell: shell('Acme', true),
+      head: { title: 'P', description: null, canonicalUrl: 'https://x.example/acme', siteName: 'Acme', imageUrl: null, locale: 'ar', jsonLd: [] },
+    }
+    const product = renderToStaticMarkup(
+      <ProductPageView {...frame} product={{ title: 'تمر', subtitle: null, description: null, images: [] }} purchase={null} back={{ href: '/acme/collections/dates', label: 'العودة إلى تمور' }} />,
+    )
+    expect(product).toMatch(/class="sf-root sf-shop"[^>]*dir="rtl"[^>]*lang="ar"/)
+    expect(product).toContain('<footer class="sf-footer sf-shell-footer"')
+    expect(product).toContain('العودة إلى تمور')
+    const collection = renderToStaticMarkup(
+      <CollectionPageView
+        {...frame}
+        category={{ name: 'تمور', description: null }}
+        subcategories={[]}
+        subcategoriesTitle="تصفّح حسب النوع"
+        listing={{ products: [], total: 0, facets: [], sort: 'featured', defaultSort: 'featured', sortOptions: [{ value: 'featured', label: 'المميّز' }], search: '', query: null }}
+        pagination={{ page: 2, pageCount: 3, hrefs: { 1: '/acme/collections/dates', 2: '/acme/collections/dates?page=2', 3: '/acme/collections/dates?page=3' }, labels: { nav: 'الصفحات', previous: 'السابق', next: 'التالي', more: 'صفحات أخرى', status: 'صفحة ٢ من ٣' } }}
+      />,
+    )
+    expect(collection).toContain('صفحة ٢ من ٣')
+    expect(collection).toContain('aria-current="page"')
+    expect(collection).toContain('لا منتجات')
+    expect(collection).toContain('rel="prev"')
+  })
+
+  it('keeps the builder preview bare: no shop marker, menu or buyer dictionary', () => {
+    const html = renderToStaticMarkup(
+      <StorefrontFrame siteId={SITE_ID} storeName="Acme" basePath="/acme" logoSrc={null} tokens={DEFAULT_THEME_TOKENS} labels={{ home: 'Home' }} preview>
+        <p>section</p>
+      </StorefrontFrame>,
+    )
+    expect(html).toContain('class="sf-root"')
+    expect(html).not.toContain('class="sf-root sf-shop"')
+    expect(html).toContain('dir="rtl"')
+    expect(html).not.toContain('data-slot="sheet-trigger"')
+  })
+})
+
 describe('TEST-004 SSR rendering', () => {
   it('renders the theme variables inside a scoped wrapper with intact CSS', () => {
     const html = render('Acme Store')
     expect(html).toContain(`data-sf-site="${SITE_ID}"`)
     expect(html).toContain('--sf-color-primary:#123abc')
     // Quotes inside the stylesheet must survive (selector and font names).
-    expect(html).toContain(`[data-sf-site="${SITE_ID}"]{`)
+    expect(html).toContain(`[data-sf-site="${SITE_ID}"],body:has(.sf-shop[data-sf-site="${SITE_ID}"]){`)
     expect(html).toMatch(/<h1>Acme Store<\/h1>/)
   })
 

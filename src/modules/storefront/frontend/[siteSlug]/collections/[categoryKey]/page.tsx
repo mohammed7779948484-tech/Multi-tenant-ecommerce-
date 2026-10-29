@@ -1,22 +1,17 @@
 import type { Metadata } from 'next'
-import { collectionPageMetadata, renderCollectionPage } from '../../../../lib/publicCatalogPages'
+import { collectionPageMetadata, renderCollectionPage } from '../../../../lib/shopListingPages'
+import type { RawSearchParams } from '../../../../lib/shopListingQuery'
 
 type Params = { siteSlug?: string; categoryKey?: string }
-type SearchParams = Record<string, string | string[] | undefined>
-
-function pageParam(searchParams: SearchParams | undefined): string | null {
-  const value = searchParams?.page
-  return typeof value === 'string' ? value : Array.isArray(value) ? (value[0] ?? null) : null
-}
 
 /**
- * A collection of a live store (`/{siteSlug}/collections/{slug or id}?page=N`).
- * Served only while a published section shows the category; 24 products per page.
+ * A category of a live store (`/{siteSlug}/collections/{slug or id}`) with its
+ * sub-categories, filters, sort and pages. Served for every active category (spec S-2).
  */
-export default async function StorefrontCollectionPage({ params, searchParams }: { params: Params; searchParams?: SearchParams }) {
-  return renderCollectionPage(params.siteSlug ?? '', params.categoryKey ?? '', pageParam(searchParams))
+export default async function StorefrontCollectionPage({ params, searchParams }: { params: Params; searchParams?: RawSearchParams }) {
+  return renderCollectionPage(params.siteSlug ?? '', params.categoryKey ?? '', searchParams)
 }
 
 /** Read by the frontend catch-all's `generateMetadata` (see docs/UPSTREAM_DIVERGENCES.md). */
-StorefrontCollectionPage.generateMetadata = async ({ params, searchParams }: { params: Params; searchParams?: SearchParams }): Promise<Metadata> =>
-  collectionPageMetadata(params.siteSlug ?? '', params.categoryKey ?? '', pageParam(searchParams))
+StorefrontCollectionPage.generateMetadata = async ({ params, searchParams }: { params: Params; searchParams?: RawSearchParams }): Promise<Metadata> =>
+  collectionPageMetadata(params.siteSlug ?? '', params.categoryKey ?? '', searchParams)
