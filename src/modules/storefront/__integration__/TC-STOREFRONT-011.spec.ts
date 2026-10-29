@@ -194,33 +194,35 @@ test.describe('TC-STOREFRONT-011: checkout, order placement and tracking', () =>
       const row = await client.query<{ cart_id: string }>('select cart_id from storefront_order_access where order_number = $1', [placed.orderNumber])
       return row.rows[0]!.cart_id
     })
-    // The state a crash leaves after `sales.orders.create`: the order exists, its access row and the cart's closing do not.
-    const crashAfterCreate = (claimAgeMinutes: number) =>
+    // What an interrupted submit leaves after `sales.orders.create`: the order exists, its access row and the
+    // cart's closing do not. `savedId` says whether the order id reached the cart; `status` is the cart's state.
+    const interruptedAfterCreate = (state: { status: 'placing' | 'active'; claimAgeMinutes: number; savedId: boolean }) =>
       withClient(async (client) => {
         await client.query('delete from storefront_order_access where cart_id = $1', [cartId])
-        await client.query(`update storefront_carts set status = 'placing', updated_at = now() - make_interval(mins => $2) where id = $1`, [cartId, claimAgeMinutes])
+        await client.query(
+          `update storefront_carts set status = $2, updated_at = now() - make_interval(mins => $3),
+             converted_order_id = case when $4 then converted_order_id else null end where id = $1`,
+          [cartId, state.status, state.claimAgeMinutes, state.savedId],
+        )
       })
-    // Order metadata is encrypted; this file is the only one placing orders and runs serially, so count this store's orders since the first.
-    const storeOrdersSinceFirst = () =>
-      withClient(async (client) =>
-        Number(
-          (
-            await client.query<{ n: string }>(
-              `select count(*) as n from sales_orders o, sales_orders first
-               where first.order_number = $1 and o.organization_id = first.organization_id and o.tenant_id = first.tenant_id and o.created_at >= first.created_at`,
-              [placed.orderNumber],
-            )
-          ).rows[0]!.n,
-        ),
-      )
+    // The order's external reference is plain and names its cart.
+    const ordersOfCart = () =>
+      withClient(async (client) => Number((await client.query<{ n: string }>('select count(*) as n from sales_orders where external_reference = $1', [`storefront-cart:${cartId}`])).rows[0]!.n))
+    expect(await ordersOfCart()).toBe(1)
 
-    // A fresh claim and a stale one (its submit died) both finish the same order at once.
-    for (const age of [0, 10]) {
-      await crashAfterCreate(age)
+    // Each finishes the same order at once: a fresh or stale claim with the id saved, a stale claim whose id
+    // write failed, and a cart given back although its order was created.
+    for (const state of [
+      { status: 'placing', claimAgeMinutes: 0, savedId: true },
+      { status: 'placing', claimAgeMinutes: 10, savedId: true },
+      { status: 'placing', claimAgeMinutes: 10, savedId: false },
+      { status: 'active', claimAgeMinutes: 0, savedId: false },
+    ] as const) {
+      await interruptedAfterCreate(state)
       const again = await place(ctx, body)
-      expect(again.status(), await again.text()).toBe(200)
+      expect(again.status(), `${JSON.stringify(state)}: ${await again.text()}`).toBe(200)
       expect(((await again.json()) as { orderNumber: string }).orderNumber).toBe(placed.orderNumber)
-      expect(await storeOrdersSinceFirst()).toBe(1)
+      expect(await ordersOfCart(), JSON.stringify(state)).toBe(1)
     }
     // The recorded access is the buyer's: the original tracking link opens the order.
     expect((await ctx.get(shop(`/orders/${encodeURIComponent(placed.orderNumber)}?k=${new URL(placed.trackingUrl, 'http://x').searchParams.get('k')}`))).status()).toBe(200)

@@ -106,12 +106,19 @@ async function orderInput(em: EntityManager, site: CartSite, cart: StorefrontCar
     ...(paymentStatusId ? { paymentStatusEntryId: paymentStatusId } : {}),
     placedAt: new Date(),
     comments: input.destination.note || undefined,
+    // Plain (unencrypted) and unique per cart: a later submit finds this order even if nothing after the create was saved.
+    externalReference: orderReferenceFor(cart.id),
     metadata: { storefront: { siteId: site.id, cartId: cart.id, quoteHash: quote.quoteHash } },
     lines: quote.lines.map((line, index) => ({
       ...toSalesLine(line, quote.currencyCode, index + 1),
       configuration: { storefront: { personalization: line.personalization.filter((field) => field.value).map(({ code, label, value }) => ({ code, label, value })) } },
     })),
   }
+}
+
+/** The sales order's external reference for the order of a storefront cart. */
+export function orderReferenceFor(cartId: string): string {
+  return `storefront-cart:${cartId}`
 }
 
 async function findAccessByCart(em: EntityManager, site: CartSite, cartId: string) {
@@ -137,15 +144,15 @@ async function claimCart(em: EntityManager, site: CartSite, tokenHash: string, o
       return { kind: 'replay', access }
     }
     const now = Date.now()
-    if (cart.status === 'placing' && cart.convertedOrderId) {
-      // An earlier submit created the order but did not finish recording it: finish now, never place a second order.
-      const access = await recordOrderAccess(tem, site, cart, cart.convertedOrderId, orderTokenHash)
-      if (access) return { kind: 'replay', access }
-      // The order is gone (removed by the merchant): the cart may be placed again.
-      cart.convertedOrderId = null
-    } else if (cart.status === 'placing' && now - cart.updatedAt.getTime() < PLACING_CLAIM_TTL_MS) {
+    if (cart.status === 'placing' && !cart.convertedOrderId && now - cart.updatedAt.getTime() < PLACING_CLAIM_TTL_MS) {
       return { kind: 'busy', cartId: cart.id }
     }
+    // An earlier submit may have created the order without finishing (a failed write, a crash):
+    // finish that order now, found by its saved id or its reference, and never place a second one.
+    const access = await recordOrderAccess(tem, site, cart, orderTokenHash, cart.convertedOrderId ?? null)
+    if (access) return { kind: 'replay', access }
+    // No order exists for this cart (or the merchant removed it): the cart may be placed.
+    cart.convertedOrderId = null
     if (cart.expiresAt.getTime() <= now) throw new ShopError(422, 'cartEmpty')
     cart.status = 'placing'
     cart.updatedAt = new Date(now)
@@ -156,12 +163,14 @@ async function claimCart(em: EntityManager, site: CartSite, tokenHash: string, o
 
 /**
  * Records the buyer's access to the cart's order and closes the cart, inside a
- * transaction that holds the cart row lock. Returns `null` when the order no
- * longer exists.
+ * transaction that holds the cart row lock. The order is found by `orderId`, or
+ * by the cart's order reference when no id was saved. Returns `null` when the
+ * cart has no order.
  */
-async function recordOrderAccess(tem: EntityManager, site: CartSite, cart: StorefrontCart, orderId: string, orderTokenHash: string): Promise<StorefrontOrderAccess | null> {
+async function recordOrderAccess(tem: EntityManager, site: CartSite, cart: StorefrontCart, orderTokenHash: string, orderId: string | null): Promise<StorefrontOrderAccess | null> {
   const existing = await findAccessByCart(tem, site, cart.id)
-  const order = existing ? null : await findOneWithDecryption(tem, SalesOrder, { id: orderId, ...scopeOf(site) }, { fields: ['id', 'orderNumber'] }, scopeOf(site))
+  const where = orderId ? { id: orderId, ...scopeOf(site) } : { externalReference: orderReferenceFor(cart.id), ...scopeOf(site), deletedAt: null }
+  const order = existing ? null : await findOneWithDecryption(tem, SalesOrder, where, { fields: ['id', 'orderNumber'] }, scopeOf(site))
   if (!existing && !order) return null
   const access =
     existing ??
@@ -242,7 +251,7 @@ export async function placeOrder(deps: Deps, site: CartSite, cartToken: string, 
       const locked = await tem.findOneOrFail(StorefrontCart, { id: claim.cartId, ...scopeOf(site) }, { lockMode: LockMode.PESSIMISTIC_WRITE })
       // Another submit may already have recorded it (after a slow write here).
       if (locked.status === 'converted') return findAccessByCart(tem, site, claim.cartId)
-      return recordOrderAccess(tem, site, locked, orderId!, hashOrderToken(token))
+      return recordOrderAccess(tem, site, locked, hashOrderToken(token), orderId)
     })
     if (!access) throw new Error('[internal] created order not found')
     const order = await findOneWithDecryption(em.fork(), SalesOrder, { id: access.orderId, ...scopeOf(site) }, { fields: ['id', 'grandTotalGrossAmount'] }, scopeOf(site))
@@ -252,7 +261,7 @@ export async function placeOrder(deps: Deps, site: CartSite, cartToken: string, 
     return { orderId: access.orderId, orderNumber: access.orderNumber, token, replay: false }
   } catch (err) {
     if (orderId) {
-      // The order exists: keep the claim; the next submit of this cart records it (no second order).
+      // The order exists: keep the claim; the next submit of this cart finds it (saved id or reference) and records it.
       logger.error('Order placed but its buyer access was not recorded', { err, orderId, siteId: site.id, cartId: claim.cartId })
     } else {
       await releaseClaim(deps.em.fork(), site, claim.cartId).catch((releaseErr: unknown) => logger.warn('Releasing a checkout claim failed', { err: releaseErr, cartId: claim.cartId }))
