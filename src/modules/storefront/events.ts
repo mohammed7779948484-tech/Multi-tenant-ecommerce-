@@ -17,6 +17,7 @@ const events = [
   // Buyer activity (shopping-journey spec): payloads carry ids only, never buyer text.
   { id: 'storefront.cart.updated', label: 'Storefront Cart Updated', entity: 'cart', category: 'custom' },
   { id: 'storefront.order.placed', label: 'Storefront Order Placed', entity: 'order', category: 'custom' },
+  { id: 'storefront.order.proof_submitted', label: 'Storefront Transfer Proof Submitted', entity: 'order', category: 'custom' },
 ] as const
 
 export const eventsConfig = createModuleEvents({ moduleId: 'storefront', events })

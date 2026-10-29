@@ -51,11 +51,33 @@ async function optionSchemaOf(em: EntityManager, scope: ShopScope, product: Cata
 }
 
 /**
- * `quantity` prices the product as a line of that many units (quantity tiers)
- * and asks stock for that many; the product page uses one.
+ * The lowest of `prices` (in variant order), compared only within one currency:
+ * the most common one, ties going to the first listed. Amounts in different
+ * currencies are never compared.
  */
-export async function loadPurchaseModel(deps: Deps, scope: ShopScope, product: CatalogProduct, options: { bypassCache?: boolean; quantity?: number } = {}): Promise<PurchaseModel> {
+export function cheapestPrice(prices: ShopPrice[]): ShopPrice | null {
+  const counts = new Map<string, number>()
+  for (const price of prices) counts.set(price.currencyCode, (counts.get(price.currencyCode) ?? 0) + 1)
+  let currency: string | null = null
+  for (const [code, count] of counts) if (currency === null || count > counts.get(currency)!) currency = code
+  return prices.filter((price) => price.currencyCode === currency).reduce<ShopPrice | null>((low, price) => (!low || price.amount < low.amount ? price : low), null)
+}
+
+/**
+ * `quantity` prices the product as a line of that many units (quantity tiers)
+ * and asks stock for that many, or for `stockQuantity` when other cart lines
+ * share the same stock; the product page uses one. `strictStock`
+ * (order placement) fails with `StockCheckFailedError` when stock cannot be
+ * checked, instead of treating it as not tracked.
+ */
+export async function loadPurchaseModel(
+  deps: Deps,
+  scope: ShopScope,
+  product: CatalogProduct,
+  options: { bypassCache?: boolean; quantity?: number; stockQuantity?: number; strictStock?: boolean } = {},
+): Promise<PurchaseModel> {
   const quantity = options.quantity ?? 1
+  const stockQuantity = options.stockQuantity ?? quantity
   const { em, container } = deps
   const { axes, fields } = readOptionDefinitions(await optionSchemaOf(em, scope, product))
   const rows = await findWithDecryption(
@@ -75,11 +97,11 @@ export async function loadPurchaseModel(deps: Deps, scope: ShopScope, product: C
   const stock = await resolveShopAvailability(
     container,
     scope,
-    [{ productId: product.id, variantId: implicit, quantity }, ...(configurable ? refs.map((ref) => ({ productId: product.id, variantId: ref.id, quantity })) : [])],
-    { bypassCache: options.bypassCache },
+    [{ productId: product.id, variantId: implicit, quantity: stockQuantity }, ...(configurable ? refs.map((ref) => ({ productId: product.id, variantId: ref.id, quantity: stockQuantity })) : [])],
+    { bypassCache: options.bypassCache, strict: options.strictStock },
   )
-  // From-price before a pick: the product's own price, else its cheapest variant.
-  const cheapest = [...prices.entries()].filter(([key]) => key).sort((a, b) => a[1].amount - b[1].amount)[0]?.[1] ?? null
+  // From-price before a pick: the product's own price, else its cheapest variant (in one currency).
+  const cheapest = cheapestPrice(refs.map((ref) => prices.get(ref.id)).filter((price): price is ShopPrice => Boolean(price)))
   return {
     productId: product.id,
     configurable,

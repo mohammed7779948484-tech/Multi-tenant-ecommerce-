@@ -3,34 +3,42 @@ import type { AwilixContainer } from 'awilix'
 import { LockMode } from '@mikro-orm/core'
 import type { EntityManager } from '@mikro-orm/postgresql'
 import { Dictionary, DictionaryEntry } from '@open-mercato/core/modules/dictionaries/data/entities'
+import { normalizeDictionaryValue } from '@open-mercato/core/modules/dictionaries/lib/utils'
 import { SalesOrder, SalesOrderLine } from '@open-mercato/core/modules/sales/data/entities'
+import { resolveStatusEntryIdByValue } from '@open-mercato/core/modules/sales/lib/statusHelpers'
 import type { CommandBus } from '@open-mercato/shared/lib/commands'
 import { findOneWithDecryption, findWithDecryption } from '@open-mercato/shared/lib/encryption/find'
 import { createLogger } from '@open-mercato/shared/lib/logger'
 import { buildShopCommandContext } from '../commands/cart'
 import { StorefrontCart, StorefrontOrderAccess } from '../data/entities'
-import { buildQuote, methodSnapshots, resolveMethods, toSalesLine, transferTextFrom, type CheckoutDestination, type CheckoutQuote } from './shopCheckout'
+import { priceCart, toSalesLine, transferTextFrom, type CheckoutDestination, type CheckoutQuote, type PricedCart } from './shopCheckout'
 import { ShopError, type CartSite } from './shopCart'
 import { formatShopPrice } from './shopFormat'
+import { proofAllowed } from './shopProof'
 import { findDistrict, findGovernorate } from './yemen'
 
 /**
  * Order placement and guest order access (shopping-journey spec REQ-008,
- * REQ-009, S-7, S-11). Placement locks the cart, prices it again with live
- * stock, and creates the order through the installed `sales.orders.create`
- * command with a system context pinned to the store, so the order is a normal
- * sales order: number, totals, events, staff notification, admin screens.
+ * REQ-009, S-7, S-11). Placement prices the cart again with live stock and
+ * creates the order through the installed `sales.orders.create` command with a
+ * system context pinned to the store, so the order is a normal sales order:
+ * number, totals, events, staff notification, admin screens.
  *
- * One order per cart: a submit first claims the cart (`placing`, in a short
- * transaction under the cart row lock), creates the order outside any
- * transaction of ours, so the sales command commits and fires its events as
- * it does for staff, then records the access row and marks the cart
- * `converted`. A second submit finds the claim and waits for the first, or the
- * converted cart, and returns the same order; `storefront_order_access.cart_id`
- * unique is the last guard. A claim older than two minutes (a crashed submit)
- * can be taken over. The buyer's access token is derived from the cart token
- * (HMAC), so that replay can hand back the same link without the server
- * keeping the token; only its SHA-256 is stored.
+ * One order per cart:
+ * - Each submit holds a database lock for its cart (a Postgres advisory lock in
+ *   a transaction of its own, on its own connection) from start to finish. A
+ *   second submit of the same cart waits for it, then finds the order; the lock
+ *   ends with the submit's connection, so a crashed submit never blocks the
+ *   cart and never leaves a claim another submit must guess about.
+ * - Under the lock, a cart that already has an order (saved on the cart, or
+ *   found by the order's plain `externalReference`) is finished, never placed
+ *   again: the access row is written and the cart closed.
+ * - The order is created outside any transaction of ours (L22), then the
+ *   access row is recorded. When that fails, or the command fails after its
+ *   own commit, the same request looks the order up and finishes it.
+ * The buyer's access token is derived from the cart token (HMAC), so a replay
+ * hands back the same link without the server keeping the token; only its
+ * SHA-256 is stored.
  */
 
 const logger = createLogger('storefront').child({ component: 'shop-orders' })
@@ -61,19 +69,29 @@ function scopeOf(site: CartSite) {
   return { tenantId: site.tenantId, organizationId: site.organizationId }
 }
 
-async function statusEntryId(em: EntityManager, site: CartSite, dictionaryKey: string, value: string): Promise<string | undefined> {
-  const dictionary = await em.findOne(Dictionary, { ...scopeOf(site), key: dictionaryKey, deletedAt: null })
-  if (!dictionary) return undefined
-  const entry = await em.findOne(DictionaryEntry, { ...scopeOf(site), dictionary: dictionary.id, value })
-  return entry?.id
+/**
+ * The entry id of a sales status value, matched the way the sales module
+ * matches it (normalized value). A store without the dictionary or the entry
+ * still gets its order, without that status, and the gap is logged for staff.
+ */
+async function statusEntryId(em: EntityManager, site: CartSite, dictionaryKey: 'sales.order_status' | 'sales.payment_status', value: string): Promise<string | undefined> {
+  let id: string | null = null
+  if (dictionaryKey === 'sales.order_status') {
+    id = await resolveStatusEntryIdByValue(em, { ...scopeOf(site), value })
+  } else {
+    const dictionary = await em.findOne(Dictionary, { ...scopeOf(site), key: dictionaryKey, deletedAt: null })
+    const entry = dictionary ? await em.findOne(DictionaryEntry, { ...scopeOf(site), dictionary: dictionary.id, normalizedValue: normalizeDictionaryValue(value) }) : null
+    id = entry?.id ?? null
+  }
+  if (!id) logger.warn('Sales status entry missing; the order is placed without it', { dictionaryKey, value, siteId: site.id, ...scopeOf(site) })
+  return id ?? undefined
 }
 
-/** The sales order input of a priced quote: lines, buyer and address snapshots, methods, initial statuses. */
-async function orderInput(em: EntityManager, site: CartSite, cart: StorefrontCart, quote: CheckoutQuote, input: PlaceInput) {
-  const { shipping, payment } = await resolveMethods(em, site, input)
+/** The sales order input of a priced cart: lines, buyer and address snapshots, the methods it was priced with, initial statuses. */
+async function orderInput(em: EntityManager, site: CartSite, cart: StorefrontCart, priced: PricedCart, input: PlaceInput) {
+  const { quote, shipping, payment, snapshots } = priced
   const governorate = findGovernorate(input.destination.governorate)!
   const district = findDistrict(input.destination.governorate, input.destination.district)!
-  const { shippingMethodSnapshot, paymentMethodSnapshot } = methodSnapshots(shipping, payment, input.destination)
   const address = {
     name: input.contact.name,
     phone: input.contact.phone,
@@ -90,7 +108,7 @@ async function orderInput(em: EntityManager, site: CartSite, cart: StorefrontCar
   }
   const [statusId, paymentStatusId] = await Promise.all([
     statusEntryId(em, site, 'sales.order_status', 'pending_approval'),
-    statusEntryId(em, site, 'sales.payment_status', 'pending'),
+    statusEntryId(em.fork(), site, 'sales.payment_status', 'pending'),
   ])
   return {
     ...scopeOf(site),
@@ -99,9 +117,9 @@ async function orderInput(em: EntityManager, site: CartSite, cart: StorefrontCar
     shippingAddressSnapshot: address,
     billingAddressSnapshot: address,
     shippingMethodId: shipping.id,
-    shippingMethodSnapshot,
+    shippingMethodSnapshot: snapshots.shippingMethodSnapshot,
     paymentMethodId: payment.id,
-    paymentMethodSnapshot,
+    paymentMethodSnapshot: snapshots.paymentMethodSnapshot,
     ...(statusId ? { statusEntryId: statusId } : {}),
     ...(paymentStatusId ? { paymentStatusEntryId: paymentStatusId } : {}),
     placedAt: new Date(),
@@ -121,19 +139,69 @@ export function orderReferenceFor(cartId: string): string {
   return `storefront-cart:${cartId}`
 }
 
+/** The advisory-lock key of one cart's placement (also used by the regression test that holds it). */
+export function placementLockKey(siteId: string, cartTokenHash: string): string {
+  return `storefront-place:${siteId}:${cartTokenHash}`
+}
+
 async function findAccessByCart(em: EntityManager, site: CartSite, cartId: string) {
   return em.findOne(StorefrontOrderAccess, { ...scopeOf(site), siteId: site.id, cartId })
 }
 
-/** A claim this old belongs to a submit that died; another submit may take it over. */
-export const PLACING_CLAIM_TTL_MS = 2 * 60 * 1000
-/** How often a running submit refreshes its claim; well inside the TTL. */
-const CLAIM_HEARTBEAT_MS = 20_000
-const REPLAY_WAIT_MS = 15_000
-const REPLAY_POLL_MS = 250
+/** How long a submit waits for another submit of the same cart before answering 409 `orderInProgress`. */
+export const PLACEMENT_WAIT_MS = 15_000
+/** How often the lock's own transaction runs a statement, so the database's idle-in-transaction timeout never ends it. */
+const LOCK_KEEPALIVE_MS = 20_000
 
-type Claim = { kind: 'claimed'; cartId: string } | { kind: 'replay'; access: StorefrontOrderAccess } | { kind: 'busy'; cartId: string }
+/** How often a waiting submit tries the lock again; it holds no database connection in between. */
+const LOCK_RETRY_MS = 250
 
+/**
+ * Runs `work` while holding the placement lock of one cart. The lock lives in a
+ * transaction bound to a manager of its own (its own connection), which no
+ * other manager joins, so the work's own reads, writes and the sales command
+ * run as usual. It is released when the work ends, or by the database when
+ * the process dies. A submit that finds the lock taken gives its connection
+ * back and tries again for up to `PLACEMENT_WAIT_MS`, so waiting buyers never
+ * pile up on the connection pool.
+ */
+async function withPlacementLock<T>(em: EntityManager, key: string, work: () => Promise<T>): Promise<T> {
+  const deadline = Date.now() + PLACEMENT_WAIT_MS
+  const lockEm = em.fork()
+  for (;;) {
+    await lockEm.begin()
+    let locked = false
+    try {
+      const rows = (await lockEm.execute('select pg_try_advisory_xact_lock(hashtextextended(?, 0)) as locked', [key])) as Array<{ locked: boolean }>
+      locked = rows[0]?.locked === true
+    } finally {
+      if (!locked) await lockEm.rollback().catch(() => undefined)
+    }
+    if (locked) break
+    // Another submit of this cart is still running.
+    if (Date.now() >= deadline) throw new ShopError(409, 'orderInProgress')
+    await new Promise((resolve) => setTimeout(resolve, LOCK_RETRY_MS))
+  }
+  const keepalive = setInterval(() => {
+    lockEm.execute('select 1').catch((err: unknown) => logger.warn('Keeping a placement lock alive failed', { err }))
+  }, LOCK_KEEPALIVE_MS)
+  try {
+    return await work()
+  } finally {
+    clearInterval(keepalive)
+    // Ending the transaction releases the lock; a failure here means the connection is gone, which releases it too.
+    await lockEm.rollback().catch((err: unknown) => logger.warn('Releasing a placement lock failed', { err }))
+  }
+}
+
+type Claim = { kind: 'claimed'; cartId: string } | { kind: 'replay'; access: StorefrontOrderAccess }
+
+/**
+ * Under the placement lock: the cart's existing order (replay), or the cart
+ * claimed (`placing`, so cart edits wait) for a new one. No other submit of
+ * this cart runs now, so a `placing` cart is one an earlier submit left
+ * unfinished: it is finished when its order exists, and placed otherwise.
+ */
 async function claimCart(em: EntityManager, site: CartSite, tokenHash: string, orderTokenHash: string): Promise<Claim> {
   return em.transactional(async (tem) => {
     const cart = await tem.findOne(StorefrontCart, { tokenHash, siteId: site.id, ...scopeOf(site) }, { lockMode: LockMode.PESSIMISTIC_WRITE })
@@ -143,15 +211,12 @@ async function claimCart(em: EntityManager, site: CartSite, tokenHash: string, o
       if (!access) throw new ShopError(422, 'cartEmpty')
       return { kind: 'replay', access }
     }
-    const now = Date.now()
-    if (cart.status === 'placing' && !cart.convertedOrderId && now - cart.updatedAt.getTime() < PLACING_CLAIM_TTL_MS) {
-      return { kind: 'busy', cartId: cart.id }
-    }
     // An earlier submit may have created the order without finishing (a failed write, a crash):
     // finish that order now, found by its saved id or its reference, and never place a second one.
     const access = await recordOrderAccess(tem, site, cart, orderTokenHash, cart.convertedOrderId ?? null)
     if (access) return { kind: 'replay', access }
     // No order exists for this cart (or the merchant removed it): the cart may be placed.
+    const now = Date.now()
     cart.convertedOrderId = null
     if (cart.expiresAt.getTime() <= now) throw new ShopError(422, 'cartEmpty')
     cart.status = 'placing'
@@ -190,85 +255,96 @@ async function recordOrderAccess(tem: EntityManager, site: CartSite, cart: Store
   return access
 }
 
-/** Gives a claimed cart back to the buyer when its order was not created. */
-async function releaseClaim(em: EntityManager, site: CartSite, cartId: string) {
-  await em.nativeUpdate(StorefrontCart, { id: cartId, ...scopeOf(site), status: 'placing', convertedOrderId: null }, { status: 'active', updatedAt: new Date() })
+/** After a create: records the cart's order (by id, else by reference) under the cart row lock; `null` when it has none. */
+async function finishCartOrder(em: EntityManager, site: CartSite, cartId: string, orderTokenHash: string, orderId: string | null) {
+  return em.fork().transactional(async (tem) => {
+    const locked = await tem.findOneOrFail(StorefrontCart, { id: cartId, ...scopeOf(site) }, { lockMode: LockMode.PESSIMISTIC_WRITE })
+    if (locked.status === 'converted') return findAccessByCart(tem, site, cartId)
+    return recordOrderAccess(tem, site, locked, orderTokenHash, orderId)
+  })
 }
 
-/** Waits for another submit of the same cart to finish, then answers with its order. */
-async function awaitOtherSubmit(em: EntityManager, site: CartSite, cartId: string): Promise<StorefrontOrderAccess> {
-  const deadline = Date.now() + REPLAY_WAIT_MS
-  while (Date.now() < deadline) {
-    const access = await findAccessByCart(em.fork(), site, cartId)
-    if (access) return access
-    const cart = await em.fork().findOne(StorefrontCart, { id: cartId, ...scopeOf(site) }, { fields: ['status'] })
-    // The other submit gave the cart back (a changed quote, a failure): this one starts over.
-    if (cart?.status === 'active') throw new ShopError(409, 'orderInProgress')
-    await new Promise((resolve) => setTimeout(resolve, REPLAY_POLL_MS))
-  }
-  throw new ShopError(409, 'orderInProgress')
+/** Gives a claimed cart back to the buyer when it has no order. */
+async function releaseClaim(em: EntityManager, site: CartSite, cartId: string) {
+  await em.nativeUpdate(StorefrontCart, { id: cartId, ...scopeOf(site), status: 'placing', convertedOrderId: null }, { status: 'active', updatedAt: new Date() })
 }
 
 /**
  * Places the order for the cart behind `cartToken`. A repeated submit returns
  * the same order (`replay`). A quote that no longer matches (price, stock,
  * methods or a line that can no longer be bought) answers 409 with the new
- * quote, and nothing is created.
+ * quote, and nothing is created; stock that cannot be checked answers 503.
  */
 export async function placeOrder(deps: Deps, site: CartSite, cartToken: string, input: PlaceInput): Promise<PlaceResult> {
   const tokenHash = createHash('sha256').update(cartToken).digest('hex')
   const token = orderTokenFor(cartToken)
-  const claim = await claimCart(deps.em.fork(), site, tokenHash, hashOrderToken(token))
-  if (claim.kind !== 'claimed') {
-    const access = claim.kind === 'replay' ? claim.access : await awaitOtherSubmit(deps.em, site, claim.cartId)
-    return { orderId: access.orderId, orderNumber: access.orderNumber, token, replay: true }
-  }
+  const orderTokenHash = hashOrderToken(token)
+  return withPlacementLock(deps.em, placementLockKey(site.id, tokenHash), async () => {
+    const claim = await claimCart(deps.em.fork(), site, tokenHash, orderTokenHash)
+    if (claim.kind === 'replay') return { orderId: claim.access.orderId, orderNumber: claim.access.orderNumber, token, replay: true }
 
-  const em = deps.em.fork()
-  let orderId: string | null = null
-  // While the order is being created, the claim stays fresh so no other submit takes it over.
-  const heartbeat = setInterval(() => {
-    deps.em
-      .fork()
-      .nativeUpdate(StorefrontCart, { id: claim.cartId, ...scopeOf(site), status: 'placing' }, { updatedAt: new Date() })
-      .catch((err: unknown) => logger.warn('Refreshing a checkout claim failed', { err, cartId: claim.cartId }))
-  }, CLAIM_HEARTBEAT_MS)
+    const em = deps.em.fork()
+    let createStarted = false
+    let orderId: string | null = null
+    try {
+      const cart = await em.findOneOrFail(StorefrontCart, { id: claim.cartId, ...scopeOf(site) })
+      const priced = await priceCart({ ...deps, em: em.fork() }, site, cart, input, { bypassCache: true, strictStock: true })
+      if (priced.quote.blocked || priced.quote.quoteHash !== input.quoteHash) throw new ShopError(409, 'quoteChanged', undefined, { quote: priced.quote })
+
+      const commandBus = deps.container.resolve('commandBus') as CommandBus
+      const orderData = await orderInput(em, site, cart, priced, input)
+      createStarted = true
+      const { result } = await commandBus.execute<Record<string, unknown>, { orderId: string }>('sales.orders.create', {
+        input: orderData,
+        ctx: buildShopCommandContext(deps.container, site),
+      })
+      orderId = result.orderId
+      // First thing after the create: a later submit finds this order instead of placing another.
+      await deps.em.fork().nativeUpdate(StorefrontCart, { id: claim.cartId, ...scopeOf(site), status: 'placing' }, { convertedOrderId: orderId, updatedAt: new Date() })
+      const access = await finishCartOrder(deps.em, site, claim.cartId, orderTokenHash, orderId)
+      if (!access) throw new Error('[internal] created order not found')
+      await checkOrderTotal(em, site, access.orderId, priced.quote)
+      return { orderId: access.orderId, orderNumber: access.orderNumber, token, replay: false }
+    } catch (err) {
+      if (!createStarted) {
+        await releaseClaim(deps.em.fork(), site, claim.cartId).catch((releaseErr: unknown) => logger.warn('Releasing a checkout claim failed', { err: releaseErr, cartId: claim.cartId }))
+        throw err
+      }
+      // The order may exist: the command can fail after its own commit (post-commit steps), and the
+      // access write can fail after the order was saved. Find it (saved id, else reference) and finish it.
+      const access = await finishCartOrder(deps.em, site, claim.cartId, orderTokenHash, orderId).catch((finishErr: unknown) => {
+        logger.error('Finishing a placed order failed', { err: finishErr, orderId, siteId: site.id, cartId: claim.cartId })
+        return undefined
+      })
+      if (access) {
+        logger.warn('Order placement recovered after a failure', { err, orderId: access.orderId, siteId: site.id, cartId: claim.cartId })
+        return { orderId: access.orderId, orderNumber: access.orderNumber, token, replay: false }
+      }
+      if (access === null) {
+        // No order exists: the create failed before committing. The buyer may try again.
+        await releaseClaim(deps.em.fork(), site, claim.cartId).catch((releaseErr: unknown) => logger.warn('Releasing a checkout claim failed', { err: releaseErr, cartId: claim.cartId }))
+      } else {
+        // Unknown (the lookup failed too): keep the claim; the next submit of this cart finds the order or places it.
+        logger.error('Order placement left unfinished', { err, orderId, siteId: site.id, cartId: claim.cartId })
+      }
+      throw err
+    }
+  })
+}
+
+/**
+ * The quote and the order are calculated from the same lines and method
+ * snapshots, so their totals agree; a difference means the sales calculation
+ * changed underneath and is reported for staff with both amounts (no buyer data).
+ */
+async function checkOrderTotal(em: EntityManager, site: CartSite, orderId: string, quote: CheckoutQuote) {
   try {
-    const cart = await em.findOneOrFail(StorefrontCart, { id: claim.cartId, ...scopeOf(site) })
-    const quote = await buildQuote({ ...deps, em: em.fork() }, site, cart, input, { bypassCache: true })
-    if (quote.blocked || quote.quoteHash !== input.quoteHash) throw new ShopError(409, 'quoteChanged', undefined, { quote })
-
-    const commandBus = deps.container.resolve('commandBus') as CommandBus
-    const { result } = await commandBus.execute<Record<string, unknown>, { orderId: string }>('sales.orders.create', {
-      input: await orderInput(em, site, cart, quote, input),
-      ctx: buildShopCommandContext(deps.container, site),
-    })
-    orderId = result.orderId
-    // First thing after the create: a later submit finds this order instead of placing another.
-    await deps.em.fork().nativeUpdate(StorefrontCart, { id: claim.cartId, ...scopeOf(site), status: 'placing' }, { convertedOrderId: orderId, updatedAt: new Date() })
-    clearInterval(heartbeat)
-    const access = await deps.em.fork().transactional(async (tem) => {
-      const locked = await tem.findOneOrFail(StorefrontCart, { id: claim.cartId, ...scopeOf(site) }, { lockMode: LockMode.PESSIMISTIC_WRITE })
-      // Another submit may already have recorded it (after a slow write here).
-      if (locked.status === 'converted') return findAccessByCart(tem, site, claim.cartId)
-      return recordOrderAccess(tem, site, locked, hashOrderToken(token), orderId)
-    })
-    if (!access) throw new Error('[internal] created order not found')
-    const order = await findOneWithDecryption(em.fork(), SalesOrder, { id: access.orderId, ...scopeOf(site) }, { fields: ['id', 'grandTotalGrossAmount'] }, scopeOf(site))
+    const order = await findOneWithDecryption(em.fork(), SalesOrder, { id: orderId, ...scopeOf(site) }, { fields: ['id', 'grandTotalGrossAmount'] }, scopeOf(site))
     if (order && Number(order.grandTotalGrossAmount) !== quote.grandTotal.amount) {
-      logger.warn('Order total differs from the checkout quote', { orderId: order.id, siteId: site.id })
+      logger.error('Order total differs from the checkout quote', { orderId, siteId: site.id, orderTotal: Number(order.grandTotalGrossAmount), quoteTotal: quote.grandTotal.amount })
     }
-    return { orderId: access.orderId, orderNumber: access.orderNumber, token, replay: false }
   } catch (err) {
-    if (orderId) {
-      // The order exists: keep the claim; the next submit of this cart finds it (saved id or reference) and records it.
-      logger.error('Order placed but its buyer access was not recorded', { err, orderId, siteId: site.id, cartId: claim.cartId })
-    } else {
-      await releaseClaim(deps.em.fork(), site, claim.cartId).catch((releaseErr: unknown) => logger.warn('Releasing a checkout claim failed', { err: releaseErr, cartId: claim.cartId }))
-    }
-    throw err
-  } finally {
-    clearInterval(heartbeat)
+    logger.warn('Checking an order total failed', { err, orderId })
   }
 }
 
@@ -283,6 +359,24 @@ export async function findOrderAccess(em: EntityManager, site: CartSite, orderNu
   if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token) || orderNumber.length > 191) return null
   const access = await em.findOne(StorefrontOrderAccess, { ...scopeOf(site), siteId: site.id, orderNumber })
   return access && sameHash(access.tokenHash, hashOrderToken(token)) ? access : null
+}
+
+/**
+ * The order behind a confirmation link token or this browser's order cookie,
+ * tried in that order, with the token that opened it (for the permalink). A
+ * stale or mistyped link token never hides a valid cookie.
+ */
+export async function resolveOrderAccess(
+  em: EntityManager,
+  site: CartSite,
+  orderNumber: string,
+  tokens: { link: string | null; cookie: string | null },
+): Promise<{ access: StorefrontOrderAccess; token: string } | null> {
+  for (const token of [tokens.link, tokens.cookie]) {
+    const access = token ? await findOrderAccess(em, site, orderNumber, token) : null
+    if (access && token) return { access, token }
+  }
+  return null
 }
 
 type Money = { amount: number; formatted: string }
@@ -300,6 +394,8 @@ export type OrderView = {
   address: { governorate: string | null; district: string | null; area: string | null; landmark: string | null; note: string | null; gps: { latitude: number; longitude: number } | null }
   shippingMethod: string | null
   payment: { name: string | null; kind: 'cod' | 'transfer' | 'other'; instructions: string | null; accountNumber: string | null }
+  /** Bank-transfer proof: `open` while one can be sent, `submitted` once sent, `none` for other payments or a settled order. */
+  proof: { state: 'open' | 'submitted' | 'none'; submittedAt: string | null }
 }
 
 const text = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null)
@@ -323,6 +419,7 @@ export async function loadOrderView(em: EntityManager, site: CartSite, access: S
   const paymentKind = payment.providerKey === 'wire-transfer' ? 'transfer' : payment.providerKey === 'cash-on-delivery' ? 'cod' : 'other'
   const settings = (payment.providerSettings && typeof payment.providerSettings === 'object' ? payment.providerSettings : {}) as Record<string, unknown>
   const transfer = paymentKind === 'transfer' ? transferTextFrom(settings) : null
+  const proofState = access.proofSubmittedAt ? 'submitted' : proofAllowed(payment, order.paymentStatus ?? null) === 'ok' ? 'open' : 'none'
   const latitude = num(address.latitude)
   const longitude = num(address.longitude)
   return {
@@ -365,5 +462,6 @@ export async function loadOrderView(em: EntityManager, site: CartSite, access: S
       instructions: transfer?.instructions ?? null,
       accountNumber: transfer?.accountNumber ?? null,
     },
+    proof: { state: proofState, submittedAt: access.proofSubmittedAt?.toISOString() ?? null },
   }
 }

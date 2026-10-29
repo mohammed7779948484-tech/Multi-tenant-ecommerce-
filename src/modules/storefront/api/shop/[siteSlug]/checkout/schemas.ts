@@ -74,4 +74,5 @@ export const orderViewSchema = z.object({
   }),
   shippingMethod: z.string().nullable(),
   payment: z.object({ name: z.string().nullable(), kind: z.enum(['cod', 'transfer', 'other']), instructions: z.string().nullable(), accountNumber: z.string().nullable() }),
+  proof: z.object({ state: z.enum(['open', 'submitted', 'none']), submittedAt: z.string().nullable() }),
 })

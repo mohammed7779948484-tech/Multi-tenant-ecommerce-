@@ -65,27 +65,42 @@ export function ShopCartProvider({ siteSlug, children }: { siteSlug: string; chi
   const [open, setOpen] = React.useState(false)
   // Once an answer set the cart cookie, a later write without it means cookies are blocked.
   const cookieSet = React.useRef(false)
-  // Answers can arrive out of order (a slow first read after a quick add): only a newer request's answer is shown.
+  // Answers can arrive out of order, and a read can be served before a pending write commits.
+  // See `isNewerCart`: the cart's own version orders them, then the request order.
   const issued = React.useRef(0)
   const shown = React.useRef(0)
+  const shownVersion = React.useRef<string | null>(null)
+  const pendingWrites = React.useRef(0)
 
   const request = React.useCallback(
     async (path: string, init: RequestInit = {}) => {
       const sequence = ++issued.current
+      const write = Boolean(init.method && init.method !== 'GET')
+      const readDuringWrite = !write && pendingWrites.current > 0
       const headers: Record<string, string> = { 'x-om-unauthorized-redirect': '0', 'content-type': 'application/json' }
       if (cookieSet.current) headers['x-sf-cart-expected'] = '1'
-      const call = await apiCall<CartView & { error?: string; code?: string; fieldErrors?: Record<string, string> }>(`${base}${path}`, {
-        ...init,
-        headers,
-        credentials: 'same-origin',
-      })
+      if (write) pendingWrites.current += 1
+      let call: Awaited<ReturnType<typeof apiCall<CartView & { error?: string; code?: string; fieldErrors?: Record<string, string> }>>>
+      try {
+        call = await apiCall<CartView & { error?: string; code?: string; fieldErrors?: Record<string, string> }>(`${base}${path}`, {
+          ...init,
+          headers,
+          credentials: 'same-origin',
+        })
+      } catch {
+        // Offline or the connection dropped: a refusal like any other, so every caller shows it and recovers.
+        throw new ShopCartError(t('storefront.shop.errors.network', 'Could not reach the store. Check your connection and try again.'), 'network', {})
+      } finally {
+        if (write) pendingWrites.current -= 1
+      }
       const body = call.result
       if (!call.ok || !body || !Array.isArray(body.lines)) {
         throw new ShopCartError(body?.error ?? t('storefront.shop.errors.failed', 'Something went wrong. Try again.'), body?.code ?? null, body?.fieldErrors ?? {})
       }
-      if (init.method && init.method !== 'GET') cookieSet.current = true
-      if (sequence > shown.current) {
+      if (write) cookieSet.current = true
+      if (isNewerCart({ version: body.updatedAt, sequence, readDuringWrite }, { version: shownVersion.current, sequence: shown.current })) {
         shown.current = sequence
+        shownVersion.current = body.updatedAt
         setCart(body)
         setFailed(false)
       }
@@ -134,11 +149,30 @@ export function ShopCartProvider({ siteSlug, children }: { siteSlug: string; chi
   return <ShopCartContext.Provider value={value}>{children}</ShopCartContext.Provider>
 }
 
+/**
+ * Whether a cart answer replaces the one on screen. Every write moves the
+ * cart's version (`updatedAt`), so a newer version wins and an older one never
+ * does, whatever the order the answers arrive in. Between equal versions (or
+ * without one: no cart yet, or a cart that became an order) the later request
+ * wins, except a read sent while a write was pending, which may predate it.
+ */
+export function isNewerCart(
+  answer: { version: string | null; sequence: number; readDuringWrite: boolean },
+  shown: { version: string | null; sequence: number },
+): boolean {
+  const version = answer.version ? Date.parse(answer.version) : null
+  const current = shown.version ? Date.parse(shown.version) : null
+  if (version !== null && current !== null && version !== current) return version > current
+  if (answer.readDuringWrite) return false
+  return answer.sequence > shown.sequence
+}
+
 export const ISSUE_KEYS: Record<CartLineView['issues'][number], [string, string]> = {
   unavailable: ['storefront.shop.cart.issueUnavailable', 'No longer available'],
   noPrice: ['storefront.shop.cart.issueNoPrice', 'Not for sale right now'],
   outOfStock: ['storefront.shop.cart.issueOutOfStock', 'Not enough in stock'],
   currency: ['storefront.shop.cart.issueCurrency', 'Priced in another currency'],
+  personalization: ['storefront.shop.cart.issuePersonalization', 'Update the personalization details'],
 }
 
 /** A cart line for the ecomcn blocks: options, personalization and problems as one line of text. */

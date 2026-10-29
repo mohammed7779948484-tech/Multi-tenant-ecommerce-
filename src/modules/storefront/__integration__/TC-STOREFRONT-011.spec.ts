@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { expect, test, type APIRequestContext } from '@playwright/test'
 import { withClient } from '@open-mercato/core/helpers/integration/dbFixtures'
 import { readJsonSafe } from '@open-mercato/core/helpers/integration/generalFixtures'
@@ -226,6 +227,49 @@ test.describe('TC-STOREFRONT-011: checkout, order placement and tracking', () =>
     }
     // The recorded access is the buyer's: the original tracking link opens the order.
     expect((await ctx.get(shop(`/orders/${encodeURIComponent(placed.orderNumber)}?k=${new URL(placed.trackingUrl, 'http://x').searchParams.get('k')}`))).status()).toBe(200)
+    await ctx.dispose()
+  })
+
+  test('only a live submit holds a cart: a waiting submit answers 409, never a second order', async () => {
+    test.setTimeout(120_000)
+    const ctx = await buyerWithCart(1)
+    const q = (await (await quote(ctx, { destination: destination(), shippingMethodId: ids.zones, paymentMethodId: ids.cod })).json()) as Quote
+    const body = { contact: { name: 'هدى', phone: '771234567' }, destination: destination(), shippingMethodId: ids.zones, paymentMethodId: ids.cod, quoteHash: q.quoteHash }
+    const cartToken = (await ctx.storageState()).cookies.find((cookie) => cookie.name.startsWith('sf_cart_'))!.value
+    const tokenHash = createHash('sha256').update(cartToken).digest('hex')
+    const { siteId, cartId } = await withClient(async (client) => {
+      const site = await client.query<{ id: string }>('select id from storefront_sites where slug = $1', [fx.session.siteSlug])
+      const cart = await client.query<{ id: string }>('select id from storefront_carts where token_hash = $1', [tokenHash])
+      return { siteId: site.rows[0]!.id, cartId: cart.rows[0]!.id }
+    })
+    const ordersOfCart = () =>
+      withClient(async (client) => Number((await client.query<{ n: string }>('select count(*) as n from sales_orders where external_reference = $1', [`storefront-cart:${cartId}`])).rows[0]!.n))
+    // Another submit is still running (it holds the cart's placement lock) and its claim looks ten minutes old,
+    // as when its order create is slow: a timer would call the claim abandoned and place a second order.
+    await withClient(async (client) => {
+      await client.query(`update storefront_carts set status = 'placing', updated_at = now() - interval '10 minutes' where id = $1`, [cartId])
+      await client.query('begin')
+      await client.query('select pg_advisory_xact_lock(hashtextextended($1, 0))', [`storefront-place:${siteId}:${tokenHash}`])
+      try {
+        const waiting = await place(ctx, body)
+        expect([waiting.status(), ((await waiting.json()) as { code?: string }).code]).toEqual([409, 'orderInProgress'])
+        expect(await ordersOfCart()).toBe(0)
+      } finally {
+        await client.query('rollback')
+      }
+    })
+    // That submit ended without an order: the next one places it, once.
+    const placed = await place(ctx, body)
+    expect(placed.status(), await placed.text()).toBe(201)
+    expect(await ordersOfCart()).toBe(1)
+    // A stale or mistyped link token never hides this browser's order cookie, on the API and the page.
+    const { orderNumber } = (await placed.json()) as { orderNumber: string }
+    const stale = `k=${'A'.repeat(43)}`
+    expect((await ctx.get(shop(`/orders/${encodeURIComponent(orderNumber)}?${stale}`))).status()).toBe(200)
+    expect((await ctx.get(`/${fx.session.siteSlug}/orders/${encodeURIComponent(orderNumber)}?${stale}`)).status()).toBe(200)
+    const stranger = await fx.buyer()
+    expect((await stranger.get(shop(`/orders/${encodeURIComponent(orderNumber)}?${stale}`))).status()).toBe(404)
+    await stranger.dispose()
     await ctx.dispose()
   })
 

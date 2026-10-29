@@ -169,6 +169,64 @@ export function methodSnapshots(shipping: SalesShippingMethod, payment: SalesPay
   }
 }
 
+type MethodSnapshots = ReturnType<typeof methodSnapshots>
+
+const numeric = (value: unknown): number | null => {
+  const parsed = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : NaN
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+/**
+ * The provider context `salesCalculationService` gets for these method
+ * snapshots, built the way `sales.orders.create` builds it from the snapshots
+ * it stores (numeric base rates, the document currency for a method without
+ * one, provider settings): the quote is calculated from the same input as the
+ * order it promises.
+ */
+export function salesProviderContext(snapshots: MethodSnapshots, currencyCode: string) {
+  const { shippingMethodSnapshot: shipping, paymentMethodSnapshot: payment } = snapshots
+  return {
+    shippingMethod: {
+      id: shipping.id,
+      code: shipping.code ?? null,
+      name: shipping.name ?? null,
+      providerKey: shipping.providerKey,
+      currencyCode: shipping.currencyCode ?? currencyCode,
+      baseRateNet: numeric(shipping.baseRateNet),
+      baseRateGross: numeric(shipping.baseRateGross),
+      metadata: structuredClone(shipping.metadata),
+      providerSettings: structuredClone(shipping.providerSettings),
+    },
+    paymentMethod: {
+      id: payment.id,
+      code: payment.code ?? null,
+      name: payment.name ?? null,
+      providerKey: payment.providerKey,
+      terms: payment.terms,
+      metadata: payment.metadata ? structuredClone(payment.metadata) : null,
+      providerSettings: structuredClone(payment.providerSettings),
+    },
+  }
+}
+
+/** The calculation line of an order line input, with the defaults `sales.orders.create` gives the same input. */
+export function calculationLine(line: SalesLineSnapshot): SalesLineSnapshot {
+  return {
+    ...line,
+    productVariantId: line.productVariantId ?? null,
+    name: line.name ?? null,
+    description: line.description ?? null,
+    comment: line.comment ?? null,
+    quantityUnit: null,
+    normalizedQuantity: line.quantity,
+    normalizedUnit: null,
+    discountAmount: null,
+    discountPercent: null,
+    taxRate: null,
+    taxAmount: null,
+  }
+}
+
 /** The sales line of a cart line: the live unit price as gross (no tax configured for buyers), the variant and personalization verbatim. */
 export function toSalesLine(line: CartLineView, currencyCode: string, lineNumber: number): SalesLineSnapshot {
   const amount = line.unitPrice?.amount ?? 0
@@ -210,13 +268,20 @@ export async function resolveMethods(em: EntityManager, site: CartSite, input: P
   return { shipping: shippingMethod, payment: paymentMethod }
 }
 
+/** A quote with the method rows and snapshots it was priced with: placement builds the order from exactly these. */
+export type PricedCart = { quote: CheckoutQuote; shipping: SalesShippingMethod; payment: SalesPaymentMethod; snapshots: MethodSnapshots }
+
 /**
  * The quote for the cart behind `cart`: live lines, the chosen methods and the
  * destination, totalled by `salesCalculationService`. Refuses an empty cart,
  * an invalid destination, a method the store does not offer there, and a
  * delivery rate in another currency than the cart.
  */
-export async function buildQuote(deps: Deps, site: CartSite, cart: StorefrontCart | null, input: QuoteInput, options: { bypassCache?: boolean } = {}): Promise<CheckoutQuote> {
+export async function buildQuote(deps: Deps, site: CartSite, cart: StorefrontCart | null, input: QuoteInput, options: { bypassCache?: boolean; strictStock?: boolean } = {}): Promise<CheckoutQuote> {
+  return (await priceCart(deps, site, cart, input, options)).quote
+}
+
+export async function priceCart(deps: Deps, site: CartSite, cart: StorefrontCart | null, input: QuoteInput, options: { bypassCache?: boolean; strictStock?: boolean } = {}): Promise<PricedCart> {
   const view: CartView = await buildCartView(deps, site, cart, options)
   if (!view.lines.length || !view.currencyCode) throw new ShopError(422, 'cartEmpty')
   const fieldErrors = destinationErrors(input.destination)
@@ -228,20 +293,12 @@ export async function buildQuote(deps: Deps, site: CartSite, cart: StorefrontCar
 
   const currencyCode = view.currencyCode
   const buyable = view.lines.filter((line) => !line.issues.length && line.unitPrice)
-  const { shippingMethodSnapshot, paymentMethodSnapshot } = methodSnapshots(shipping, payment, input.destination)
+  const snapshots = methodSnapshots(shipping, payment, input.destination)
   const calculation = await (deps.container.resolve('salesCalculationService') as SalesCalculationService).calculateDocumentTotals({
     documentKind: 'order',
-    lines: buyable.map((line, index) => toSalesLine(line, currencyCode, index + 1)),
+    lines: buyable.map((line, index) => calculationLine(toSalesLine(line, currencyCode, index + 1))),
     adjustments: [],
-    context: {
-      tenantId: site.tenantId,
-      organizationId: site.organizationId,
-      currencyCode,
-      metadata: {
-        shippingMethod: { ...shippingMethodSnapshot, id: shipping.id, code: shipping.code },
-        paymentMethod: { ...paymentMethodSnapshot, id: payment.id, code: payment.code },
-      },
-    },
+    context: { tenantId: site.tenantId, organizationId: site.organizationId, currencyCode, metadata: salesProviderContext(snapshots, currencyCode) },
   })
   const totals = calculation.totals
   // The sales `subtotal` is a running total (items, delivery and fees): the buyer's subtotal is the items alone.
@@ -263,5 +320,10 @@ export async function buildQuote(deps: Deps, site: CartSite, cart: StorefrontCar
     methods: [shipping.id, payment.id],
     destination: [input.destination.governorate, input.destination.district],
   }
-  return { ...quote, quoteHash: createHash('sha256').update(stableStringify(fingerprint)).digest('hex').slice(0, 32) }
+  return {
+    quote: { ...quote, quoteHash: createHash('sha256').update(stableStringify(fingerprint)).digest('hex').slice(0, 32) },
+    shipping,
+    payment,
+    snapshots,
+  }
 }

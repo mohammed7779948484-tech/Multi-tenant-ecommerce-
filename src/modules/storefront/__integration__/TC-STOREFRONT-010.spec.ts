@@ -100,11 +100,8 @@ test.describe('TC-STOREFRONT-010: cart concurrency, cookie, quantity tiers, stoc
     const sara = cart.lines.find((line) => line.productId === ids.gift && line.quantity === 1)!
     const merged = (await (await ctx.patch(`${cartPath()}/lines/${sara.id}`, { data: { personalization: { recipient: 'أحمد' } } })).json()) as Cart
     expect(merged.lines.filter((line) => line.productId === ids.gift).map((line) => line.quantity)).toEqual([4])
-    // A third line of 1, edited to equal the merged one: 5 is more than the 4 in stock.
-    cart = (await (await ctx.post(`${cartPath()}/lines`, { data: { productId: ids.gift, variantId: ids.giftVariant, quantity: 1, personalization: { recipient: 'ليلى' } } })).json()) as Cart
-    expect(cart.lines.filter((line) => line.productId === ids.gift)).toHaveLength(2)
-    const layla = cart.lines.find((line) => line.productId === ids.gift && line.quantity === 1)!
-    expect(await code(await ctx.patch(`${cartPath()}/lines/${layla.id}`, { data: { personalization: { recipient: 'أحمد' } } }))).toEqual([422, 'unavailable'])
+    // A third, differently personalized line draws on the same 4 units: refused (lines of one item share its stock).
+    expect(await code(await ctx.post(`${cartPath()}/lines`, { data: { productId: ids.gift, variantId: ids.giftVariant, quantity: 1, personalization: { recipient: 'ليلى' } } }))).toEqual([422, 'unavailable'])
     await ctx.dispose()
   })
 

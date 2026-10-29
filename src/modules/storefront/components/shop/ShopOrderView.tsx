@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import type { OrderView } from '../../lib/shopOrders'
 import { formatShopPrice, SHOP_NUMBER_LOCALE } from '../../lib/shopFormat'
 import { TransferInstructions } from './TransferInstructions'
+import { TransferProofForm } from './TransferProofForm'
 
 /**
  * The order's confirmation and tracking page (shopping-journey spec REQ-009),
@@ -48,7 +49,20 @@ const PAYMENT_STATUS: Record<string, [string, string]> = {
   canceled: ['storefront.shop.order.payment.canceled', 'Cancelled'],
 }
 
-export function ShopOrderView({ order, permalink, justPlaced, shopHref }: { order: OrderView; permalink: string | null; justPlaced: boolean; shopHref: string }) {
+export function ShopOrderView({
+  order,
+  permalink,
+  proofAction = null,
+  justPlaced,
+  shopHref,
+}: {
+  order: OrderView
+  permalink: string | null
+  /** Where the transfer proof form posts (carries the order token); `null` hides the form. */
+  proofAction?: string | null
+  justPlaced: boolean
+  shopHref: string
+}) {
   const t = useT()
   const label = (map: Record<string, [string, string]>, value: string | null) => (value ? (map[value] ? t(...map[value]) : value) : null)
   const status = label(ORDER_STATUS, order.status)
@@ -122,6 +136,11 @@ export function ShopOrderView({ order, permalink, justPlaced, shopHref }: { orde
               {t('storefront.shop.order.transferTitle', 'How to pay by bank transfer')}
             </h2>
             <TransferInstructions option={{ instructions: order.payment.instructions, accountNumber: order.payment.accountNumber }} />
+          </section>
+        ) : null}
+        {order.proof.state !== 'none' ? (
+          <section className="flex flex-col gap-3 border p-4" aria-label={t('storefront.shop.proof.section', 'Transfer proof')}>
+            <TransferProofForm proof={order.proof} action={proofAction} />
           </section>
         ) : null}
         <div className="sf-order-layout">

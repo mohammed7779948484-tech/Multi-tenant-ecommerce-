@@ -3,23 +3,21 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronDown, LocateFixed } from 'lucide-react'
-import { apiCall } from '@open-mercato/ui/backend/utils/apiCall'
 import { useT } from '@open-mercato/shared/lib/i18n/context'
 import { AddressForm, AddressFormErrorSummary, AddressFormFields, type Address, type AddressErrors, type AddressFieldName } from '@/components/ecomcn/address-form'
 import { CheckoutStepper } from '@/components/ecomcn/checkout-stepper'
-import { DeliveryOptions, type DeliveryOption } from '@/components/ecomcn/delivery-options'
 import { PaymentSelector, type PaymentMethod } from '@/components/ecomcn/payment-selector'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { toLatinDigits } from '@/lib/digits'
-import type { CheckoutPaymentOption, CheckoutQuote, CheckoutShippingOption } from '../../lib/shopCheckout'
-import { formatShopNumber } from '../../lib/shopFormat'
+import type { CheckoutPaymentOption, CheckoutShippingOption } from '../../lib/shopCheckout'
 import { isInYemen, normalizeYemeniMobile, yemenGovernorates } from '../../lib/yemen'
+import { CheckoutDeliveryOptions, OrderSummary, ReviewDetails } from './CheckoutParts'
+import { checkoutCall, useCheckoutQuote } from './checkoutClient'
 import { ISSUE_KEYS, useShopCart } from './ShopCart'
 import { TransferInstructions } from './TransferInstructions'
 
@@ -34,7 +32,6 @@ import { TransferInstructions } from './TransferInstructions'
 
 type StepId = 'address' | 'delivery' | 'payment'
 type Options = { shippingMethods: CheckoutShippingOption[]; paymentMethods: CheckoutPaymentOption[] }
-type FailureBody = { error?: string; code?: string; fieldErrors?: Record<string, string>; quote?: CheckoutQuote }
 
 const GOVERNORATES = yemenGovernorates()
 const REGIONS = GOVERNORATES.map(({ code, name }) => ({ code, name }))
@@ -52,19 +49,6 @@ const SERVER_FIELDS: Record<string, keyof AddressErrors> = {
   'destination.landmark': 'line2',
 }
 
-/** A checkout request; a network failure answers like a failed request (status 0) so every step can recover. */
-export async function checkoutCall<T>(url: string, init: RequestInit = {}): Promise<{ ok: boolean; status: number; body: (T & FailureBody) | null }> {
-  try {
-    const res = await apiCall<T & FailureBody>(url, {
-      ...init,
-      headers: { 'x-om-unauthorized-redirect': '0', 'content-type': 'application/json' },
-      credentials: 'same-origin',
-    })
-    return { ok: res.ok, status: res.status, body: res.result ?? null }
-  } catch {
-    return { ok: false, status: 0, body: null }
-  }
-}
 const call = checkoutCall
 
 export function ShopCheckout({ siteSlug, cartHref, shopHref }: { siteSlug: string; cartHref: string; shopHref: string }) {
@@ -83,8 +67,6 @@ export function ShopCheckout({ siteSlug, cartHref, shopHref }: { siteSlug: strin
   const [optionsLoading, setOptionsLoading] = React.useState(false)
   const [shippingId, setShippingId] = React.useState<string | null>(null)
   const [paymentId, setPaymentId] = React.useState<string | null>(null)
-  const [quote, setQuote] = React.useState<CheckoutQuote | null>(null)
-  const [quoteLoading, setQuoteLoading] = React.useState(false)
   const [notice, setNotice] = React.useState<string | null>(null)
   const [failure, setFailure] = React.useState<string | null>(null)
   const [placing, setPlacing] = React.useState(false)
@@ -119,6 +101,13 @@ export function ShopCheckout({ siteSlug, cartHref, shopHref }: { siteSlug: strin
     () => ({ governorate: address.region ?? '', district: address.city, area: address.line1.trim(), landmark: address.line2?.trim() || null, note: note.trim() || null, gps }),
     [address, note, gps],
   )
+  // The quote follows the chosen methods once the buyer is past the address.
+  const priced = useCheckoutQuote(
+    api,
+    step !== 'address' && shippingId && paymentId ? { destination: destination(), shippingMethodId: shippingId, paymentMethodId: paymentId } : null,
+  )
+  const quote = priced.quote
+  const quoteLoading = priced.loading
 
   const validateAddress = (): AddressErrors => {
     const next: AddressErrors = {}
@@ -130,11 +119,15 @@ export function ShopCheckout({ siteSlug, cartHref, shopHref }: { siteSlug: strin
     return next
   }
 
+  // Only the newest options request counts (the buyer may go back and change the district).
+  const optionsTicket = React.useRef(0)
   const loadOptions = React.useCallback(async () => {
+    const ticket = ++optionsTicket.current
     setOptionsLoading(true)
     setFailure(null)
     const query = new URLSearchParams({ governorate: address.region ?? '', district: address.city })
     const res = await call<Options>(`${api}/checkout/options?${query}`)
+    if (ticket !== optionsTicket.current) return null
     setOptionsLoading(false)
     if (!res.ok || !res.body) {
       setFailure(res.body?.error ?? t('storefront.shop.errors.failed', 'Something went wrong. Try again.'))
@@ -145,24 +138,6 @@ export function ShopCheckout({ siteSlug, cartHref, shopHref }: { siteSlug: strin
     setPaymentId((current) => (res.body!.paymentMethods.some((method) => method.id === current) ? current : (res.body!.paymentMethods[0]?.id ?? null)))
     return res.body
   }, [api, address.region, address.city, t])
-
-  const loadQuote = React.useCallback(async () => {
-    if (!shippingId || !paymentId) return
-    setQuoteLoading(true)
-    setFailure(null)
-    const res = await call<CheckoutQuote>(`${api}/checkout/quote`, {
-      method: 'POST',
-      body: JSON.stringify({ destination: destination(), shippingMethodId: shippingId, paymentMethodId: paymentId }),
-    })
-    setQuoteLoading(false)
-    if (res.ok && res.body) setQuote(res.body)
-    else setFailure(res.body?.error ?? t('storefront.shop.errors.failed', 'Something went wrong. Try again.'))
-  }, [api, destination, shippingId, paymentId, t])
-
-  // The quote follows the chosen methods once the buyer is past the address.
-  React.useEffect(() => {
-    if (step !== 'address') void loadQuote()
-  }, [step, shippingId, paymentId, loadQuote])
 
   const toDelivery = async () => {
     const found = validateAddress()
@@ -214,7 +189,7 @@ export function ShopCheckout({ siteSlug, cartHref, shopHref }: { siteSlug: strin
     }
     setPlacing(false)
     if (res.status === 409 && res.body?.quote) {
-      setQuote(res.body.quote)
+      priced.replace(res.body.quote)
       setNotice(t('storefront.shop.checkout.changed', 'Something in your order changed since you reviewed it. Check the new total and confirm again.'))
       void reload()
       return
@@ -262,16 +237,6 @@ export function ShopCheckout({ siteSlug, cartHref, shopHref }: { siteSlug: strin
   }
   const blockedLines = cart.lines.filter((line) => line.issues.length)
 
-  const shippingOptions: DeliveryOption[] = (options?.shippingMethods ?? []).map((method) => ({
-    id: method.id,
-    label: method.name,
-    price: method.amount ?? 0,
-    priceLabel: method.formatted ?? undefined,
-    minDays: method.transitDays ?? undefined,
-    maxDays: method.transitDays ?? undefined,
-    businessDaysOnly: false,
-    description: method.description ?? undefined,
-  }))
   const paymentMethods: PaymentMethod[] = (options?.paymentMethods ?? []).map((method) => ({
     id: method.id,
     label: method.name,
@@ -374,7 +339,7 @@ export function ShopCheckout({ siteSlug, cartHref, shopHref }: { siteSlug: strin
                   <AlertDescription>{t('storefront.shop.checkout.notServed', 'Delivery is not available in this area yet.')}</AlertDescription>
                 </Alert>
               ) : (
-                <DeliveryOptions options={shippingOptions} value={shippingId} onValueChange={setShippingId} loading={optionsLoading} legend={steps[1]!.label} hideLegend />
+                <CheckoutDeliveryOptions methods={options?.shippingMethods ?? []} value={shippingId} onValueChange={setShippingId} loading={optionsLoading} legend={steps[1]!.label} />
               )}
               <div className="flex flex-wrap gap-3">
                 <Button type="button" size="lg" onClick={() => setStep('payment')} disabled={!shippingId}>
@@ -427,9 +392,16 @@ export function ShopCheckout({ siteSlug, cartHref, shopHref }: { siteSlug: strin
             </section>
           ) : null}
 
-          {failure ? (
+          {failure || (step !== 'address' && priced.error) ? (
             <Alert variant="destructive" aria-live="polite">
-              <AlertDescription>{failure}</AlertDescription>
+              <AlertDescription className="flex flex-col items-start gap-3">
+                {failure ?? priced.error}
+                {!failure && priced.error ? (
+                  <Button type="button" variant="outline" size="sm" onClick={() => void priced.reload()}>
+                    {t('storefront.shop.cart.retry', 'Try again')}
+                  </Button>
+                ) : null}
+              </AlertDescription>
             </Alert>
           ) : null}
         </div>
@@ -440,100 +412,4 @@ export function ShopCheckout({ siteSlug, cartHref, shopHref }: { siteSlug: strin
     </div>
   )
 
-}
-
-/** What the buyer is about to confirm: contact, address, delivery and payment. */
-function ReviewDetails(props: { address: Address; note: string; gps: { latitude: number; longitude: number } | null; shipping: string | null; payment: string | null }) {
-  const t = useT()
-  const governorate = GOVERNORATES.find((row) => row.code === props.address.region)
-  const district = governorate?.districts.find((row) => row.code === props.address.city)
-  return (
-    <dl className="grid gap-4 border p-4 text-sm sm:grid-cols-2">
-      <div>
-        <dt className="text-muted-foreground">{t('storefront.shop.checkout.review.contact', 'Contact')}</dt>
-        <dd>{props.address.givenName}</dd>
-        <dd dir="ltr" className="text-end tabular-nums sm:text-start">
-          {normalizeYemeniMobile(props.address.phone ?? '', toLatinDigits)}
-        </dd>
-      </div>
-      <div>
-        <dt className="text-muted-foreground">{t('storefront.shop.checkout.review.address', 'Deliver to')}</dt>
-        <dd>{[district?.name, governorate?.name].filter(Boolean).join('، ')}</dd>
-        <dd>{props.address.line1}</dd>
-        {props.address.line2 ? <dd>{props.address.line2}</dd> : null}
-        {props.note ? <dd className="text-muted-foreground">{props.note}</dd> : null}
-        {props.gps ? <dd className="text-muted-foreground">{t('storefront.shop.checkout.gps.saved', 'Location added to help the courier find you.')}</dd> : null}
-      </div>
-      <div>
-        <dt className="text-muted-foreground">{t('storefront.shop.checkout.steps.delivery', 'Delivery')}</dt>
-        <dd>{props.shipping}</dd>
-      </div>
-      <div>
-        <dt className="text-muted-foreground">{t('ecomcn.payment.legend', 'Payment')}</dt>
-        <dd>{props.payment}</dd>
-      </div>
-    </dl>
-  )
-}
-
-/** Lines and totals of the server's quote; before a quote, the cart's lines and subtotal. */
-function OrderSummary({ quote, loading, cartHref }: { quote: CheckoutQuote | null; loading: boolean; cartHref: string }) {
-  const t = useT()
-  const { cart } = useShopCart()
-  const lines = quote?.lines ?? cart.lines
-  const rows: Array<{ label: string; value: string }> = []
-  if (quote) {
-    rows.push({ label: t('ecomcn.confirmation.subtotal', 'Subtotal'), value: quote.subtotal.formatted })
-    rows.push({ label: t('ecomcn.confirmation.shipping', 'Shipping'), value: quote.shipping.formatted })
-    if (quote.fees.amount) rows.push({ label: t('ecomcn.confirmation.fees', 'Fees'), value: quote.fees.formatted })
-    if (quote.discount.amount) rows.push({ label: t('ecomcn.confirmation.discount', 'Discount'), value: `−${quote.discount.formatted}` })
-    if (quote.tax.amount) rows.push({ label: t('ecomcn.confirmation.tax', 'Tax'), value: quote.tax.formatted })
-  }
-  return (
-    <div className="flex flex-col gap-4" aria-busy={loading || undefined}>
-      <ul className="flex flex-col gap-3" role="list">
-        {lines.map((line) => (
-          <li key={line.id} className="flex gap-3 text-sm">
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="font-medium">{line.title ?? t('storefront.shop.cart.goneProduct', 'A product that is no longer sold')}</span>
-              {line.variantLabel ? <span className="text-muted-foreground">{line.variantLabel}</span> : null}
-              {line.personalization.filter((field) => field.value).map((field) => (
-                <span key={field.code} className="text-muted-foreground">
-                  {field.label}: {field.value}
-                </span>
-              ))}
-              <span className="text-muted-foreground tabular-nums">× {formatShopNumber(line.quantity)}</span>
-            </span>
-            <span className="tabular-nums">{line.lineTotal?.formatted ?? '—'}</span>
-          </li>
-        ))}
-      </ul>
-      <Separator />
-      {quote ? (
-        <dl className="flex flex-col gap-2 text-sm">
-          {rows.map((row) => (
-            <div key={row.label} className="flex justify-between gap-4">
-              <dt className="text-muted-foreground">{row.label}</dt>
-              <dd className="tabular-nums">{row.value}</dd>
-            </div>
-          ))}
-          <div className="mt-1 flex items-baseline justify-between gap-4 border-t pt-3 font-medium">
-            <dt>{t('storefront.shop.checkout.total', 'Total')}</dt>
-            <dd className="text-lg tabular-nums">{quote.grandTotal.formatted}</dd>
-          </div>
-        </dl>
-      ) : (
-        <div className="flex flex-col gap-1 text-sm">
-          <div className="flex justify-between gap-4">
-            <span className="text-muted-foreground">{t('ecomcn.confirmation.subtotal', 'Subtotal')}</span>
-            <span className="tabular-nums">{cart.subtotal?.formatted ?? '—'}</span>
-          </div>
-          <p className="text-muted-foreground">{t('storefront.shop.cart.note', 'Delivery is priced at checkout for your address.')}</p>
-        </div>
-      )}
-      <a href={cartHref} className="text-sm underline underline-offset-4">
-        {t('storefront.shop.checkout.editCart', 'Edit your cart')}
-      </a>
-    </div>
-  )
 }

@@ -9,7 +9,7 @@ import { ShopCheckout } from '../components/shop/ShopCheckout'
 import { ShopOrderView } from '../components/shop/ShopOrderView'
 import { buildStorefrontMetadata } from './publicMetadata'
 import { safeDecode, storeFrame } from './publicCatalogPages'
-import { findOrderAccess, loadOrderView, orderCookieName } from './shopOrders'
+import { loadOrderView, orderCookieName, resolveOrderAccess } from './shopOrders'
 
 /**
  * Checkout (`/{siteSlug}/checkout`) and order tracking
@@ -62,18 +62,19 @@ const loadOrderPage = cache(async (rawSiteSlug: string, rawNumber: string, linkT
   if (orderNumber === null) return null
   const site = { id: store.site.id, slug: store.site.slug, tenantId: store.site.tenantId, organizationId: store.site.organizationId }
   const cookieToken = (await cookies()).get(orderCookieName(site.id, orderNumber))?.value ?? null
-  const linkAccess = await findOrderAccess(em, site, orderNumber, linkToken)
-  const access = linkAccess ?? (await findOrderAccess(em, site, orderNumber, cookieToken))
-  const order = access ? await loadOrderView(em, site, access) : null
-  if (!order) return null
+  const opened = await resolveOrderAccess(em, site, orderNumber, { link: linkToken, cookie: cookieToken })
+  const order = opened ? await loadOrderView(em, site, opened.access) : null
+  if (!opened || !order) return null
   const title = store.translate('storefront.shop.order.title', 'Order {number}', { number: order.orderNumber })
   // The permalink carries the token that opened the order (a stale link token falls back to the cookie's).
-  const token = linkAccess ? linkToken : cookieToken
+  const token = opened.token
   return {
     ...store.frame,
     title,
     order,
     permalink: token ? `/${site.slug}/orders/${encodeURIComponent(order.orderNumber)}?k=${token}` : null,
+    // The proof form posts with the same token that opened the page.
+    proofAction: `/api/storefront/shop/${encodeURIComponent(site.slug)}/orders/${encodeURIComponent(order.orderNumber)}/proof?k=${token}`,
     head: store.head(`${title} · ${store.site.name}`, null, `/orders/${encodeURIComponent(order.orderNumber)}`),
   }
 })
@@ -94,7 +95,7 @@ export async function renderOrderPage(siteSlug: string, orderNumber: string, sea
     <StorefrontFrame {...view}>
       <section className="sf-section">
         <div className="sf-container">
-          <ShopOrderView order={view.order} permalink={view.permalink} justPlaced={first(search?.placed) === '1'} shopHref={view.basePath || '/'} />
+          <ShopOrderView order={view.order} permalink={view.permalink} proofAction={view.proofAction} justPlaced={first(search?.placed) === '1'} shopHref={view.basePath || '/'} />
         </div>
       </section>
     </StorefrontFrame>

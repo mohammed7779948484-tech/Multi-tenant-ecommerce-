@@ -31,16 +31,25 @@ function moduleConfigOf(container: AwilixContainer): AvailabilityModuleConfigRea
   }
 }
 
+/** Raised by a `strict` lookup that got no answer for every item it asked about. */
+export class StockCheckFailedError extends Error {
+  constructor(cause?: unknown) {
+    super('[internal] Live stock could not be checked', cause === undefined ? undefined : { cause })
+  }
+}
+
 /**
  * Availability per item, keyed by `stockKey`. A provider failure returns an
  * empty map: browsing never fails on stock, and callers treat a missing entry
- * as "not known" (placement re-checks live).
+ * as "not known". `strict` (order placement) throws `StockCheckFailedError`
+ * instead, on a failure or on any item left unanswered, so an order is never
+ * placed on stock nobody checked.
  */
 export async function resolveShopAvailability(
   container: AwilixContainer,
   scope: ShopScope,
   items: StockQueryItem[],
-  options: { bypassCache?: boolean } = {},
+  options: { bypassCache?: boolean; strict?: boolean } = {},
 ): Promise<Map<string, AvailabilityItemResult>> {
   const result = new Map<string, AvailabilityItemResult>()
   if (!items.length) return result
@@ -57,7 +66,15 @@ export async function resolveShopAvailability(
     )
     for (const [key, value] of Object.entries(answer.byItem)) result.set(key, value)
   } catch (err) {
+    if (options.strict) {
+      logger.warn('Live stock check failed', { err, ...scope })
+      throw new StockCheckFailedError(err)
+    }
     logger.warn('Storefront availability lookup failed; showing products without stock state', { err, ...scope })
+  }
+  if (options.strict && items.some((item) => !result.has(stockKey(item.productId, item.variantId)))) {
+    logger.warn('Live stock check left items unanswered', { ...scope })
+    throw new StockCheckFailedError()
   }
   return result
 }

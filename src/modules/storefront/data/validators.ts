@@ -153,5 +153,15 @@ export const checkoutPlaceSchema = checkoutQuoteSchema
   })
   .strict()
 
+const proofKey = (key: string) => `storefront.shop.proof.errors.${key}`
+
+/** The text fields of a transfer proof (multipart; the receipt file is checked by the route). */
+export const proofFieldsSchema = z
+  .object({
+    reference: z.string().trim().min(1, proofKey('reference')).max(100, proofKey('tooLong')),
+    senderName: z.string().trim().max(120, proofKey('tooLong')).optional().transform((value) => value || null),
+  })
+  .strict()
+
 export type CheckoutQuoteInput = z.infer<typeof checkoutQuoteSchema>
 export type CheckoutPlaceInput = z.infer<typeof checkoutPlaceSchema>

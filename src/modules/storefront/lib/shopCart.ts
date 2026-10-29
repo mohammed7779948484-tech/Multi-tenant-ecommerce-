@@ -10,6 +10,7 @@ import { storefrontMediaPath } from './mediaUrls'
 import { stablePersonalization, validatePersonalization, type PersonalizationError } from './productOptions'
 import { isUuid } from './publicCatalog'
 import { formatShopPrice } from './shopFormat'
+import { resolveShopAvailability, StockCheckFailedError, stockKey } from './shopAvailability'
 import { loadPurchaseModel, type PurchaseModel, type PurchaseStock } from './shopProduct'
 
 /**
@@ -93,14 +94,31 @@ const PERSONALIZATION_ERROR: Record<PersonalizationError, string> = {
 
 type Purchasable = { product: CatalogProduct; variantId: string | null; personalization: Record<string, string>; price: ShopPrice; stock: PurchaseStock | null }
 
-/** The product, variant and personalization the buyer asked for, re-validated against the live catalog. */
-async function resolvePurchasable(deps: Deps, site: CartSite, input: { productId: string; variantId?: string | null; personalization?: unknown }, quantity: number): Promise<Purchasable> {
+type PurchaseInput = { productId: string; variantId?: string | null; personalization?: unknown }
+
+/**
+ * The product, variant and personalization the buyer asked for, re-validated
+ * against the live catalog. The price is the price of a line of `quantity`
+ * units (quantity tiers), and stock is asked for `skuQuantity` units: the
+ * line's quantity plus the same product and variant on the cart's other lines.
+ */
+async function resolvePurchasable(deps: Deps, site: CartSite, input: PurchaseInput, quantity: number, skuQuantity = quantity): Promise<Purchasable> {
+  const { product, variantId, personalization, price, stock, quoteOnly } = await identifyPurchase(deps, site, input, quantity, skuQuantity)
+  if (quoteOnly || !price) throw new ShopError(422, 'noPrice')
+  if (stock && (!stock.canFulfil || exceedsStock(stock, skuQuantity))) throw new ShopError(422, 'unavailable')
+  return { product, variantId, personalization, price, stock }
+}
+
+type Identified = Omit<Purchasable, 'price'> & { price: ShopPrice | null; quoteOnly: boolean }
+
+/** The product, variant and validated personalization asked for, with price and stock for that quantity, not yet judged. */
+async function identifyPurchase(deps: Deps, site: CartSite, input: PurchaseInput, quantity: number, skuQuantity = quantity): Promise<Identified> {
   const scope = scopeOf(site)
   const [product] = isUuid(input.productId)
     ? await findWithDecryption(deps.em, CatalogProduct, { id: input.productId, ...scope, deletedAt: null, isActive: true }, undefined, scope)
     : []
   if (!product) throw new ShopError(404, 'productNotFound')
-  const model = await loadPurchaseModel(deps, scope, product)
+  const model = await loadPurchaseModel(deps, scope, product, { quantity, stockQuantity: skuQuantity })
   let variantId: string | null
   let price: ShopPrice | null
   let stock: PurchaseStock | null
@@ -118,9 +136,22 @@ async function resolvePurchasable(deps: Deps, site: CartSite, input: { productId
     const fieldErrors = Object.fromEntries(Object.entries(personalization.errors).map(([code, error]) => [`personalization.${code}`, PERSONALIZATION_ERROR[error]]))
     throw new ShopError(422, 'personalizationInvalid', fieldErrors)
   }
-  if (model.quoteOnly || !price) throw new ShopError(422, 'noPrice')
-  if (stock && (!stock.canFulfil || exceedsStock(stock, quantity))) throw new ShopError(422, 'unavailable')
-  return { product, variantId, personalization: personalization.value, price, stock }
+  return { product, variantId, personalization: personalization.value, price, stock, quoteOnly: model.quoteOnly }
+}
+
+/** A purchase already priced at the right quantity: refused without a price or the stock for it. */
+function judged(identified: Identified, skuQuantity: number): Purchasable {
+  const { quoteOnly, price, ...rest } = identified
+  if (quoteOnly || !price) throw new ShopError(422, 'noPrice')
+  if (rest.stock && (!rest.stock.canFulfil || exceedsStock(rest.stock, skuQuantity))) throw new ShopError(422, 'unavailable')
+  return { ...rest, price }
+}
+
+/** Units of one product and variant on the cart's other lines (differently personalized lines share stock). */
+function sameSkuQuantity(lines: StorefrontCartLine[], productId: string, variantId: string | null, except: string[]): number {
+  return lines
+    .filter((line) => line.productId === productId && (line.variantId ?? null) === variantId && !except.includes(line.id))
+    .reduce((sum, line) => sum + line.quantity, 0)
 }
 
 /** True when stock is tracked and `quantity` units are more than it has. */
@@ -149,29 +180,35 @@ export async function addCartLine(
   tokenHash: string,
   input: { productId: string; variantId?: string | null; quantity: number; personalization?: unknown },
 ): Promise<{ cartId: string; created: boolean }> {
-  const purchasable = await resolvePurchasable(deps, site, input, input.quantity)
+  // Refuses an unknown product, a bad variant or personalization before the cart is locked; price and
+  // stock are judged under the lock, for the quantity the line will hold (an add may merge into a line).
+  const identified = await identifyPurchase(deps, site, input, input.quantity)
   try {
-    return await writeLine(deps.em, site, tokenHash, input.quantity, purchasable)
+    return await writeLine(deps, deps.em, site, tokenHash, input, identified)
   } catch (err) {
     // A simultaneous add of the same line (double tap) inserted it first: once more merges into it.
     if (!(err instanceof UniqueConstraintViolationException)) throw err
-    return writeLine(deps.em.fork(), site, tokenHash, input.quantity, purchasable)
+    return writeLine(deps, deps.em.fork(), site, tokenHash, input, identified)
   }
 }
 
-async function writeLine(rootEm: EntityManager, site: CartSite, tokenHash: string, addQuantity: number, purchasable: Purchasable) {
+async function writeLine(deps: Deps, rootEm: EntityManager, site: CartSite, tokenHash: string, input: PurchaseInput & { quantity: number }, identified: Identified) {
   return rootEm.transactional(async (em) => {
+    const addQuantity = input.quantity
     const now = new Date()
     let cart = await findActiveCart(em, site, tokenHash, now, { lock: true })
     refuseWhilePlacing(cart)
     const created = !cart
     const lines = cart ? await findWithDecryption(em, StorefrontCartLine, { cartId: cart.id, ...scopeOf(site) }, undefined, scopeOf(site)) : []
-    if (cart?.currencyCode && lines.length && cart.currencyCode !== purchasable.price.currencyCode) throw new ShopError(422, 'currencyMismatch')
-    const lineKey = lineKeyOf(purchasable.product.id, purchasable.variantId, purchasable.personalization)
+    const lineKey = lineKeyOf(identified.product.id, identified.variantId, identified.personalization)
     const existing = lines.find((line) => line.lineKey === lineKey)
     const quantity = (existing?.quantity ?? 0) + addQuantity
     if (quantity > MAX_LINE_QUANTITY) throw new ShopError(422, 'quantityLimit')
-    if (exceedsStock(purchasable.stock, quantity)) throw new ShopError(422, 'unavailable')
+    const skuQuantity = quantity + sameSkuQuantity(lines, identified.product.id, identified.variantId, existing ? [existing.id] : [])
+    // Priced and checked as the line will end up: merged into an existing line, sharing stock with the item's other lines.
+    const purchasable =
+      skuQuantity === addQuantity ? judged(identified, skuQuantity) : await resolvePurchasable({ ...deps, em }, site, input, quantity, skuQuantity)
+    if (cart?.currencyCode && lines.length && cart.currencyCode !== purchasable.price.currencyCode) throw new ShopError(422, 'currencyMismatch')
     if (!existing && lines.length >= MAX_CART_LINES) throw new ShopError(422, 'lineLimit')
     if (!cart) {
       await purgeExpiredCarts(em, site, now)
@@ -219,17 +256,16 @@ export async function updateCartLine(deps: Deps, site: CartSite, tokenHash: stri
     const now = new Date()
     const { cart, line } = await lineOf(em, site, tokenHash, lineId, now)
     const quantity = input.quantity ?? line.quantity
-    const purchasable = await resolvePurchasable(
-      { ...deps, em },
-      site,
-      { productId: line.productId, variantId: line.variantId, personalization: input.personalization ?? line.personalization },
-      quantity,
-    )
-    const lineKey = lineKeyOf(line.productId, line.variantId ?? null, purchasable.personalization)
-    const twin = lineKey === line.lineKey ? null : await findOneWithDecryption(em, StorefrontCartLine, { cartId: cart.id, lineKey, ...scopeOf(site) }, undefined, scopeOf(site))
+    const target: PurchaseInput = { productId: line.productId, variantId: line.variantId, personalization: input.personalization ?? line.personalization }
+    const identified = await identifyPurchase({ ...deps, em }, site, target, quantity)
+    const lineKey = lineKeyOf(line.productId, line.variantId ?? null, identified.personalization)
+    const lines = await findWithDecryption(em, StorefrontCartLine, { cartId: cart.id, ...scopeOf(site) }, undefined, scopeOf(site))
+    const twin = lineKey === line.lineKey ? null : (lines.find((row) => row.lineKey === lineKey) ?? null)
     const merged = quantity + (twin?.quantity ?? 0)
     if (merged > MAX_LINE_QUANTITY) throw new ShopError(422, 'quantityLimit')
-    if (exceedsStock(purchasable.stock, merged)) throw new ShopError(422, 'unavailable')
+    const skuQuantity = merged + sameSkuQuantity(lines, line.productId, line.variantId ?? null, twin ? [line.id, twin.id] : [line.id])
+    // Priced and checked as the line will end up: merged with its twin, sharing stock with other lines of the same item.
+    const purchasable = skuQuantity === quantity ? judged(identified, skuQuantity) : await resolvePurchasable({ ...deps, em }, site, target, merged, skuQuantity)
     if (twin) {
       twin.quantity = merged
       twin.updatedAt = now
@@ -259,7 +295,8 @@ export async function removeCartLine(deps: Deps, site: CartSite, tokenHash: stri
   })
 }
 
-export type CartLineIssue = 'unavailable' | 'noPrice' | 'outOfStock' | 'currency'
+/** `personalization`: the line's details no longer satisfy the product's current fields (a new required field, a shorter limit). */
+export type CartLineIssue = 'unavailable' | 'noPrice' | 'outOfStock' | 'currency' | 'personalization'
 
 export type CartLineView = {
   id: string
@@ -289,6 +326,17 @@ export type CartView = {
   updatedAt: string | null
 }
 
+/**
+ * The line's stored personalization against the product's fields as they are
+ * now. Values of a field the merchant removed are left out (they never reach
+ * the order); a new required field, a shorter limit or a non-number fails.
+ */
+function personalizationStillValid(model: PurchaseModel, stored: Record<string, string> | null | undefined): boolean {
+  const known = new Set(model.fields.map((field) => field.code))
+  const current = Object.fromEntries(Object.entries(stored ?? {}).filter(([code]) => known.has(code)))
+  return validatePersonalization(model.fields, current).ok
+}
+
 export const EMPTY_CART: CartView = { lines: [], subtotal: null, currencyCode: null, count: 0, updatedAt: null }
 
 function money(amount: number, currencyCode: string): ShopPrice | null {
@@ -298,9 +346,20 @@ function money(amount: number, currencyCode: string): ShopPrice | null {
 
 /**
  * The cart as the buyer sees it now: live prices, stock and labels; problems
- * per line instead of failures. `bypassCache` asks for live stock (placement).
+ * per line instead of failures. Lines of one product and variant share its
+ * stock, whatever their personalization. `bypassCache` asks for live stock;
+ * `strictStock` (placement) answers 503 when stock cannot be checked.
  */
-export async function buildCartView(deps: Deps, site: CartSite, cart: StorefrontCart | null, options: { bypassCache?: boolean } = {}): Promise<CartView> {
+export async function buildCartView(deps: Deps, site: CartSite, cart: StorefrontCart | null, options: { bypassCache?: boolean; strictStock?: boolean } = {}): Promise<CartView> {
+  try {
+    return await readCartView(deps, site, cart, options)
+  } catch (err) {
+    if (err instanceof StockCheckFailedError) throw new ShopError(503, 'stockCheckFailed')
+    throw err
+  }
+}
+
+async function readCartView(deps: Deps, site: CartSite, cart: StorefrontCart | null, options: { bypassCache?: boolean; strictStock?: boolean }): Promise<CartView> {
   if (!cart) return EMPTY_CART
   const scope = scopeOf(site)
   const lines = await findWithDecryption(deps.em, StorefrontCartLine, { cartId: cart.id, ...scope }, { orderBy: { createdAt: 'asc' } }, scope)
@@ -315,11 +374,26 @@ export async function buildCartView(deps: Deps, site: CartSite, cart: Storefront
   const models = new Map<string, PurchaseModel>(
     await Promise.all(
       wanted.map(async (line) => {
-        const model = await loadPurchaseModel({ ...deps, em: deps.em.fork() }, scope, products.get(line.productId)!, { quantity: line.quantity, bypassCache: options.bypassCache })
+        const model = await loadPurchaseModel({ ...deps, em: deps.em.fork() }, scope, products.get(line.productId)!, {
+          quantity: line.quantity,
+          bypassCache: options.bypassCache,
+          strictStock: options.strictStock,
+        })
         return [modelKey(line.productId, line.quantity), model] as const
       }),
     ),
   )
+  // Differently personalized lines of one product and variant draw on the same stock: asked once for their total.
+  const skuTotals = new Map<string, { productId: string; variantId: string | null; quantity: number; lines: number }>()
+  for (const line of lines) {
+    const key = stockKey(line.productId, line.variantId ?? null)
+    const entry = skuTotals.get(key) ?? { productId: line.productId, variantId: line.variantId ?? null, quantity: 0, lines: 0 }
+    entry.quantity += line.quantity
+    entry.lines += 1
+    skuTotals.set(key, entry)
+  }
+  const shared = [...skuTotals.values()].filter((entry) => entry.lines > 1 && products.get(entry.productId)?.isActive)
+  const sharedStock = await resolveShopAvailability(deps.container, scope, shared, { bypassCache: options.bypassCache, strict: options.strictStock })
   const images = await productImages(deps.em, scope, [...products.values()])
   const links = storeCatalogLinks(`/${site.slug}`)
 
@@ -334,8 +408,13 @@ export async function buildCartView(deps: Deps, site: CartSite, cart: Storefront
     if (!model || !target) issues.push('unavailable')
     const price = target?.price ?? null
     if (target && !price) issues.push('noPrice')
-    if (target?.stock && (!target.stock.canFulfil || (target.stock.available !== null && line.quantity > target.stock.available))) issues.push('outOfStock')
+    const sku = stockKey(line.productId, line.variantId ?? null)
+    const skuQuantity = skuTotals.get(sku)?.quantity ?? line.quantity
+    const together = sharedStock.get(sku)
+    const stock = target?.stock ? (together ? { canFulfil: together.canFulfil, available: together.availableQuantity } : target.stock) : null
+    if (stock && (!stock.canFulfil || (stock.available !== null && skuQuantity > stock.available))) issues.push('outOfStock')
     if (price && cart.currencyCode && price.currencyCode !== cart.currencyCode) issues.push('currency')
+    if (model && target && !personalizationStillValid(model, line.personalization)) issues.push('personalization')
     const lineTotal = price ? money(price.amount * line.quantity, price.currencyCode) : null
     if (!issues.length && lineTotal) subtotal += lineTotal.amount
     count += line.quantity
@@ -353,7 +432,8 @@ export async function buildCartView(deps: Deps, site: CartSite, cart: Storefront
       quantity: line.quantity,
       unitPrice: price,
       lineTotal,
-      maxQuantity: Math.max(1, Math.min(MAX_LINE_QUANTITY, target?.stock?.available ?? MAX_LINE_QUANTITY)),
+      // What stock leaves for this line once the item's other lines are counted.
+      maxQuantity: Math.max(1, Math.min(MAX_LINE_QUANTITY, stock?.available != null ? stock.available - (skuQuantity - line.quantity) : MAX_LINE_QUANTITY)),
       issues,
     }
   })
